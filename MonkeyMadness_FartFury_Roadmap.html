@@ -1,0 +1,537 @@
+<title>Monkey Madness: Fart Fury — Gameplay Roadmap</title>
+<style>
+  :root{
+    --bg:#0b0a1c; --bg2:#08160d;
+    --panel:rgba(14,20,30,.66); --panel-solid:#12161f;
+    --ink:#f4f8ee; --muted:#9db299; --faint:#6e8168;
+    --gold:#ffd70a; --banana:#ffe234; --peel:#e7b400;
+    --fart:#93e552; --fart-deep:#57b52c; --fart-glow:rgba(147,229,82,.35);
+    --danger:#ff5a5a; --sky1:#170a33; --sky2:#0a2e14;
+    --line:rgba(147,229,82,.16); --line-strong:rgba(147,229,82,.34);
+    --card:rgba(255,255,255,.03);
+    --shadow:0 18px 50px -22px rgba(0,0,0,.75);
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Rounded","Segoe UI",system-ui,sans-serif;
+    --maxw:920px;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f7f8ef; --bg2:#eef3e4;
+      --panel:#ffffff; --panel-solid:#ffffff;
+      --ink:#152009; --muted:#4d6440; --faint:#7d8f70;
+      --fart-deep:#3f8f1c; --fart-glow:rgba(87,181,44,.18);
+      --line:rgba(30,60,20,.12); --line-strong:rgba(30,60,20,.22);
+      --card:rgba(20,40,10,.03);
+      --shadow:0 18px 44px -24px rgba(30,50,10,.4);
+      --panel:rgba(255,255,255,.86);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0b0a1c; --bg2:#08160d; --panel:rgba(14,20,30,.66); --panel-solid:#12161f;
+    --ink:#f4f8ee; --muted:#9db299; --faint:#6e8168; --fart-deep:#57b52c;
+    --line:rgba(147,229,82,.16); --line-strong:rgba(147,229,82,.34);
+    --card:rgba(255,255,255,.03); --shadow:0 18px 50px -22px rgba(0,0,0,.75);
+  }
+  :root[data-theme="light"]{
+    --bg:#f7f8ef; --bg2:#eef3e4; --panel:rgba(255,255,255,.86); --panel-solid:#fff;
+    --ink:#152009; --muted:#4d6440; --faint:#7d8f70; --fart-deep:#3f8f1c;
+    --line:rgba(30,60,20,.12); --line-strong:rgba(30,60,20,.22);
+    --card:rgba(20,40,10,.03); --shadow:0 18px 44px -24px rgba(30,50,10,.4);
+    --fart-glow:rgba(87,181,44,.18);
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0}
+  .wrap{
+    font-family:var(--sans); color:var(--ink);
+    background:
+      radial-gradient(1200px 700px at 80% -10%, var(--fart-glow), transparent 60%),
+      linear-gradient(180deg, var(--sky1) 0%, var(--bg) 42%, var(--bg2) 100%);
+    background-attachment:fixed;
+    min-height:100vh; line-height:1.6;
+    -webkit-font-smoothing:antialiased; padding-bottom:5rem;
+  }
+  @media (prefers-color-scheme: light){
+    .wrap{background:
+      radial-gradient(1100px 680px at 82% -12%, var(--fart-glow), transparent 62%),
+      linear-gradient(180deg, #eaf3e0 0%, var(--bg) 46%, var(--bg2) 100%);}
+  }
+  :root[data-theme="light"] .wrap{background:
+      radial-gradient(1100px 680px at 82% -12%, var(--fart-glow), transparent 62%),
+      linear-gradient(180deg,#eaf3e0 0%,var(--bg) 46%,var(--bg2) 100%);}
+
+  .shell{max-width:var(--maxw); margin:0 auto; padding:0 clamp(18px,5vw,40px)}
+
+  /* ---------- HERO ---------- */
+  .hero{position:relative; padding:clamp(3.5rem,9vw,6rem) 0 2.4rem; overflow:hidden}
+  .float{position:absolute; inset:0; pointer-events:none; z-index:0; overflow:hidden}
+  .float span{position:absolute; font-size:2rem; opacity:.5; animation:drift linear infinite}
+  .float span:nth-child(1){left:6%;  top:12%; animation-duration:19s; font-size:2.6rem}
+  .float span:nth-child(2){left:82%; top:20%; animation-duration:24s; font-size:1.7rem}
+  .float span:nth-child(3){left:66%; top:6%;  animation-duration:16s}
+  .float span:nth-child(4){left:24%; top:64%; animation-duration:27s; font-size:1.4rem}
+  .float span:nth-child(5){left:90%; top:60%; animation-duration:21s; font-size:2.2rem}
+  .float span:nth-child(6){left:44%; top:30%; animation-duration:30s; font-size:1.5rem; opacity:.35}
+  @keyframes drift{
+    0%{transform:translateY(10px) rotate(0deg)}
+    50%{transform:translateY(-18px) rotate(14deg)}
+    100%{transform:translateY(10px) rotate(0deg)}
+  }
+  .hero > *{position:relative; z-index:1}
+  .kicker{
+    display:inline-flex; align-items:center; gap:.5rem; font-size:.72rem; font-weight:700;
+    letter-spacing:.16em; text-transform:uppercase; color:var(--fart);
+    border:1px solid var(--line-strong); border-radius:999px; padding:.4rem .8rem;
+    background:var(--card);
+  }
+  h1{
+    font-size:clamp(2.6rem,8vw,4.6rem); line-height:.96; margin:1.1rem 0 .2rem;
+    font-weight:800; letter-spacing:-.02em; text-wrap:balance;
+  }
+  h1 .toot{color:var(--fart); text-shadow:0 0 34px var(--fart-glow)}
+  h1 .mad{color:var(--gold)}
+  .dek{font-size:clamp(1.05rem,2.4vw,1.3rem); color:var(--muted); max-width:60ch; margin:.5rem 0 0}
+  .dek b{color:var(--ink); font-weight:700}
+  .metaline{
+    display:flex; flex-wrap:wrap; gap:.5rem; margin-top:1.6rem;
+  }
+  .chip{
+    font-size:.78rem; font-weight:600; padding:.35rem .7rem; border-radius:8px;
+    background:var(--card); border:1px solid var(--line); color:var(--muted);
+  }
+  .chip b{color:var(--fart); font-weight:700}
+
+  /* ---------- SECTION SCAFFOLD ---------- */
+  section{padding:2.4rem 0; border-top:1px solid var(--line)}
+  .eyebrow{
+    display:flex; align-items:center; gap:.6rem; font-size:.72rem; font-weight:700;
+    letter-spacing:.15em; text-transform:uppercase; color:var(--fart-deep); margin:0 0 .3rem;
+  }
+  .eyebrow .n{font-variant-numeric:tabular-nums; color:var(--peel)}
+  h2{font-size:clamp(1.5rem,4vw,2.1rem); font-weight:800; letter-spacing:-.01em; margin:.1rem 0 .5rem; text-wrap:balance}
+  .lead{color:var(--muted); max-width:64ch; margin:0 0 1.3rem; font-size:1.02rem}
+  h3{font-size:1.06rem; font-weight:700; margin:0 0 .35rem}
+  p{margin:.5rem 0}
+
+  /* ---------- PILLARS ---------- */
+  .grid{display:grid; gap:1rem}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:720px){.g3,.g2{grid-template-columns:1fr}}
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:1.15rem 1.2rem; box-shadow:var(--shadow); backdrop-filter:blur(6px);
+  }
+  .card .ic{font-size:1.7rem; line-height:1; display:block; margin-bottom:.5rem}
+  .card p{color:var(--muted); font-size:.95rem; margin:.3rem 0 0}
+
+  /* ---------- FART ENGINE DIAGRAM ---------- */
+  .engine{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:.7rem; margin:.4rem 0 0;
+  }
+  @media(max-width:720px){.engine{grid-template-columns:1fr 1fr}}
+  .node{
+    text-align:center; background:var(--card); border:1px dashed var(--line-strong);
+    border-radius:14px; padding:1rem .6rem;
+  }
+  .node .big{font-size:2rem; display:block}
+  .node b{display:block; margin-top:.35rem; font-size:.9rem}
+  .node small{color:var(--faint); font-size:.76rem}
+
+  /* ---------- OPTION CARDS ---------- */
+  .opt{
+    position:relative; background:var(--panel); border:1px solid var(--line);
+    border-radius:18px; padding:1.3rem 1.3rem 1.15rem; box-shadow:var(--shadow);
+    backdrop-filter:blur(6px);
+  }
+  .opt.pick{border-color:var(--fart); box-shadow:0 0 0 1px var(--fart), var(--shadow)}
+  .opt .tag{
+    position:absolute; top:-11px; right:16px; font-size:.68rem; font-weight:800;
+    letter-spacing:.08em; text-transform:uppercase; color:#0b1207; background:var(--fart);
+    padding:.28rem .6rem; border-radius:999px;
+  }
+  .opt .letter{font-size:.72rem; font-weight:800; letter-spacing:.12em; color:var(--peel)}
+  .opt h3{font-size:1.22rem; margin:.15rem 0 .1rem}
+  .opt .verb{font-size:.82rem; color:var(--fart-deep); font-weight:700; text-transform:uppercase; letter-spacing:.06em}
+  .opt p{color:var(--muted); font-size:.94rem}
+  .pc{display:flex; gap:1rem; margin-top:.7rem; font-size:.86rem}
+  .pc div{flex:1}
+  .pc .k{font-weight:700; font-size:.72rem; text-transform:uppercase; letter-spacing:.08em}
+  .pc .pro .k{color:var(--fart)} .pc .con .k{color:var(--danger)}
+  .pc ul{margin:.25rem 0 0; padding-left:1.05rem; color:var(--muted)}
+  .pc li{margin:.15rem 0}
+
+  .callout{
+    margin-top:1.2rem; background:linear-gradient(100deg,var(--fart-glow),transparent);
+    border:1px solid var(--fart); border-radius:14px; padding:1rem 1.15rem;
+  }
+  .callout b{color:var(--fart-deep)}
+
+  /* ---------- TABLE ---------- */
+  .tablewrap{overflow-x:auto; border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow)}
+  table{border-collapse:collapse; width:100%; min-width:560px; font-size:.9rem; background:var(--panel)}
+  th,td{padding:.7rem .9rem; text-align:left; border-bottom:1px solid var(--line)}
+  thead th{background:var(--card); font-size:.72rem; text-transform:uppercase; letter-spacing:.07em; color:var(--fart-deep)}
+  tbody tr:last-child td{border-bottom:none}
+  td b{color:var(--ink)}
+  .yes{color:var(--fart)} .mid{color:var(--peel)}
+
+  /* ---------- LIST ROWS ---------- */
+  .rows{display:grid; gap:.6rem}
+  .row{
+    display:grid; grid-template-columns:auto 1fr; gap:.9rem; align-items:start;
+    background:var(--card); border:1px solid var(--line); border-radius:12px; padding:.8rem .95rem;
+  }
+  .row .emo{font-size:1.6rem; line-height:1.2}
+  .row b{font-size:.98rem}
+  .row p{margin:.15rem 0 0; color:var(--muted); font-size:.9rem}
+
+  /* ---------- ROSTER ---------- */
+  .roster{display:grid; grid-template-columns:repeat(3,1fr); gap:.7rem}
+  @media(max-width:720px){.roster{grid-template-columns:1fr 1fr}}
+  @media(max-width:440px){.roster{grid-template-columns:1fr}}
+  .mon{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:.9rem; text-align:center}
+  .mon .face{font-size:2.1rem}
+  .mon b{display:block; margin-top:.3rem; font-size:.9rem}
+  .mon small{color:var(--faint); font-size:.76rem}
+
+  /* ---------- TIMELINE ---------- */
+  .timeline{display:grid; gap:1rem; position:relative}
+  .phase{
+    background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--fart);
+    border-radius:0 14px 14px 0; padding:1rem 1.2rem; box-shadow:var(--shadow);
+  }
+  .phase:nth-child(1){border-left-color:var(--fart)}
+  .phase:nth-child(2){border-left-color:var(--banana)}
+  .phase:nth-child(3){border-left-color:var(--peel)}
+  .phase:nth-child(4){border-left-color:var(--danger)}
+  .phase .ph{display:flex; align-items:baseline; gap:.6rem; flex-wrap:wrap}
+  .phase .ph b{font-size:1.05rem}
+  .phase .when{font-size:.74rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--peel); font-variant-numeric:tabular-nums}
+  .phase .goal{font-size:.82rem; color:var(--fart-deep); font-weight:600}
+  .phase ul{margin:.5rem 0 0; padding-left:1.1rem; color:var(--muted); font-size:.92rem}
+  .phase li{margin:.2rem 0}
+
+  /* ---------- SAFETY / TECH ---------- */
+  .split{display:grid; grid-template-columns:1fr 1fr; gap:1rem}
+  @media(max-width:720px){.split{grid-template-columns:1fr}}
+  .note{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:1.1rem 1.2rem}
+  .note ul{margin:.4rem 0 0; padding-left:1.1rem; color:var(--muted); font-size:.93rem}
+  .note li{margin:.25rem 0}
+
+  footer{border-top:1px solid var(--line); margin-top:1rem; padding-top:1.5rem; color:var(--faint); font-size:.82rem}
+  footer a{color:var(--fart-deep)}
+  .src{font-size:.78rem; color:var(--faint); margin-top:.4rem}
+  .src a{color:var(--fart-deep)}
+
+  @media (prefers-reduced-motion: reduce){
+    .float span{animation:none}
+  }
+</style>
+
+<div class="wrap">
+<div class="shell">
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="float" aria-hidden="true">
+      <span>🍌</span><span>💨</span><span>🐒</span><span>🍌</span><span>💨</span><span>🍌</span>
+    </div>
+    <span class="kicker">💨 Gameplay Roadmap · Mateo's Arcade · v2.0</span>
+    <h1>Monkey Madness:<br><span class="toot">Fart</span> <span class="mad">Fury</span></h1>
+    <p class="dek">The original was a tidy little dodge game. This is the sequel that <b>weaponises the joke</b>: flatulent monkeys rocket bananas at you out of their butts, you fart to jump, dodge, and blast them back. Every action makes a <b>noise</b>, pulls a <b>face</b>, and leaves a <b>mess</b>. Built belly-laughs first, skill second.</p>
+    <div class="metaline">
+      <span class="chip">🎯 Audience <b>kids 4–8 + parents</b></span>
+      <span class="chip">📱 iOS <b>SpriteKit · iPhone/iPad</b></span>
+      <span class="chip">⏱ Runs <b>60–120s</b></span>
+      <span class="chip">🏆 Keeps the <b>"$10 in your bank!"</b> win</span>
+    </div>
+  </header>
+
+  <!-- NORTH STAR -->
+  <section>
+    <div class="eyebrow"><span class="n">01</span> The North Star</div>
+    <h2>Three pillars everything hangs off</h2>
+    <p class="lead">If a feature doesn't serve one of these, it doesn't ship. This is the filter for every "should we add…?" question later.</p>
+    <div class="grid g3">
+      <div class="card">
+        <span class="ic">🚀</span>
+        <h3>The fart is the engine</h3>
+        <p>Propulsion, weapon, comedy, and feedback all come from gas. If it moves, it farted to get there — monkeys, bananas, the player, the boss.</p>
+      </div>
+      <div class="card">
+        <span class="ic">🧃</span>
+        <h3>Maximum juice</h3>
+        <p>Squash &amp; stretch, screen shake, googly-eye wobble, stink clouds. Small toot → small pop; mega-fart → screen-wide chaos. Feedback always matches the weight of the action.</p>
+      </div>
+      <div class="card">
+        <span class="ic">🔁</span>
+        <h3>One-more-fart loop</h3>
+        <p>Short runs, instant restart, escalating absurdity, and light collectibles so a 6-year-old <em>and</em> a parent keep tapping "again".</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FART ENGINE -->
+  <section>
+    <div class="eyebrow"><span class="n">02</span> The Core Reframe</div>
+    <h2>From "dodge bananas" to "fart combat"</h2>
+    <p class="lead">Keep the proven spine — monkeys overhead, player on the ground, parabolic bananas, half-screen touch zones. Then turn every beat into a gag and give the player their own gas.</p>
+    <div class="engine">
+      <div class="node"><span class="big">🐒💨</span><b>Monkeys fart bananas</b><small>Each throw is a butt-rocket: "PBBBT", a trail, and recoil that shoves the monkey back.</small></div>
+      <div class="node"><span class="big">🧒💨</span><b>Player fart-jumps</b><small>Jump = a parp on takeoff + poof cloud on landing. Double-tap = double-toot.</small></div>
+      <div class="node"><span class="big">⬇️💥</span><b>Fart-slam to deflect</b><small>Fart downward to bounce bananas back and stun a monkey — the skill layer.</small></div>
+      <div class="node"><span class="big">🌫️😷</span><b>The mess matters</b><small>Lingering stink clouds slow you if you run through them. Risk vs. reward, comedy either way.</small></div>
+    </div>
+    <div class="callout">
+      <b>Why it works:</b> the original mechanic is intact, so it's still simple enough for a 4-year-old — but now there's a two-way verb (dodge <em>and</em> counter), which is what turns a one-note toy into something with a skill ceiling parents will fight over.
+    </div>
+  </section>
+
+  <!-- GAMEPLAY OPTIONS -->
+  <section>
+    <div class="eyebrow"><span class="n">03</span> Gameplay Directions</div>
+    <h2>Four ways this game could go</h2>
+    <p class="lead">These are distinct visions, not features to stack. Pick the spine first — you can graft the others on later as unlockable modes.</p>
+    <div class="grid g2">
+
+      <div class="opt">
+        <span class="letter">DIRECTION A</span>
+        <h3>The Great Dodge</h3>
+        <span class="verb">Verb: survive</span>
+        <p>Evolve the original, straight. Pure dodging across 10 juiced levels + boss, plus an endless mode. Lowest risk, closest to the brief, ships fastest.</p>
+        <div class="pc">
+          <div class="pro"><div class="k">Pros</div><ul><li>Fastest to build</li><li>Matches existing brief 1:1</li></ul></div>
+          <div class="con"><div class="k">Cons</div><ul><li>Least novel</li><li>Thin replay on its own</li></ul></div>
+        </div>
+      </div>
+
+      <div class="opt pick">
+        <span class="tag">◆ Recommended core</span>
+        <span class="letter">DIRECTION B</span>
+        <h3>Fart Back!</h3>
+        <span class="verb">Verb: dodge + counter</span>
+        <p>The player farts to deflect bananas and stun monkeys. Dodge to survive, counter to win faster. Fart duels with the boss. Same simplicity, far funnier, real skill ceiling.</p>
+        <div class="pc">
+          <div class="pro"><div class="k">Pros</div><ul><li>Huge comedy + replay</li><li>Still one-thumb simple</li></ul></div>
+          <div class="con"><div class="k">Cons</div><ul><li>More tuning of deflect timing</li></ul></div>
+        </div>
+      </div>
+
+      <div class="opt">
+        <span class="letter">DIRECTION C</span>
+        <h3>Fart Jetpack Climber</h3>
+        <span class="verb">Verb: ascend</span>
+        <p>Hold to fart and fly <em>up</em> through the jungle canopy, dodging monkey snipers on the branches. Doodle-Jump energy with a gas tank. Great as a second mode.</p>
+        <div class="pc">
+          <div class="pro"><div class="k">Pros</div><ul><li>Novel, addictive chase</li><li>Natural score-chasing</li></ul></div>
+          <div class="con"><div class="k">Cons</div><ul><li>New art + vertical camera</li></ul></div>
+        </div>
+      </div>
+
+      <div class="opt">
+        <span class="letter">DIRECTION D</span>
+        <h3>Monkey Mayhem Arena</h3>
+        <span class="verb">Verb: knock about</span>
+        <p>Ragdoll monkeys, fart-powered knockback, chaos sandbox with optional 2-player-on-one-iPad. "Gang Beasts for kids." The most shareable, the hardest to nail.</p>
+        <div class="pc">
+          <div class="pro"><div class="k">Pros</div><ul><li>Hilarious, viral clips</li><li>Couch co-op fun</li></ul></div>
+          <div class="con"><div class="k">Cons</div><ul><li>Physics tuning is deep</li><li>Biggest build</li></ul></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="callout">
+      <b>My recommendation:</b> Build <b>A's scope</b> as the MVP but design it as <b>B (Fart Back)</b> from day one — ship the dodge core, then layer the player-fart counter. Bank <b>C</b> and <b>D</b> as unlockable modes for later updates so you always have "new stuff" to bring kids back.
+    </div>
+  </section>
+
+  <!-- COMPARISON TABLE -->
+  <section>
+    <div class="eyebrow"><span class="n">04</span> At a Glance</div>
+    <h2>Directions, side by side</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Direction</th><th>Build cost</th><th>Funny-ness</th><th>Replay</th><th>Best as</th></tr></thead>
+        <tbody>
+          <tr><td><b>A · Great Dodge</b></td><td class="yes">Low</td><td class="mid">Medium</td><td class="mid">Medium</td><td>MVP foundation</td></tr>
+          <tr><td><b>B · Fart Back!</b></td><td class="mid">Medium</td><td class="yes">High</td><td class="yes">High</td><td>The core game</td></tr>
+          <tr><td><b>C · Jetpack Climber</b></td><td class="mid">Medium-High</td><td class="yes">High</td><td class="yes">Very high</td><td>Update 1 mode</td></tr>
+          <tr><td><b>D · Mayhem Arena</b></td><td class="danger">High</td><td class="yes">Very high</td><td class="yes">High</td><td>Update 2 / co-op</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- COMEDY TOOLKIT -->
+  <section>
+    <div class="eyebrow"><span class="n">05</span> The Comedy Toolkit</div>
+    <h2>How you actually make it laughable</h2>
+    <p class="lead">"Funny" isn't a feature you tick — it's the sum of dozens of tiny reactions. Sound does most of the heavy lifting; faces and mess do the rest.</p>
+    <div class="rows">
+      <div class="row"><span class="emo">🔊</span><div><b>Sound is 70% of the joke</b><p>A whole library of farts — squeaky, tuba, trumpet, machine-gun, the sad deflating-balloon on death. Randomise so it never repeats twice; pitch rises with banana speed. This single system carries the humour.</p></div></div>
+      <div class="row"><span class="emo">😣</span><div><b>Faces that telegraph and react</b><p>Monkeys <em>strain</em> (😣) before a fart, <em>relief</em> (😌) after. Player pulls a shocked 😮 on a near-miss. Googly eyes wobble on every impact — free personality on top of the emoji base.</p></div></div>
+      <div class="row"><span class="emo">🌫️</span><div><b>Stink clouds you can trip over</b><p>Green puff particles linger with wavy stink-lines and the odd fly 🪰. Run through one and you cough and slow — a funny risk baked into the level.</p></div></div>
+      <div class="row"><span class="emo">🌀</span><div><b>Ragdoll recoil</b><p>Monkeys spin and tumble from their own blasts; the boss gets rocketed backward. Newton's third law, but make it gross.</p></div></div>
+      <div class="row"><span class="emo">🌪️</span><div><b>"Fart Storm" random modifiers</b><p>Every ~20s a silly rule flips on: <em>Bean Burrito</em> (everyone double-farts), <em>Silent-But-Deadly</em> (invisible bananas, only a stink cloud warns you), <em>Baby Monkey</em> (tiny squeaks), <em>Slow-Mo Toot</em>. Variety = the reason to keep playing.</p></div></div>
+      <div class="row"><span class="emo">🚀</span><div><b>Even dying is funny</b><p>Lose your last life and the kid farts himself into orbit with a Wilhelm-scream parp. "Game Over" should get a laugh, not a frown.</p></div></div>
+    </div>
+  </section>
+
+  <!-- RICH GRAPHICS -->
+  <section>
+    <div class="eyebrow"><span class="n">06</span> Rich Graphics</div>
+    <h2>From flat emoji to juicy cartoon</h2>
+    <p class="lead">The brief keeps emoji as the readable base — smart, keep it. Then layer richness <em>on top</em> so it reads as a real cartoon, not a text string.</p>
+    <div class="grid g2">
+      <div class="card"><span class="ic">🎨</span><h3>Emoji base + vector overlays</h3><p>Keep the instantly-readable emoji, but add hand-drawn eyes, puffing cheeks, butt-jet flames and motion trails as sprite overlays.</p></div>
+      <div class="card"><span class="ic">🏞️</span><h3>Parallax jungle</h3><p>3–4 depth layers (far mountains, mid canopy, near leaves) drifting at different speeds for real depth and life behind the action.</p></div>
+      <div class="card"><span class="ic">💡</span><h3>Dynamic lighting &amp; glow</h3><p>Fart clouds glow toxic-green, bananas carry a warm rim light, the boss casts a shadow. Cheap tricks, big richness.</p></div>
+      <div class="card"><span class="ic">✨</span><h3>A real particle system</h3><p>Puffs, peels, sweat drops, dust-on-landing, confetti, stink swirls — <code>SKEmitterNode</code> makes this near-free on iPhone.</p></div>
+      <div class="card"><span class="ic">🫨</span><h3>Squash, stretch &amp; wobble</h3><p>Every character and every UI button squishes and springs. Hearts throb, the combo counter pops and scales. Nothing sits still.</p></div>
+      <div class="card"><span class="ic">📳</span><h3>Haptics = feel</h3><p>A little buzz on every fart and hit. On iPhone this is the difference between "cute" and "satisfying" — and it's a couple of lines of code.</p></div>
+    </div>
+    <p class="src">Art direction stays on-brief: "Saturday-morning cartoon meets emoji" — thick outlines, high saturation, the canonical night-jungle palette pushed a little brighter and gassier.</p>
+  </section>
+
+  <!-- ADDICTION LOOP -->
+  <section>
+    <div class="eyebrow"><span class="n">07</span> The Addiction Loop</div>
+    <h2>Why they tap "again" (and again)</h2>
+    <p class="lead">Hyper-casual games hook through a tight "tap → reward → repeat" loop with a light layer of progression on top. Here's that loop, monkey-flavoured.</p>
+    <div class="rows">
+      <div class="row"><span class="emo">⚡</span><div><b>Instant restart</b><p>No menus between runs — death screen reads "TAP TO FART AGAIN" and drops you straight back in. Friction kills the loop.</p></div></div>
+      <div class="row"><span class="emo">🔥</span><div><b>Combos &amp; near-misses score big</b><p>Dodge-streak multipliers, deflect bonuses, and a "Butt Cheek" bonus for surviving a razor-thin near-miss. Big juicy numbers pop on every one.</p></div></div>
+      <div class="row"><span class="emo">🪙</span><div><b>Banana Coins → cosmetic unlocks</b><p>Earn coins by playing; spend on <em>fart skins</em> (rainbow, glitter, fire), monkey hats, and new arenas. Light meta-progression is exactly what 2025 hyper-casual games add to lift retention — with zero pay-to-win.</p></div></div>
+      <div class="row"><span class="emo">🧑‍🚀</span><div><b>Unlockable characters</b><p>Different heroes — a girl, a dog, grandma — each with a signature fart and stat quirk. "Just one more to unlock the dog."</p></div></div>
+      <div class="row"><span class="emo">📅</span><div><b>Daily "Fart of the Day"</b><p>A rotating daily challenge modifier + a small reward. A reason to open the app tomorrow, not just today.</p></div></div>
+      <div class="row"><span class="emo">🏆</span><div><b>Keep the big win moment</b><p>The "$10 in your bank account!" celebration is pure gold for Mateo — keep it. Add ranks around it: <em>Fart Cadet → Toot Master → Gas Guardian</em>.</p></div></div>
+    </div>
+  </section>
+
+  <!-- CONTENT BUFFET -->
+  <section>
+    <div class="eyebrow"><span class="n">08</span> Content Buffet</div>
+    <h2>The cast, the moves, the arenas</h2>
+    <p class="lead">A grab-bag to pull from as you build — you don't need all of it for v1, but it's where variety and unlocks come from.</p>
+
+    <h3 style="margin-top:.4rem">🐵 Monkey roster</h3>
+    <div class="roster" style="margin:.6rem 0 1.4rem">
+      <div class="mon"><span class="face">🐒</span><b>Regular Monkey</b><small>The classic. Bobs, aims, parps.</small></div>
+      <div class="mon"><span class="face">🐵</span><b>Machine-Gun Marmoset</b><small>Rapid tiny farts, low spread.</small></div>
+      <div class="mon"><span class="face">🦧</span><b>Boomer Baboon</b><small>One huge slow blast, big recoil.</small></div>
+      <div class="mon"><span class="face">🙈</span><b>Sniper Chimp</b><small>Slow, dead-accurate aimed shot.</small></div>
+      <div class="mon"><span class="face">🎈</span><b>Balloon Monkey</b><small>Floats, drifts, pops on deflect.</small></div>
+      <div class="mon"><span class="face">🦍👑</span><b>King Kong-a-Toot</b><small>The boss. Three fart phases.</small></div>
+    </div>
+
+    <div class="split">
+      <div class="note">
+        <h3>💨 Player fart-moves</h3>
+        <ul>
+          <li><b>Fart Jump</b> — the core hop, with a parp</li>
+          <li><b>Double-Toot</b> — mid-air second jump</li>
+          <li><b>Mega-Hover</b> — hold to charge and float</li>
+          <li><b>Butt Slam</b> — fart down to deflect bananas</li>
+          <li><b>Panic Parp</b> — screen-clearing bomb, on a cooldown</li>
+        </ul>
+      </div>
+      <div class="note">
+        <h3>🎁 Power-ups (dropped by monkeys)</h3>
+        <ul>
+          <li><b>Gas Mask</b> — temporary shield</li>
+          <li><b>Bean Can</b> — instant mega-fart charge</li>
+          <li><b>Nose Plug</b> — slows time briefly</li>
+          <li><b>Golden Banana</b> — score ×2</li>
+          <li><b>Beano</b> — clears all stink clouds</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top:1rem">
+      <h3>🗺️ Arenas (skins for the same rules)</h3>
+      <ul>
+        <li><b>Night Jungle</b> (default, from the brief) · <b>Banana Volcano</b> (falling ash) · <b>Poopy Swamp</b> (bouncy mud) · <b>Space Station</b> (zero-G, farts fling you far) · <b>Grandma's Kitchen</b> (the ultimate silly finale)</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ROADMAP -->
+  <section>
+    <div class="eyebrow"><span class="n">09</span> The Build Roadmap</div>
+    <h2>Ship in phases, prove the fun early</h2>
+    <p class="lead">Estimates assume one developer. The whole point of Phase 0 is to answer one question cheaply: <em>is the fart actually funny?</em> If yes, everything else is worth building.</p>
+    <div class="timeline">
+      <div class="phase">
+        <div class="ph"><b>Phase 0 · Prototype</b><span class="when">~1–2 weeks</span></div>
+        <div class="goal">Goal: prove the core gag is funny</div>
+        <ul>
+          <li>SpriteKit skeleton: juiced dodge core + player fart-jump</li>
+          <li>One monkey, one banana, the first 5 fart sounds + haptics</li>
+          <li>Squash/stretch + screen shake on every hit</li>
+          <li>Playtest with Mateo. Laughs = green light.</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="ph"><b>Phase 1 · MVP "Fart Back" slice</b><span class="when">~3–4 weeks</span></div>
+        <div class="goal">Goal: a complete, funny, shippable loop</div>
+        <ul>
+          <li>Full juice pass; 3 monkey types; the deflect/Butt-Slam mechanic</li>
+          <li>10 levels + King Kong-a-Toot boss; win/lose/level-complete screens</li>
+          <li>Core fart-SFX library; combo scoring; the "$10" win moment</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="ph"><b>Phase 2 · Rich graphics + retention</b><span class="when">~3–4 weeks</span></div>
+        <div class="goal">Goal: make it beautiful and sticky</div>
+        <ul>
+          <li>Parallax jungle, particle system, dynamic lighting/glow</li>
+          <li>Banana Coins, cosmetic fart-skins, unlockable characters</li>
+          <li>Daily "Fart of the Day" + Fart Storm random events</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="ph"><b>Phase 3 · Modes + App Store polish</b><span class="when">ongoing</span></div>
+        <div class="goal">Goal: give kids a reason to keep coming back</div>
+        <ul>
+          <li>Jetpack Climber mode (Direction C); Arena/co-op experiments (D)</li>
+          <li>More arenas &amp; characters as free updates</li>
+          <li>App icon, splash, and a laugh-out-loud App Preview video</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- TECH + SAFETY -->
+  <section>
+    <div class="eyebrow"><span class="n">10</span> Foundations</div>
+    <h2>Tech stack &amp; keeping it kid-safe</h2>
+    <div class="split">
+      <div class="note">
+        <h3>🛠️ Recommended stack</h3>
+        <ul>
+          <li><b>SpriteKit</b> — as the brief suggests. Built-in particles (<code>SKEmitterNode</code>), <code>SKAction</code> for squash/stretch, physics for ragdoll &amp; deflect.</li>
+          <li><b>AVAudioEngine</b> — layered, pitch-shifted fart playback so sounds never feel canned.</li>
+          <li><b>Core Haptics</b> — a buzz per fart/hit; the cheapest "feel" win on iPhone.</li>
+          <li><b>SwiftUI</b> — menus, shop, unlock screens around the SpriteKit scene.</li>
+          <li>Keep the proven <b>half-screen touch zones</b>; add hold-to-charge for the mega-fart.</li>
+        </ul>
+      </div>
+      <div class="note">
+        <h3>🛡️ Tone &amp; safety guardrails</h3>
+        <ul>
+          <li>Gross-out stays gentle: <b>cartoon gas + bananas only</b>. No toilets, no real poop, no mean-spirited humour.</li>
+          <li>Monkeys are <b>silly, never scary</b> — googly eyes, not menace.</li>
+          <li><b>No ads, no IAP</b> for a 6-year-old's game. Every unlock is earned by playing. COPPA-clean, parent-friendly.</li>
+          <li>Always-positive win language; death is a joke, not a punishment.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p><b>Monkey Madness: Fart Fury</b> — gameplay research &amp; roadmap. Builds on your existing <em>Mateo's Monkey Madness</em> HTML game and the iOS Swift design brief (v1.0). Next step: a Phase 0 prototype to hear the first laugh.</p>
+    <p class="src">Grounding on game-feel and retention: <a href="https://valdemird.com/blog/game-feel-on-the-web/">Game feel on the web — squash, shake &amp; juice</a> · <a href="https://www.gameanalytics.com/blog/squeezing-more-juice-out-of-your-game-design">GameAnalytics — squeezing more juice</a> · <a href="https://www.slavnastudio.com/blog/profitable-casual-game-development-best-design-practices-monetization-rates-and-2025-trends/">Slavna Studio — casual game retention trends 2025</a> · <a href="https://dev.to/krishanvijay/what-makes-hyper-casual-games-so-addictive-24me">Dev.to — what makes hyper-casual games addictive</a></p>
+  </footer>
+
+</div>
+</div>
