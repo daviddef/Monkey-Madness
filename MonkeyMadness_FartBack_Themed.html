@@ -204,34 +204,47 @@ const sfx={
 // INPUT
 // ============================================================
 const keys=new Set();
-const BTN=[{id:'L',cx:54,cy:H-60,r:38,glyph:'◀'},{id:'R',cx:140,cy:H-60,r:38,glyph:'▶'},
-  {id:'FART',cx:302,cy:H-62,r:47,glyph:'💨'},{id:'JUMP',cx:424,cy:H-60,r:38,glyph:'⤒'}];
-const pointerBtn=new Map();
+const ZONE_TOP=470;   // in Zones mode, touches below this drive movement
+let controlStyle='buttons'; try{const c=localStorage.getItem('mm_ctrl'); if(c==='buttons'||c==='zones')controlStyle=c;}catch(e){}
+function setControlStyle(s){ controlStyle=s; try{localStorage.setItem('mm_ctrl',s);}catch(e){} }
+// Buttons mode: MOVE on the left thumb (◀▶), ACTIONS on the right thumb (JUMP + FART) — research-backed.
+const BTN=[{id:'L',cx:54,cy:H-62,r:42,glyph:'◀'},{id:'R',cx:150,cy:H-62,r:42,glyph:'▶'},
+  {id:'JUMP',cx:316,cy:H-62,r:42,glyph:'⤒'},{id:'FART',cx:426,cy:H-64,r:50,glyph:'💨'}];
+const ZFART={cx:W/2,cy:H-62,r:54};   // Zones mode fart button (centre)
+const pointers=new Map();            // pointerId -> {role, sx, sy, st}
 function toCanvas(e){const r=canvas.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};}
-function btnAt(x,y){for(const b of BTN){const dx=x-b.cx,dy=y-b.cy;if(dx*dx+dy*dy<=(b.r+8)*(b.r+8))return b.id;}return null;}
-function themeChips(){ const n=THEME_ORDER.length, w=104, h=46, gap=8, tot=n*w+(n-1)*gap, x0=(W-tot)/2, y=636;
+function btnAt(x,y){for(const b of BTN){const dx=x-b.cx,dy=y-b.cy;if(dx*dx+dy*dy<=(b.r+10)*(b.r+10))return b.id;}return null;}
+function inZFart(x,y){const dx=x-ZFART.cx,dy=y-ZFART.cy;return dx*dx+dy*dy<=(ZFART.r+10)*(ZFART.r+10);}
+function themeChips(){ const n=THEME_ORDER.length, w=104, h=46, gap=8, tot=n*w+(n-1)*gap, x0=(W-tot)/2, y=646;
   return THEME_ORDER.map((id,i)=>({id,x:x0+i*(w+gap),y,w,h})); }
 function chipAt(x,y){ for(const c of themeChips()){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h) return c.id; } return null; }
+function ctrlChips(){ const w=126,h=32,gap=12,y=584,tot=2*w+gap,x0=(W-tot)/2; return [{id:'buttons',label:'👆 Buttons',x:x0,y,w,h},{id:'zones',label:'🖐 Zones',x:x0+w+gap,y,w,h}]; }
+function ctrlChipAt(x,y){ for(const c of ctrlChips()){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h)return c.id; } return null; }
+const roles=()=>{ const a=[]; for(const r of pointers.values())a.push(r.role); return a; };
 
 canvas.addEventListener('pointerdown',e=>{
   e.preventDefault(); initAudio();
   const {x,y}=toCanvas(e);
   if(st===ST.LEVELDONE){ nextLevel(); return; }
-  if(st!==ST.PLAY&&st!==ST.BOSS){ const cid=chipAt(x,y); if(cid){ setTheme(cid); sfx.pick(); return; } startGame(); return; }
-  const id=btnAt(x,y);
-  if(id){ pointerBtn.set(e.pointerId,id); if(id==='JUMP')doJump(); else if(id==='FART')doBlast(); }
+  if(st!==ST.PLAY&&st!==ST.BOSS){ const cc=ctrlChipAt(x,y); if(cc){ setControlStyle(cc); sfx.pick(); return; } const cid=chipAt(x,y); if(cid){ setTheme(cid); sfx.pick(); return; } startGame(); return; }
+  if(controlStyle==='buttons'){
+    const id=btnAt(x,y); if(id){ pointers.set(e.pointerId,{role:id}); if(id==='JUMP')doJump(); else if(id==='FART')doBlast(); }
+  } else {
+    if(inZFart(x,y)){ pointers.set(e.pointerId,{role:'FART'}); doBlast(); }
+    else if(y>ZONE_TOP){ pointers.set(e.pointerId,{role:x<W/2?'zoneL':'zoneR',sx:x,sy:y,st:e.timeStamp}); }
+  }
 },{passive:false});
-canvas.addEventListener('pointermove',e=>{ if(!pointerBtn.has(e.pointerId))return; const cur=pointerBtn.get(e.pointerId);
-  if(cur==='L'||cur==='R'){const {x,y}=toCanvas(e);const id=btnAt(x,y);if(id==='L'||id==='R')pointerBtn.set(e.pointerId,id);} },{passive:false});
-const endP=e=>pointerBtn.delete(e.pointerId);
+canvas.addEventListener('pointermove',e=>{ const rec=pointers.get(e.pointerId); if(!rec)return;
+  if(controlStyle==='buttons'&&(rec.role==='L'||rec.role==='R')){ const {x,y}=toCanvas(e); const id=btnAt(x,y); if(id==='L'||id==='R')rec.role=id; } },{passive:false});
+function endP(e){ const rec=pointers.get(e.pointerId); if(rec){ if(rec.role==='zoneL'||rec.role==='zoneR'){ const {x,y}=toCanvas(e); const dt=e.timeStamp-rec.st, dist=Math.hypot(x-rec.sx,y-rec.sy); if(dt<250&&dist<28)doJump(); } pointers.delete(e.pointerId); } }
 canvas.addEventListener('pointerup',endP); canvas.addEventListener('pointercancel',endP); canvas.addEventListener('pointerleave',endP);
 window.addEventListener('keydown',e=>{ if([' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))e.preventDefault(); initAudio();
   if(st===ST.LEVELDONE){ if(!e.repeat)nextLevel(); return; }
-  if(st!==ST.PLAY&&st!==ST.BOSS){ if(!e.repeat){ if(e.key==='t'||e.key==='T'){ const i=THEME_ORDER.indexOf(themeId); setTheme(THEME_ORDER[(i+1)%THEME_ORDER.length]); sfx.pick(); } else startGame(); } return; }
+  if(st!==ST.PLAY&&st!==ST.BOSS){ if(!e.repeat){ if(e.key==='t'||e.key==='T'){ const i=THEME_ORDER.indexOf(themeId); setTheme(THEME_ORDER[(i+1)%THEME_ORDER.length]); sfx.pick(); } else if(e.key==='c'||e.key==='C'){ setControlStyle(controlStyle==='buttons'?'zones':'buttons'); sfx.pick(); } else startGame(); } return; }
   if(e.repeat)return; if(e.key===' '||e.key==='ArrowUp'||e.key==='w')doJump(); if(e.key==='f'||e.key==='ArrowDown'||e.key==='Shift')doBlast(); keys.add(e.key); });
 window.addEventListener('keyup',e=>keys.delete(e.key));
-const leftHeld=()=>keys.has('ArrowLeft')||keys.has('a')||[...pointerBtn.values()].includes('L');
-const rightHeld=()=>keys.has('ArrowRight')||keys.has('d')||[...pointerBtn.values()].includes('R');
+const leftHeld=()=>{ if(keys.has('ArrowLeft')||keys.has('a'))return true; const r=roles(); return r.includes('L')||r.includes('zoneL'); };
+const rightHeld=()=>{ if(keys.has('ArrowRight')||keys.has('d'))return true; const r=roles(); return r.includes('R')||r.includes('zoneR'); };
 
 // ============================================================
 // GAME FLOW / LOGIC  (unchanged across themes)
@@ -598,14 +611,31 @@ function drawHUD(){
     ctx.font=T.hudFont(11); ctx.globalAlpha=Math.min(1,tipT)*.85; ctx.fillText('⚫ black = ouch · 🟤 brown = mushy · 🍌 peels = jump!',W/2,GROUND_Y-36); ctx.globalAlpha=1; }
 }
 function drawHeart(x,y,s){ ctx.fillStyle='#ff4d6d'; ctx.beginPath(); ctx.moveTo(x,y+s*.4); ctx.bezierCurveTo(x-s,y-s*.6,x-s*1.1,y+s*.3,x,y+s); ctx.bezierCurveTo(x+s*1.1,y+s*.3,x+s,y-s*.6,x,y+s*.4); ctx.fill(); }
+function drawBtn(cx,cy,r,glyph,gs,pressed,ready,accentFill){ const sc=pressed?.9:1;
+  ctx.globalAlpha=pressed?.97:.62; ctx.fillStyle=accentFill?(ready?T.border:'#555'):'rgba(255,255,255,.13)'; ctx.beginPath(); ctx.arc(cx,cy,r*sc,0,6.28); ctx.fill();
+  ctx.globalAlpha=pressed?1:.85; ctx.strokeStyle=accentFill?(ready?T.accent:'#888'):'rgba(255,255,255,.55)'; ctx.lineWidth=2.6; ctx.beginPath(); ctx.arc(cx,cy,r*sc,0,6.28); ctx.stroke();
+  ctx.globalAlpha=1; ctx.fillStyle='#fff'; ctx.font=`${gs*sc}px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(glyph,cx,cy+1); }
 function drawControls(){
   ctx.fillStyle='rgba(0,0,0,.32)'; ctx.fillRect(0,CTRL_TOP,W,H-CTRL_TOP);
-  for(const b of BTN){ const pressed=[...pointerBtn.values()].includes(b.id); const isFart=b.id==='FART'; const ready=isFart?P.gas>=BLAST_COST:true;
-    ctx.globalAlpha=pressed?.95:.6; ctx.fillStyle=isFart?(ready?T.border:'#555'):'rgba(255,255,255,.12)'; ctx.beginPath(); ctx.arc(b.cx,b.cy,b.r,0,6.28); ctx.fill();
-    ctx.globalAlpha=pressed?1:.85; ctx.strokeStyle=isFart?(ready?T.accent:'#888'):'rgba(255,255,255,.5)'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.arc(b.cx,b.cy,b.r,0,6.28); ctx.stroke();
-    ctx.globalAlpha=1; ctx.fillStyle='#fff'; ctx.font=`${isFart?30:24}px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(b.glyph,b.cx,b.cy+1); }
+  const pr=roles(), fartReady=P.gas>=BLAST_COST||P.freeFartT>0;
+  if(controlStyle==='buttons'){
+    for(const b of BTN){ const isFart=b.id==='FART'; drawBtn(b.cx,b.cy,b.r,b.glyph,isFart?30:24,pr.includes(b.id),isFart?fartReady:true,isFart); }
+  } else {
+    ctx.strokeStyle='rgba(255,255,255,.14)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(W/2,CTRL_TOP+4); ctx.lineTo(W/2,H-6); ctx.stroke();
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='34px Arial';
+    ctx.globalAlpha=pr.includes('zoneL')?.55:.24; ctx.fillStyle='#fff'; ctx.fillText('◀',W*0.22,H-62);
+    ctx.globalAlpha=pr.includes('zoneR')?.55:.24; ctx.fillText('▶',W*0.78,H-62); ctx.globalAlpha=1;
+    ctx.fillStyle='rgba(255,255,255,.5)'; ctx.font=T.hudFont(10); ctx.fillText('hold to move · tap = jump',W/2,CTRL_TOP+14);
+    drawBtn(ZFART.cx,ZFART.cy,ZFART.r,'💨',34,pr.includes('FART'),fartReady,true);
+  }
   ctx.globalAlpha=1;
 }
+function drawCtrlToggle(){ ctx.textAlign='center'; ctx.textBaseline='middle';
+  for(const c of ctrlChips()){ const active=c.id===controlStyle;
+    ctx.fillStyle=active?T.border:'rgba(255,255,255,.08)'; rr(c.x,c.y,c.w,c.h,9); ctx.fill();
+    ctx.strokeStyle=active?T.accent:'rgba(255,255,255,.25)'; ctx.lineWidth=active?2.5:1.5; rr(c.x,c.y,c.w,c.h,9); ctx.stroke();
+    ctx.fillStyle=active?'#fff':'rgba(255,255,255,.7)'; ctx.font=T.hudFont(13); ctx.fillText(c.label,c.x+c.w/2,c.y+c.h/2); }
+  ctx.fillStyle=T.text; ctx.globalAlpha=.55; ctx.font=T.hudFont(10); ctx.fillText('CONTROLS',W/2,ctrlChips()[0].y-11); ctx.globalAlpha=1; }
 function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
 
 function drawThemePicker(){
@@ -690,7 +720,7 @@ function drawStart(){
   ctx.fillStyle=T.text; ctx.globalAlpha=.85; ctx.font=T.hudFont(13); ctx.fillText('4 lives ❤ · survive & score high',W/2,420); ctx.globalAlpha=1;
   if(Math.floor(Date.now()/500)%2===0){ ctx.fillStyle=T.accent; ctx.font=T.titleFont(20); ctx.fillText('▶ TAP TO START ◀',W/2,470); }
   if(best>0){ ctx.fillStyle=T.text; ctx.globalAlpha=.5; ctx.font=T.hudFont(12); ctx.fillText('Best: '+best,W/2,500); ctx.globalAlpha=1; }
-  drawThemePicker();
+  drawCtrlToggle(); drawThemePicker();
 }
 function drawOver(){
   sampleScene(); drawParticles();
@@ -701,7 +731,7 @@ function drawOver(){
   ctx.fillStyle=T.text; ctx.font=T.hudFont(16); ctx.fillText('Best combo this run: x'+comboBestRun,W/2,H/2-28);
   ctx.globalAlpha=.6; ctx.fillText('Best score: '+best,W/2,H/2-2); ctx.globalAlpha=1;
   if(Math.floor(Date.now()/500)%2===0){ ctx.fillStyle=T.text; ctx.font=T.titleFont(18); ctx.fillText('Tap to fart again!',W/2,H/2+44); }
-  drawThemePicker();
+  drawCtrlToggle(); drawThemePicker();
 }
 function drawBoss(){ const x=boss.bx,y=boss.by; const col=boss.hitFlash>0?'#ffffff':T.monkeyBody;
   const roar=boss.roarT>0, weak=boss.weakT>0, dying=boss.deathT>0;
