@@ -183,7 +183,7 @@ function airhorn(){ if(!AC)return; const t0=AC.currentTime; [380,560].forEach((f
   const g=AC.createGain(); g.gain.setValueAtTime(.0001,t0); g.gain.exponentialRampToValueAtTime(.18,t0+.03); g.gain.setValueAtTime(.18,t0+.18); g.gain.exponentialRampToValueAtTime(.0001,t0+.28);
   o.connect(g); g.connect(master); o.start(t0); o.stop(t0+.3); }); }
 // ---- real fart samples (fall back to the synth if none load) ----
-const SAMPLE_URLS=['assets/sounds/fart_01.wav'];   // add more file paths here for variety
+const SAMPLE_URLS=['assets/sounds/fart_01.wav','assets/sounds/fart_02.wav','assets/sounds/fart_03.wav','assets/sounds/fart_04.wav','assets/sounds/fart_05.wav','assets/sounds/fart_06.wav','assets/sounds/fart_07.wav','assets/sounds/fart_08.wav'];
 let sampleBuffers=[], samplesTried=false;
 function loadSamples(){ if(!AC||samplesTried)return; samplesTried=true;
   SAMPLE_URLS.forEach(url=>{ fetch(url).then(r=>r.ok?r.arrayBuffer():Promise.reject()).then(b=>AC.decodeAudioData(b)).then(buf=>sampleBuffers.push(buf)).catch(()=>{}); }); }
