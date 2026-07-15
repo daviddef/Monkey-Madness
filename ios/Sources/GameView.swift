@@ -16,7 +16,7 @@ private final class Player {
     var invT: CGFloat = 0, blinkT: CGFloat = 0, gas: CGFloat = 100
     var squashT: CGFloat = 0, blastFlash: CGFloat = 0, barrierT: CGFloat = 0
     var face: Int = 0, faceT: CGFloat = 0, mushT: CGFloat = 0, slipT: CGFloat = 0
-    var shieldT: CGFloat = 0, x2T: CGFloat = 0, slowT: CGFloat = 0
+    var shieldT: CGFloat = 0, x2T: CGFloat = 0, slowT: CGFloat = 0, freeFartT: CGFloat = 0
 }
 private final class Monkey {
     var x: CGFloat, y: CGFloat, bx: CGFloat, by: CGFloat
@@ -45,7 +45,10 @@ private final class Boss {
     var x: CGFloat = 240, bx: CGFloat = 240, by: CGFloat = 98
     var hp: CGFloat = 100, maxHp: CGFloat = 100
     var atkT: CGFloat = 1.4, chargeT: CGFloat = 0, bobT: CGFloat = 0, swingT: CGFloat = 0, hitFlash: CGFloat = 0, vx: CGFloat = 46
-    var phase = 1
+    var phase = 1, lastPhase = 1
+    var roarT: CGFloat = 1.4, weakT: CGFloat = 0, slamT: CGFloat = 0, slamHit: CGFloat = 0, deathT: CGFloat = 0, wob: CGFloat = 0, angryT: CGFloat = 0
+    var minionsSpawned = false
+    var tell = ""
 }
 private final class Particle {
     var x, y, vx, vy, life, maxLife, size: CGFloat; var kind: String
@@ -72,9 +75,9 @@ final class GameView: UIView {
     private let GAS_MAX: CGFloat = 100, BLAST_COST: CGFloat = 34, GAS_RECHARGE: CGFloat = 30
     private let DEFLECT_R: CGFloat = 96, BARRIER_T: CGFloat = 0.5
     private let PEEL_LIFE: CGFloat = 5, PEEL_R: CGFloat = 20, SLIP_T: CGFloat = 1.2
-    private let PU_SHIELD: CGFloat = 6, PU_X2: CGFloat = 8, PU_SLOW: CGFloat = 4
+    private let PU_SHIELD: CGFloat = 6, PU_X2: CGFloat = 8, PU_SLOW: CGFloat = 4, PU_FREE: CGFloat = 4.5
     private let LIVES_MAX = 4
-    private let cMask = hex("25d4e8"), cGold = hex("ffe234"), cPlug = hex("b06bff"), cBeano = hex("93e552")
+    private let cMask = hex("25d4e8"), cGold = hex("ffe234"), cPlug = hex("b06bff"), cBeano = hex("93e552"), cBean = hex("ffab2e"), cMega = hex("ff4db8")
 
     // Loud theme palette
     private let cBgBase = hex("2a1857"), cBgDot = hex("ff3d7f"), cGround = hex("17d1e8"), cGroundEdge = hex("0fb0c6")
@@ -95,7 +98,7 @@ final class GameView: UIView {
     private var combo = 0
     private var gameT: CGFloat = 0, tipT: CGFloat = 3.5
     private var shakeT: CGFloat = 0, shakeMag: CGFloat = 0
-    private var hitstop: CGFloat = 0, flashT: CGFloat = 0
+    private var hitstop: CGFloat = 0, flashT: CGFloat = 0, megaRingT: CGFloat = 0
     private var flashCol: UIColor = .white
 
     private let P = Player()
@@ -156,7 +159,7 @@ final class GameView: UIView {
         pops.removeAll(); peels.removeAll(); powerups.removeAll(); monkeys.removeAll()
         P.x = LW/2; P.y = PLAYER_GY; P.vy = 0; P.onGround = true; P.inv = true; P.invT = inv; P.blinkT = 0
         P.gas = GAS_MAX; P.squashT = 0; P.blastFlash = 0; P.barrierT = 0; P.face = 0; P.faceT = 0; P.mushT = 0
-        P.slipT = 0; P.shieldT = 0; P.x2T = 0; P.slowT = 0
+        P.slipT = 0; P.shieldT = 0; P.x2T = 0; P.slowT = 0; P.freeFartT = 0; megaRingT = 0
     }
     private func startGame() {
         st = .play; lives = LIVES_MAX; score = 0; combo = 0; gameT = 0; tipT = 3.5; hitstop = 0; flashT = 0
@@ -168,8 +171,9 @@ final class GameView: UIView {
     }
     private func nextLevel() { level += 1; levelT = 0; resetForLevel(1.0); setMonkeyCount(LEVELS[level-1].monkeys); st = .play }
     private func startBoss() {
-        st = .boss; levelT = 0; resetForLevel(1.4); boss = Boss()
-        addPop(LW/2, 150, "BOSS!", hex("ff5a5a")); doFlash(hex("ff5a5a"), 0.3)
+        st = .boss; levelT = 0; resetForLevel(1.6); boss = Boss()
+        addPop(LW/2, 168, "KING KONG-A-TOOT!", hex("ff5a5a")); doFlash(hex("ff5a5a"), 0.4); addShake(14, 0.6)
+        audio.fart(freq: 90, dur: 1.0, flutter: 6, cutoff: 700, gain: 0.5)
     }
     private func winGame() {
         st = .win; audio.tone(f0: 400, f1: 900, dur: 0.1, gain: 0.2)
@@ -184,16 +188,18 @@ final class GameView: UIView {
         }
     }
     private func doJump() {
-        guard st == .play, P.onGround, P.slipT <= 0 else { return }
+        guard st == .play || st == .boss, P.onGround, P.slipT <= 0 else { return }
         P.vy = JUMP; P.onGround = false
         audio.fart(freq: Double(R(200, 260)), dur: 0.15, flutter: 28, cutoff: 1700, gain: 0.28, square: true)
         for _ in 0..<7 { particles.append(puff(P.x + R(-8, 8), PLAYER_GY + 20, R(-40, 40), R(20, 90))) }
         clouds.append(Cloud(x: P.x, y: PLAYER_GY + 22, r: 12, life: 0.7))
     }
     private func doBlast() {
-        guard st == .play, P.slipT <= 0 else { return }
-        if P.gas < BLAST_COST { return }
-        P.gas -= BLAST_COST; P.blastFlash = 0.22; P.face = 2; P.faceT = 0.4; P.barrierT = BARRIER_T; addShake(7, 0.18)
+        guard st == .play || st == .boss, P.slipT <= 0 else { return }
+        let free = P.freeFartT > 0
+        if !free && P.gas < BLAST_COST { return }
+        if !free { P.gas -= BLAST_COST }
+        P.blastFlash = 0.22; P.face = 2; P.faceT = 0.4; P.barrierT = BARRIER_T; addShake(7, 0.18)
         audio.fart(freq: Double(R(70, 92)), dur: 0.42, flutter: 14, cutoff: 1200, gain: 0.5)
         clouds.append(Cloud(x: P.x, y: P.y + 22, r: 20, life: 0.9))
         for _ in 0..<14 { let a = R(2.3, 4.0); particles.append(puff(P.x, P.y + 18, cos(a)*R(60, 150), sin(a)*R(30, 120)+40)) }
@@ -255,19 +261,29 @@ final class GameView: UIView {
     }
     private func spawnPU(_ x: CGFloat, _ y: CGFloat) {
         let r = CGFloat.random(in: 0...1)
-        let kind = r < 0.34 ? "mask" : (r < 0.6 ? "gold" : (r < 0.82 ? "plug" : "beano"))
+        let kind = r < 0.22 ? "mask" : (r < 0.42 ? "gold" : (r < 0.57 ? "plug" : (r < 0.70 ? "beano" : (r < 0.90 ? "bean" : "mega"))))
         powerups.append(PowerUp(x: max(24, min(LW-24, x)), y: y, vy: R(10, 50), kind: kind))
     }
     private func collectPU(_ pu: PowerUp) {
-        audio.tone(f0: 400, f1: 900, dur: 0.1, gain: 0.2); addShake(4, 0.1)
+        audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24); addShake(5, 0.12); burstFx(P.x, P.y-16, 9)
         switch pu.kind {
-        case "mask": P.shieldT = PU_SHIELD; addPop(P.x, P.y-48, "SHIELD!", cMask)
-        case "gold": P.x2T = PU_X2; addPop(P.x, P.y-48, "SCORE x2!", cGold)
-        case "plug": P.slowT = PU_SLOW; addPop(P.x, P.y-48, "SLO-MO!", cPlug)
-        default: clouds.removeAll(); peels.removeAll(); addPop(P.x, P.y-48, "FRESH AIR!", cBeano); doFlash(cFart, 0.2)
+        case "mask": P.shieldT = PU_SHIELD; addPop(P.x, P.y-52, "SHIELD!", cMask)
+        case "gold": P.x2T = PU_X2; addPop(P.x, P.y-52, "SCORE x2!", cGold)
+        case "plug": P.slowT = PU_SLOW; addPop(P.x, P.y-52, "SLO-MO!", cPlug)
+        case "beano": clouds.removeAll(); peels.removeAll(); addPop(P.x, P.y-52, "FRESH AIR!", cBeano); doFlash(cFart, 0.2)
+        case "bean": P.gas = GAS_MAX; P.freeFartT = PU_FREE; addPop(P.x, P.y-52, "RAPID FIRE!", cBean); doFlash(cBean, 0.2)
+        default: megaFart()
         }
     }
-    private func puColor(_ k: String) -> UIColor { k == "mask" ? cMask : (k == "gold" ? cGold : (k == "plug" ? cPlug : cBeano)) }
+    private func megaFart() {
+        doFlash(cFart, 0.6); addShake(16, 0.5); hitstop = max(hitstop, 0.06); audio.fart(freq: 80, dur: 0.4, flutter: 12, cutoff: 900, gain: 0.5); megaRingT = 0.6
+        addPop(P.x, P.y-52, "MEGA FART!!", cMega)
+        bananas = bananas.filter { b in if !b.friendly { burstFx(b.x, b.y, 3); return false }; return true }
+        for m in monkeys where m.stun <= 0 { m.stun = 3; m.wob = 0; m.angryT = 0; burstFx(m.bx, m.by, 8) }
+        if let b = boss, b.hp > 0, b.deathT <= 0 { let d: CGFloat = 25; b.hp = max(0, b.hp - d); b.hitFlash = 0.3; addFloat(b.bx, b.by-30, "-\(Int(d))", cMega, 20); if b.hp <= 0 { killBoss() } }
+        for _ in 0..<44 { let a = R(0, 6.28); particles.append(puff(P.x, P.y, cos(a)*R(120, 340), sin(a)*R(120, 340))) }
+    }
+    private func puColor(_ k: String) -> UIColor { k == "mask" ? cMask : (k == "gold" ? cGold : (k == "plug" ? cPlug : (k == "bean" ? cBean : (k == "mega" ? cMega : cBeano)))) }
 
     private func hitPlayer(_ bx: CGFloat, _ by: CGFloat, _ type: String) {
         if P.shieldT > 0 { burstFx(bx, by, 5); addPop(P.x, P.y-46, "SAFE!", cMask); addShake(3, 0.08); return }
@@ -284,40 +300,69 @@ final class GameView: UIView {
         audio.fart(freq: 150, dur: 0.7, flutter: 10, cutoff: 900, gain: 0.5)
         let fs = Int(score); if fs > best { best = fs; UserDefaults.standard.set(best, forKey: "fartback_best") }
     }
+    private func killBoss() {
+        guard let b = boss, b.deathT <= 0 else { return }
+        b.deathT = 1.3; b.weakT = 0; b.chargeT = 0; b.slamT = 0
+        bananas = bananas.filter { $0.friendly }; addShake(16, 0.6); doFlash(.white, 0.4); audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24)
+    }
+    private func spawnMinions(_ n: Int) {
+        for i in 0..<n {
+            let side: CGFloat = i % 2 == 0 ? 1 : -1
+            let m = Monkey(x: LW/2 + side*R(120, 180), y: R(96, 116)); m.kind = "gun"; m.vx = side*R(40, 80); m.throwT = R(0.7, 1.4)
+            monkeys.append(m)
+        }
+        addPop(LW/2, 150, "MINIONS!", cAccent); doFlash(cFart, 0.2)
+    }
+    private func bossReleaseCharge(_ b: Boss) {
+        b.atkT = 1.4; audio.fart(freq: 80, dur: 0.4, flutter: 13, cutoff: 900, gain: 0.5); addShake(7, 0.2)
+        if b.tell == "fan" { for i in 0..<7 { let tx = 60 + CGFloat(i)*(LW-120)/6; throwBanana(b.bx, b.by+46, tx, 0.62, 1, 0.04, "black") } }
+        else if b.tell == "rain" { for i in 0..<6 { let x = 45 + CGFloat(i)*(LW-90)/5; bananas.append(Banana(x: x, y: -20, vx: R(-8, 8), vy: R(130, 180), rotV: R(-8, 8), friendly: false, type: CGFloat.random(in: 0...1) < 0.4 ? "black" : "yellow")) } }
+        else { throwBanana(b.bx, b.by+46, P.x, 0.6, 5, 0.78, "black") }
+        for _ in 0..<12 { let a = R(1.2, 3.2); particles.append(puff(b.bx + R(-10, 10), b.by+48, cos(a)*R(50, 130), sin(a)*R(50, 130)+30)) }
+        b.tell = ""
+    }
+    private func bossSlam(_ b: Boss) {
+        b.atkT = 1.6; b.slamHit = 0.28; addShake(18, 0.5); doFlash(.white, 0.24); hitstop = max(hitstop, 0.06); audio.fart(freq: 80, dur: 0.5, flutter: 10, cutoff: 800, gain: 0.5)
+        throwBanana(b.bx, b.by+50, P.x, 0.5, 4, 0.72, "black")
+        for _ in 0..<22 { particles.append(puff(b.bx + R(-50, 50), b.by+54, R(-180, 180), R(-40, 70))) }
+    }
     private func updateBoss(_ b: Boss, _ dt: CGFloat) {
-        b.bobT += dt; b.swingT += dt*1.5; if b.hitFlash > 0 { b.hitFlash -= dt }
-        b.phase = b.hp > 66 ? 1 : (b.hp > 33 ? 2 : 3)
+        b.bobT += dt; b.swingT += dt*1.5; if b.hitFlash > 0 { b.hitFlash -= dt }; if b.slamHit > 0 { b.slamHit -= dt }
+        if b.deathT > 0 { b.deathT -= dt; b.by += dt*70; b.wob += dt*14; if b.deathT <= 0 { winGame() }; return }
+        if b.roarT > 0 { b.roarT -= dt; return }
+        let np = b.hp > 66 ? 1 : (b.hp > 33 ? 2 : 3)
+        if np > b.lastPhase { b.lastPhase = np; b.weakT = 2.6; b.wob = 0; b.chargeT = 0; b.slamT = 0; addPop(b.bx, b.by-26, "DIZZY!", cAccent); doFlash(cFart, 0.3); addShake(8, 0.3); audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24) }
+        b.phase = np
+        if b.weakT > 0 { b.weakT -= dt; b.wob += dt*16; if b.weakT <= 0 && b.phase == 3 && !b.minionsSpawned { b.minionsSpawned = true; spawnMinions(2) }; return }
         b.x += b.vx*dt; if b.x < 80 { b.x = 80; b.vx = abs(b.vx) } else if b.x > LW-80 { b.x = LW-80; b.vx = -abs(b.vx) }
         b.bx = b.x + sin(b.swingT)*8; b.by = 98 + (1 - cos(b.swingT))*4
-        if b.chargeT > 0 {
-            b.chargeT -= dt
-            if b.chargeT <= 0 {
-                let flight = max(0.55, 0.9 - gameT*0.005)
-                throwBanana(b.bx, b.by+46, P.x, flight, 5, 0.78, "black")
-                audio.fart(freq: Double(R(70, 92)), dur: 0.4, flutter: 13, cutoff: 900, gain: 0.5); addShake(7, 0.2)
-                for _ in 0..<14 { let a = R(1.2, 3.2); particles.append(puff(b.bx + R(-10, 10), b.by+48, cos(a)*R(50, 130), sin(a)*R(50, 130)+30)) }
-                b.atkT = 1.3
-            }
-            return
-        }
+        if b.angryT > 0 { b.angryT -= dt }
+        if b.slamT > 0 { b.slamT -= dt; if b.slamT <= 0 { bossSlam(b) }; return }
+        if b.chargeT > 0 { b.chargeT -= dt; if b.chargeT <= 0 { bossReleaseCharge(b) }; return }
         b.atkT -= dt; if b.atkT > 0 { return }
-        if b.phase == 1 { b.atkT = R(1.1, 1.5); throwBanana(b.bx, b.by+46, P.x, 0.68, 1, 0.1, "yellow"); audio.fart(freq: 130, dur: 0.2, flutter: 20, cutoff: 1000, gain: 0.3) }
+        if b.phase == 1 { b.atkT = R(1.0, 1.4); b.angryT = 0.35; throwBanana(b.bx, b.by+46, P.x, 0.68, 1, 0.08, "yellow"); audio.fart(freq: 130, dur: 0.2, flutter: 20, cutoff: 1000, gain: 0.3) }
         else if b.phase == 2 {
-            if CGFloat.random(in: 0...1) < 0.5 { b.chargeT = 0.7; b.atkT = 1.9 }
+            let r = CGFloat.random(in: 0...1)
+            if r < 0.4 { b.chargeT = 0.75; b.atkT = 2.0; b.tell = "fan" }
+            else if r < 0.6 { b.slamT = 0.75; b.atkT = 2.2 }
             else { b.atkT = R(0.9, 1.3); throwBanana(b.bx, b.by+46, P.x, 0.6, 2, 0.5, CGFloat.random(in: 0...1) < 0.4 ? "black" : "yellow"); audio.fart(freq: 130, dur: 0.2, flutter: 20, cutoff: 1000, gain: 0.3) }
         } else {
-            b.atkT = R(0.6, 0.9); throwBanana(b.bx, b.by+46, P.x, 0.52, 3, 0.6, CGFloat.random(in: 0...1) < 0.5 ? "black" : "yellow")
-            if CGFloat.random(in: 0...1) < 0.3 { b.chargeT = 0.55 }; audio.fart(freq: 130, dur: 0.2, flutter: 20, cutoff: 1000, gain: 0.3)
+            let r = CGFloat.random(in: 0...1)
+            if r < 0.42 { b.chargeT = 0.6; b.atkT = 1.7; b.tell = "rain" }
+            else if r < 0.62 { b.slamT = 0.65; b.atkT = 1.8 }
+            else { b.atkT = R(0.55, 0.85); throwBanana(b.bx, b.by+46, P.x, 0.52, 3, 0.6, CGFloat.random(in: 0...1) < 0.5 ? "black" : "yellow"); audio.fart(freq: 130, dur: 0.2, flutter: 20, cutoff: 1000, gain: 0.3) }
         }
     }
     private func bossHit(_ bx: CGFloat, _ by: CGFloat) {
-        guard let b = boss, b.hp > 0 else { return }
-        b.hp = max(0, b.hp - 8); b.hitFlash = 0.22; combo += 1
-        let pts = 150 * combo * (P.x2T > 0 ? 2 : 1); score += CGFloat(pts)
-        addFloat(bx, by-20, "+\(pts)", cAccent, 18); burstFx(bx, by, 10)
-        addPop(bx, by-6, combo >= 4 ? "CRUNCH!" : "BONK!", cAccent); doFlash(cFart, 0.2); hitstop = max(hitstop, 0.05); addShake(7, 0.18)
+        guard let b = boss, b.hp > 0, b.roarT <= 0, b.deathT <= 0 else { return }
+        let weak = b.weakT > 0; let dmg: CGFloat = weak ? 16 : 8
+        b.hp = max(0, b.hp - dmg); b.hitFlash = 0.24; combo += 1
+        let pts = (weak ? 300 : 150) * combo * (P.x2T > 0 ? 2 : 1); score += CGFloat(pts)
+        addFloat(bx, by-20, "+\(pts)", weak ? cFart : cAccent, weak ? 22 : 18); burstFx(bx, by, weak ? 16 : 10)
+        addPop(bx, by-6, weak ? "WEAK POINT!" : (combo >= 4 ? "CRUNCH!" : "BONK!"), weak ? cFart : cAccent)
+        doFlash(cFart, weak ? 0.35 : 0.2); hitstop = max(hitstop, weak ? 0.08 : 0.05); addShake(weak ? 11 : 7, 0.18)
         audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24)
-        if b.hp <= 0 { winGame() }
+        if b.hp <= 0 { killBoss() }
     }
 
     // MARK: - Update
@@ -327,7 +372,7 @@ final class GameView: UIView {
         floaters = floaters.filter { f in f.y += f.vy*dt; f.vy += 60*dt; f.life -= dt; return f.life > 0 }
         pops = pops.filter { p in p.life -= dt; p.y -= 12*dt; return p.life > 0 }
         if flashT > 0 { flashT -= dt*2.6 }
-        if shakeT > 0 { shakeT -= dt }
+        if shakeT > 0 { shakeT -= dt }; if megaRingT > 0 { megaRingT -= dt }
         if st == .win && CGFloat.random(in: 0...1) < 0.5 { particles.append(Particle(x: R(0, LW), y: -20, vx: R(-30, 30), vy: R(80, 160), life: R(2, 3.4), size: R(6, 13), kind: "star")) }
         guard st == .play || st == .boss else { return }
         gameT += dt; if tipT > 0 { tipT -= dt }; score += dt*8*(P.x2T > 0 ? 2 : 1)
@@ -346,7 +391,7 @@ final class GameView: UIView {
         if P.inv { P.invT -= dt; P.blinkT += dt; if P.invT <= 0 { P.inv = false } }
         if P.faceT > 0 { P.faceT -= dt; if P.faceT <= 0 { P.face = 0 } }
         if P.blastFlash > 0 { P.blastFlash -= dt }; if P.barrierT > 0 { P.barrierT -= dt }; if P.mushT > 0 { P.mushT -= dt }
-        if P.slipT > 0 { P.slipT -= dt }; if P.shieldT > 0 { P.shieldT -= dt }; if P.x2T > 0 { P.x2T -= dt }; if P.slowT > 0 { P.slowT -= dt }
+        if P.slipT > 0 { P.slipT -= dt }; if P.shieldT > 0 { P.shieldT -= dt }; if P.x2T > 0 { P.x2T -= dt }; if P.slowT > 0 { P.slowT -= dt }; if P.freeFartT > 0 { P.freeFartT -= dt }
         P.gas = min(GAS_MAX, P.gas + GAS_RECHARGE*dt)
 
         // monkeys
@@ -625,6 +670,14 @@ final class GameView: UIView {
             cg.setAlpha(0.5); cg.setStrokeColor(cMask.cgColor); cg.setLineWidth(2.5); cg.strokeEllipse(in: CGRect(x: P.x-27, y: P.y-27, width: 54, height: 54)); cg.setAlpha(1)
         }
         if P.x2T > 0 { text("x2", P.x+22, P.y-22, 13, cGold) }
+        if P.freeFartT > 0 {
+            cg.setAlpha(0.5 + 0.3*sin(P.freeFartT*22)); cg.setStrokeColor(cBean.cgColor); cg.setLineWidth(3); cg.strokeEllipse(in: CGRect(x: P.x-28, y: P.y-22, width: 56, height: 56))
+            cg.setAlpha(0.5); for k in 0..<3 { let a = P.freeFartT*10 + CGFloat(k)*2.1; fillCircle(P.x + cos(a)*26, P.y+6 + sin(a)*26, 4, cBean) }; cg.setAlpha(1)
+        }
+        if megaRingT > 0 {
+            let a = megaRingT/0.6; let rr = (1-a)*300 + 20
+            cg.setAlpha(a*0.7); cg.setStrokeColor(cFart.cgColor); cg.setLineWidth(10*a + 2); cg.strokeEllipse(in: CGRect(x: P.x-rr, y: P.y-rr, width: rr*2, height: rr*2)); cg.setAlpha(1)
+        }
         if P.barrierT > 0 {
             let a = P.barrierT/BARRIER_T; cg.setAlpha(a*0.6); cg.setStrokeColor(cFart.cgColor); cg.setLineWidth(6); cg.setLineCap(.round)
             cg.addArc(center: CGPoint(x: P.x, y: P.y-6), radius: 58, startAngle: .pi*1.12, endAngle: .pi*1.88, clockwise: false); cg.strokePath()
@@ -683,9 +736,11 @@ final class GameView: UIView {
     }
     private func drawPowerup(_ pu: PowerUp) {
         if pu.life < 1.4 && Int(pu.life*8) % 2 == 0 { return }
-        let col = puColor(pu.kind); let yy = pu.y + sin(pu.life*5)*2
+        let col = puColor(pu.kind); let yy = pu.y + sin(pu.life*5)*2; let big = pu.kind == "mega"
         cg.saveGState(); cg.translateBy(x: pu.x, y: yy)
-        cg.setShadow(offset: .zero, blur: 12, color: col.cgColor); fillCircle(0, 0, 15, col); cg.setShadow(offset: .zero, blur: 0, color: nil)
+        if big { cg.setAlpha(0.4 + 0.35*sin(pu.life*8)); cg.setStrokeColor(col.cgColor); cg.setLineWidth(3); cg.strokeEllipse(in: CGRect(x: -22, y: -22, width: 44, height: 44)); cg.setAlpha(1) }
+        let rr: CGFloat = big ? 17 : 15
+        cg.setShadow(offset: .zero, blur: big ? 18 : 12, color: col.cgColor); fillCircle(0, 0, rr, col); cg.setShadow(offset: .zero, blur: 0, color: nil)
         switch pu.kind {
         case "gold": cg.setFillColor(hex("7a5a10").cgColor); star(0, 0, 8, 5)
         case "mask":
@@ -696,8 +751,15 @@ final class GameView: UIView {
         case "plug":
             cg.setStrokeColor(hex("2a1050").cgColor); cg.setLineWidth(2); cg.strokeEllipse(in: CGRect(x: -7, y: -7, width: 14, height: 14))
             cg.move(to: CGPoint(x: 0, y: 0)); cg.addLine(to: CGPoint(x: 0, y: -5)); cg.move(to: CGPoint(x: 0, y: 0)); cg.addLine(to: CGPoint(x: 4, y: 1)); cg.strokePath()
-        default:
+        case "beano":
             for (bx, by, br) in [(-4.0, 2.0, 4.0), (3.0, -1.0, 5.0), (1.0, 6.0, 3.0)] { fillCircle(CGFloat(bx), CGFloat(by), CGFloat(br), hex("0c3a10")) }
+        case "bean":
+            cg.setFillColor(hex("5a2e00").cgColor); let p = CGMutablePath()
+            p.move(to: CGPoint(x: 2, y: -9)); p.addLine(to: CGPoint(x: -5, y: 1)); p.addLine(to: CGPoint(x: 0, y: 1))
+            p.addLine(to: CGPoint(x: -3, y: 9)); p.addLine(to: CGPoint(x: 6, y: -2)); p.addLine(to: CGPoint(x: 0, y: -2)); p.closeSubpath()
+            cg.addPath(p); cg.fillPath()
+        default:
+            cg.setFillColor(hex("5a0033").cgColor); star(0, 0, 9, 7)
         }
         cg.restoreGState()
     }
@@ -706,6 +768,7 @@ final class GameView: UIView {
         if P.shieldT > 0 { list.append((P.shieldT/PU_SHIELD, cMask, "SHIELD")) }
         if P.x2T > 0 { list.append((P.x2T/PU_X2, cGold, "x2")) }
         if P.slowT > 0 { list.append((P.slowT/PU_SLOW, cPlug, "SLO-MO")) }
+        if P.freeFartT > 0 { list.append((P.freeFartT/PU_FREE, cBean, "RAPID")) }
         if list.isEmpty { return }
         let pw: CGFloat = 66, ph: CGFloat = 13, gap: CGFloat = 6
         let tot = CGFloat(list.count)*pw + CGFloat(list.count-1)*gap; let x0 = LW/2 - tot/2; let y: CGFloat = 52
@@ -796,15 +859,25 @@ final class GameView: UIView {
     }
     private func drawBoss(_ b: Boss) {
         let x = b.bx, y = b.by; let col = b.hitFlash > 0 ? UIColor.white : cMonkeyBody
-        cg.setStrokeColor(col.cgColor); cg.setLineWidth(13); cg.setLineCap(.round)
-        cg.move(to: CGPoint(x: x-48, y: BRANCH_Y+2)); cg.addLine(to: CGPoint(x: x-26, y: y-28))
-        cg.move(to: CGPoint(x: x+48, y: BRANCH_Y+2)); cg.addLine(to: CGPoint(x: x+26, y: y-28)); cg.strokePath()
+        let roar = b.roarT > 0, weak = b.weakT > 0, dying = b.deathT > 0
+        let sc: CGFloat = roar ? 1.16 : 1, yOff: CGFloat = b.slamHit > 0 ? 18*(b.slamHit/0.28) : 0
+        if weak { cg.saveGState(); cg.setAlpha(0.32 + 0.3*abs(sin(b.wob))); fillCircle(x, y, 74, cFart); cg.setAlpha(1); cg.restoreGState() }
+        cg.saveGState(); cg.translateBy(x: x, y: y+yOff); if dying { cg.rotate(by: b.wob*0.5) }; cg.scaleBy(x: sc, y: sc); cg.translateBy(x: -x, y: -y)
+        if !dying {
+            cg.setStrokeColor(col.cgColor); cg.setLineWidth(13); cg.setLineCap(.round)
+            cg.move(to: CGPoint(x: x-48, y: BRANCH_Y+2)); cg.addLine(to: CGPoint(x: x-26, y: y-28))
+            cg.move(to: CGPoint(x: x+48, y: BRANCH_Y+2)); cg.addLine(to: CGPoint(x: x+26, y: y-28)); cg.strokePath()
+        }
         fillEllipse(x-30, y-30, 15, 15, cEar); fillEllipse(x+30, y-30, 15, 15, cEar)
         fillEllipse(x, y+28, 44, 32, col); fillEllipse(x, y-24, 36, 30, col); fillEllipse(x, y-19, 23, 19, cMonkeyFace)
-        drawEyes(x-12, y-22, x+12, y-22, dead: false)
+        drawEyes(x-12, y-22, x+12, y-22, dead: weak || dying)
         cg.setStrokeColor(cOutline.cgColor); cg.setLineWidth(4); cg.setLineCap(.round)
         cg.move(to: CGPoint(x: x-20, y: y-32)); cg.addLine(to: CGPoint(x: x-6, y: y-27))
         cg.move(to: CGPoint(x: x+20, y: y-32)); cg.addLine(to: CGPoint(x: x+6, y: y-27)); cg.strokePath()
+        if roar || weak {
+            cg.setFillColor(hex("3a0f12").cgColor); cg.fillEllipse(in: CGRect(x: x-15, y: y-18, width: 30, height: 26))
+            cg.setFillColor(hex("ff6b9a").cgColor); cg.fillEllipse(in: CGRect(x: x-8, y: y-6, width: 16, height: 12))
+        }
         fillEllipse(x-22, y+42, 20, 17, col); fillEllipse(x+22, y+42, 20, 17, col)
         cg.setStrokeColor(cOutline.cgColor); cg.setLineWidth(3); cg.move(to: CGPoint(x: x, y: y+26)); cg.addLine(to: CGPoint(x: x, y: y+58)); cg.strokePath()
         let cw: CGFloat = 54, cx = x - cw/2, cy = y - 58
@@ -813,9 +886,16 @@ final class GameView: UIView {
         cp.move(to: CGPoint(x: cx, y: cy+18)); cp.addLine(to: CGPoint(x: cx, y: cy+2)); cp.addLine(to: CGPoint(x: cx+cw*0.25, y: cy+12))
         cp.addLine(to: CGPoint(x: cx+cw*0.5, y: cy-6)); cp.addLine(to: CGPoint(x: cx+cw*0.75, y: cy+12)); cp.addLine(to: CGPoint(x: cx+cw, y: cy+2)); cp.addLine(to: CGPoint(x: cx+cw, y: cy+18)); cp.closeSubpath()
         cg.addPath(cp); cg.fillPath(); cg.addPath(cp); cg.strokePath()
-        if b.chargeT > 0 {
+        cg.restoreGState()
+        if b.chargeT > 0 && !weak {
             cg.setAlpha(0.65); for k in 0..<6 { fillCircle(x + sin(CGFloat(k)*1.5)*18, y + 62 + CGFloat(k)*5, 15 - CGFloat(k)*1.6, cFart) }; cg.setAlpha(1)
-            text("!!", x, y - 74, 22, hex("ff5a5a"))
+            text("!!", x, y - 78, 22, hex("ff5a5a"))
+        }
+        if b.slamT > 0 { text("SLAM!", x, y - 78, 20, hex("ff5a5a")) }
+        if roar { text("ROAAR!", x, y - 84, 22, hex("ff5a5a")) }
+        if weak {
+            for k in 0..<3 { let a = b.wob + CGFloat(k)*2.1; text("✦", x + cos(a)*42, y - 42 + sin(a)*10, 11, cAccent) }
+            text("HIT THE WEAK POINT!", x, y - 84, 13, cAccent)
         }
     }
     private func drawLevelDone() {
