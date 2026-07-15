@@ -1,0 +1,322 @@
+<title>Monkey Madness — Art Direction Explorations</title>
+<style>
+  :root{
+    --bg:#e9e7df; --bg2:#f4f2ea; --ink:#20201b; --muted:#6b6a5f; --faint:#9a9789;
+    --line:rgba(30,28,20,.14); --card:#fffef9; --accent:#c65a2e;
+    --shadow:0 20px 50px -26px rgba(40,35,20,.5);
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#16150f; --bg2:#1d1c15; --ink:#f0eee4; --muted:#a7a495; --faint:#6f6c5f;
+      --line:rgba(230,225,205,.12); --card:#211f18; --accent:#e8843f; --shadow:0 22px 54px -26px rgba(0,0,0,.7); }
+  }
+  :root[data-theme="light"]{ --bg:#e9e7df; --bg2:#f4f2ea; --ink:#20201b; --muted:#6b6a5f; --faint:#9a9789;
+    --line:rgba(30,28,20,.14); --card:#fffef9; --accent:#c65a2e; --shadow:0 20px 50px -26px rgba(40,35,20,.5); }
+  :root[data-theme="dark"]{ --bg:#16150f; --bg2:#1d1c15; --ink:#f0eee4; --muted:#a7a495; --faint:#6f6c5f;
+    --line:rgba(230,225,205,.12); --card:#211f18; --accent:#e8843f; --shadow:0 22px 54px -26px rgba(0,0,0,.7); }
+
+  *{box-sizing:border-box}
+  body{margin:0}
+  .wrap{font-family:var(--sans); color:var(--ink); background:
+      radial-gradient(900px 500px at 85% -5%, color-mix(in srgb,var(--accent) 12%, transparent), transparent 60%),
+      var(--bg); min-height:100vh; line-height:1.6; -webkit-font-smoothing:antialiased; padding-bottom:5rem}
+  .shell{max-width:1080px; margin:0 auto; padding:0 clamp(18px,5vw,44px)}
+
+  /* header */
+  header{padding:clamp(3rem,7vw,5rem) 0 1.5rem}
+  .eyebrow{display:inline-flex; gap:.5rem; align-items:center; font-size:.72rem; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); border:1px solid var(--line); border-radius:999px; padding:.4rem .85rem}
+  h1{font-size:clamp(2.1rem,5.5vw,3.4rem); line-height:1.02; letter-spacing:-.02em; margin:1rem 0 .3rem; font-weight:800; text-wrap:balance}
+  .sub{font-size:clamp(1.02rem,2.2vw,1.2rem); color:var(--muted); max-width:64ch}
+  .sub b{color:var(--ink)}
+
+  /* research strip */
+  .research{display:grid; grid-template-columns:repeat(4,1fr); gap:.8rem; margin:2rem 0 .5rem}
+  @media(max-width:760px){.research{grid-template-columns:1fr 1fr}}
+  .rc{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:.9rem 1rem}
+  .rc h4{margin:0 0 .2rem; font-size:.78rem; letter-spacing:.05em; text-transform:uppercase; color:var(--accent)}
+  .rc p{margin:0; font-size:.86rem; color:var(--muted)}
+
+  .note{font-size:.9rem; color:var(--faint); margin:1.4rem 0 0; padding-left:1rem; border-left:2px solid var(--line)}
+
+  /* gallery */
+  .gallery{display:grid; grid-template-columns:1fr 1fr; gap:1.4rem; margin:2.6rem 0 0}
+  @media(max-width:820px){.gallery{grid-template-columns:1fr}}
+  .tile{background:var(--card); border:1px solid var(--line); border-radius:18px; overflow:hidden; box-shadow:var(--shadow); display:flex; flex-direction:column}
+  .thead{padding:1.1rem 1.25rem .4rem}
+  .tnum{font-size:.72rem; font-weight:800; letter-spacing:.12em; color:var(--faint)}
+  .tname{font-size:1.4rem; font-weight:800; margin:.1rem 0 .1rem; letter-spacing:-.01em}
+  .tvibe{font-size:.9rem; color:var(--muted); margin:0}
+
+  .scene{aspect-ratio:5/4; margin:.7rem 1.25rem 0; border-radius:14px; overflow:hidden; position:relative; border:1px solid var(--line)}
+  .scene svg{width:100%; height:100%; display:block}
+  .burst{position:absolute; font-weight:900; font-style:italic; color:#111; z-index:3; transform:rotate(-8deg)}
+
+  .tbody{padding:1rem 1.25rem 1.25rem; display:flex; flex-direction:column; gap:.75rem}
+  .swatches{display:flex; gap:.4rem; flex-wrap:wrap}
+  .sw{width:34px; height:34px; border-radius:8px; border:1px solid rgba(0,0,0,.15); position:relative}
+  .sw span{position:absolute; bottom:-16px; left:50%; transform:translateX(-50%); font-size:.55rem; color:var(--faint); white-space:nowrap}
+  .swrow{display:flex; gap:.4rem; flex-wrap:wrap; margin-bottom:14px}
+  .specimen{border-radius:10px; padding:.7rem .9rem; text-align:center; overflow:hidden}
+  .row{display:grid; grid-template-columns:auto 1fr; gap:.55rem; font-size:.9rem; align-items:baseline}
+  .row .k{font-weight:700; font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); white-space:nowrap}
+  .row .v{color:var(--muted)}
+  .row .v.fresh{color:var(--ink)}
+  .effort{display:inline-flex; gap:.3rem; align-items:center; font-size:.74rem; font-weight:700}
+  .dot{width:7px; height:7px; border-radius:50%; background:var(--faint)}
+  .dot.on{background:var(--accent)}
+
+  /* closing */
+  .closing{margin-top:3rem; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:1.4rem 1.5rem; box-shadow:var(--shadow)}
+  .closing h3{margin:0 0 .4rem; font-size:1.15rem}
+  .closing p{margin:.4rem 0; color:var(--muted); font-size:.95rem}
+  .closing b{color:var(--ink)}
+  footer{margin-top:2rem; font-size:.78rem; color:var(--faint)}
+  footer a{color:var(--accent)}
+
+  /* ================= SCENE STYLE WORLDS ================= */
+  .scene .eye{fill:#161310}
+  .scene .cloud{opacity:.55}
+
+  /* 1 — INKWELL (rubber-hose 1930s) */
+  .s-ink{background:#efe4c6}
+  .s-ink::after{content:""; position:absolute; inset:0; pointer-events:none;
+    background:
+      radial-gradient(120% 120% at 50% 40%, transparent 55%, rgba(40,30,10,.34)),
+      repeating-linear-gradient(0deg, rgba(0,0,0,.05) 0 1px, transparent 1px 3px);}
+  .s-ink .grd{fill:#181410}
+  .s-ink .mk,.s-ink .plbody{fill:#181410}
+  .s-ink .ear{fill:#181410}
+  .s-ink .face,.s-ink .plhead{fill:#efe4c6; stroke:#181410; stroke-width:2}
+  .s-ink .ban{fill:#d7a52c; stroke:#181410; stroke-width:3}
+  .s-ink .cloud{fill:#fffef0}
+  .s-ink .glove{fill:#efe4c6; stroke:#181410; stroke-width:2}
+
+  /* 2 — PLASTICINE (claymation) */
+  .s-clay{background:radial-gradient(120% 90% at 50% 20%, #f0e4cf 0%, #d9c4a4 70%, #c9b088 100%)}
+  .s-clay .grd{fill:#b98f5f}
+  .s-clay .mk{fill:#8a6038}
+  .s-clay .ear{fill:#7a5330}
+  .s-clay .face{fill:#b98a5b}
+  .s-clay .plhead{fill:#e6b487}
+  .s-clay .plbody{fill:#3fa39a}
+  .s-clay .ban{fill:#f0c53d}
+  .s-clay .cloud{fill:#bfe6a0}
+  .s-clay .hi{fill:#fff; opacity:.28}
+  .s-clay svg{filter:drop-shadow(0 4px 3px rgba(70,45,20,.4))}
+
+  /* 3 — LOUD! (maximalist microgame) */
+  .s-loud{background:#2a1857; background-image:radial-gradient(#ff3d7f 26%, transparent 27%); background-size:15px 15px}
+  .s-loud .grd{fill:#17d1e8}
+  .s-loud .mk{fill:#8a4bd6; stroke:#000; stroke-width:5}
+  .s-loud .ear{fill:#8a4bd6; stroke:#000; stroke-width:5}
+  .s-loud .face{fill:#ffe022}
+  .s-loud .plhead{fill:#ffb0c7; stroke:#000; stroke-width:5}
+  .s-loud .plbody{fill:#17d1e8; stroke:#000; stroke-width:5}
+  .s-loud .ban{fill:#ffe022; stroke:#000; stroke-width:5}
+  .s-loud .cloud{fill:#7CFF5A}
+  .s-loud .eye{fill:#000}
+
+  /* 4 — DOODLE (crayon sketchbook) */
+  .s-doodle{background:#fbf7ea; background-image:repeating-linear-gradient(#cfe0ef 0 1.4px, transparent 1.4px 20px)}
+  .s-doodle::before{content:""; position:absolute; top:0; bottom:0; left:26px; width:2px; background:rgba(224,90,74,.5)}
+  .s-doodle .grd{fill:none}
+  .s-doodle .mk{fill:#a06a34; stroke:#6b4418; stroke-width:3}
+  .s-doodle .ear{fill:#a06a34; stroke:#6b4418; stroke-width:3}
+  .s-doodle .face{fill:#d0a468; stroke:#6b4418; stroke-width:2}
+  .s-doodle .plhead{fill:#f4c9a0; stroke:#8a5a2b; stroke-width:2.5}
+  .s-doodle .plbody{fill:#e24b3a; stroke:#a3271a; stroke-width:3}
+  .s-doodle .ban{fill:#f4c020; stroke:#b98a00; stroke-width:3}
+  .s-doodle .cloud{fill:#8fca6a}
+</style>
+
+<div class="wrap">
+<div class="shell">
+
+  <header>
+    <span class="eyebrow">🎨 Art Direction · 4 explorations</span>
+    <h1>Same game. Four worlds it could live in.</h1>
+    <p class="sub">You were right — the first pass borrowed the brief's night-jungle-and-emoji skin. This is a clean reset. Each world below renders the <b>exact same Fart Back scene</b> — a monkey farting a banana at a kid — so the only thing changing is the <b>look and feel</b>. None of them are emoji. None of them are the brief.</p>
+
+    <div class="research">
+      <div class="rc"><h4>What the research says</h4><p>A distinct artistic identity is what separates memorable games from forgettable ones.</p></div>
+      <div class="rc"><h4>Beat the cliché</h4><p>Drop literal references (jungle, emoji). Read "playful" as bold composition + unexpected colour, not props.</p></div>
+      <div class="rc"><h4>Colour discipline</h4><p>60 / 30 / 10 — one calm ground, one hero hue, one accent. Swap pure black for a tinted dark.</p></div>
+      <div class="rc"><h4>Comedy lineage</h4><p>Fart humour has pedigree — WarioWare, Boogerman, Banjo-Kazooie. Lean into the absurd.</p></div>
+    </div>
+    <p class="note">Gameplay stays identical across all four — dodge the farted bananas, blast them back, stun monkeys for combos. Art direction is a skin over the same mechanics, so we can commit to a world without touching the design.</p>
+  </header>
+
+  <div class="gallery">
+
+    <!-- ============ TILE 1 : INKWELL ============ -->
+    <div class="tile">
+      <div class="thead">
+        <div class="tnum">DIRECTION 01</div>
+        <div class="tname">Inkwell</div>
+        <p class="tvibe">1930s rubber-hose cartoon — the Cuphead lineage</p>
+      </div>
+      <div class="scene s-ink">
+        <svg viewBox="0 0 200 160">
+          <rect class="grd" x="0" y="146" width="200" height="14"/>
+          <!-- monkey -->
+          <circle class="ear" cx="76" cy="34" r="10"/><circle class="ear" cx="124" cy="34" r="10"/>
+          <ellipse class="mk" cx="100" cy="42" rx="27" ry="24"/>
+          <ellipse class="face" cx="100" cy="47" rx="16" ry="14"/>
+          <circle class="eye" cx="93" cy="43" r="3.4"/><circle class="eye" cx="107" cy="43" r="3.4"/>
+          <!-- toot cloud -->
+          <g class="cloud"><circle cx="118" cy="70" r="7"/><circle cx="126" cy="66" r="5"/><circle cx="112" cy="74" r="5"/></g>
+          <!-- banana -->
+          <g transform="translate(120,92) rotate(28)"><path class="ban" d="M0,0 C10,-2 20,5 21,17 C22,29 14,36 3,35 C13,29 15,20 11,12 C8,6 4,2 0,0 Z"/></g>
+          <!-- player -->
+          <rect class="plbody" x="86" y="118" width="28" height="26" rx="9"/>
+          <circle class="plhead" cx="100" cy="112" r="13"/>
+          <circle class="eye" cx="95" cy="111" r="2.6"/><circle class="eye" cx="105" cy="111" r="2.6"/>
+          <circle class="glove" cx="82" cy="130" r="5"/><circle class="glove" cx="118" cy="130" r="5"/>
+        </svg>
+      </div>
+      <div class="tbody">
+        <div class="swrow">
+          <div class="sw" style="background:#efe4c6"><span>paper</span></div>
+          <div class="sw" style="background:#181410"><span>ink</span></div>
+          <div class="sw" style="background:#d7a52c"><span>mustard</span></div>
+          <div class="sw" style="background:#c0453b"><span>coral</span></div>
+        </div>
+        <div class="specimen" style="background:#efe4c6">
+          <span style="font-family:Georgia,'Times New Roman',serif; font-weight:800; font-size:1.45rem; letter-spacing:.02em; color:#181410; text-transform:uppercase; font-style:italic">Monkey Madness</span>
+        </div>
+        <div class="row"><span class="k">Signature</span><span class="v">Ink-wobble on every outline, film-grain + vignette, pie-cut eyes, gloved hands. Farts are little white smoke rings.</span></div>
+        <div class="row"><span class="k">Why fresh</span><span class="v fresh">Timeless and premium — the opposite of disposable. Old cartoons already loved gas gags, so the comedy fits the era.</span></div>
+        <div class="row"><span class="k">Effort</span><span class="v"><span class="effort"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot"></span> Higher — frame-y animation sells it</span></span></div>
+      </div>
+    </div>
+
+    <!-- ============ TILE 2 : PLASTICINE ============ -->
+    <div class="tile">
+      <div class="thead">
+        <div class="tnum">DIRECTION 02</div>
+        <div class="tname">Plasticine</div>
+        <p class="tvibe">Handmade claymation — Aardman on a tabletop</p>
+      </div>
+      <div class="scene s-clay">
+        <svg viewBox="0 0 200 160">
+          <rect class="grd" x="0" y="144" width="200" height="16"/>
+          <circle class="ear" cx="77" cy="35" r="10"/><circle class="ear" cx="123" cy="35" r="10"/>
+          <ellipse class="mk" cx="100" cy="42" rx="27" ry="24"/>
+          <ellipse class="face" cx="100" cy="48" rx="16" ry="13"/>
+          <ellipse class="hi" cx="90" cy="33" rx="8" ry="5"/>
+          <circle class="eye" cx="93" cy="45" r="3.4"/><circle class="eye" cx="107" cy="45" r="3.4"/>
+          <g class="cloud"><circle cx="118" cy="70" r="8"/><circle cx="127" cy="66" r="5.5"/><circle cx="111" cy="74" r="5.5"/></g>
+          <g transform="translate(120,92) rotate(28)"><path class="ban" d="M0,0 C10,-2 20,5 21,17 C22,29 14,36 3,35 C13,29 15,20 11,12 C8,6 4,2 0,0 Z"/></g>
+          <rect class="plbody" x="85" y="117" width="30" height="27" rx="12"/>
+          <circle class="plhead" cx="100" cy="111" r="14"/>
+          <ellipse class="hi" cx="94" cy="105" rx="5" ry="3.5"/>
+          <circle class="eye" cx="95" cy="110" r="2.8"/><circle class="eye" cx="105" cy="110" r="2.8"/>
+        </svg>
+      </div>
+      <div class="tbody">
+        <div class="swrow">
+          <div class="sw" style="background:#e2cdac"><span>clay</span></div>
+          <div class="sw" style="background:#8a6038"><span>monkey</span></div>
+          <div class="sw" style="background:#3fa39a"><span>teal</span></div>
+          <div class="sw" style="background:#f0c53d"><span>banana</span></div>
+        </div>
+        <div class="specimen" style="background:#e2cdac">
+          <span style="font-family:'SF Pro Rounded','Arial Rounded MT Bold','Trebuchet MS',system-ui; font-weight:800; font-size:1.45rem; letter-spacing:-.01em; color:#5a3e22; text-shadow:0 2px 0 rgba(255,255,255,.35)">Monkey Madness</span>
+        </div>
+        <div class="row"><span class="k">Signature</span><span class="v">Thumbprint texture, matte studio lighting, everything squishes on impact. Fart clouds are literal blobs of green clay.</span></div>
+        <div class="row"><span class="k">Why fresh</span><span class="v fresh">Tactile and expensive-looking — almost nothing in kids' mobile looks handmade. Squish physics <em>is</em> the comedy.</span></div>
+        <div class="row"><span class="k">Effort</span><span class="v"><span class="effort"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span> Highest — sculpted/3D-lit assets</span></span></div>
+      </div>
+    </div>
+
+    <!-- ============ TILE 3 : LOUD! ============ -->
+    <div class="tile">
+      <div class="thead">
+        <div class="tnum">DIRECTION 03</div>
+        <div class="tname">Loud!</div>
+        <p class="tvibe">Maximalist microgame chaos — WarioWare energy</p>
+      </div>
+      <div class="scene s-loud">
+        <span class="burst" style="top:8%; right:6%; font-size:1.1rem; color:#ffe022; -webkit-text-stroke:2px #000">PBBT!</span>
+        <svg viewBox="0 0 200 160">
+          <rect class="grd" x="0" y="146" width="200" height="14"/>
+          <circle class="ear" cx="76" cy="34" r="10"/><circle class="ear" cx="124" cy="34" r="10"/>
+          <ellipse class="mk" cx="100" cy="42" rx="27" ry="24"/>
+          <ellipse class="face" cx="100" cy="48" rx="15" ry="13"/>
+          <circle class="eye" cx="93" cy="45" r="3.6"/><circle class="eye" cx="107" cy="45" r="3.6"/>
+          <g class="cloud"><circle cx="118" cy="70" r="8"/><circle cx="127" cy="66" r="5.5"/><circle cx="111" cy="74" r="5.5"/></g>
+          <g transform="translate(120,92) rotate(28)"><path class="ban" d="M0,0 C10,-2 20,5 21,17 C22,29 14,36 3,35 C13,29 15,20 11,12 C8,6 4,2 0,0 Z"/></g>
+          <rect class="plbody" x="85" y="118" width="30" height="26" rx="7"/>
+          <circle class="plhead" cx="100" cy="112" r="13"/>
+          <circle class="eye" cx="95" cy="111" r="2.8"/><circle class="eye" cx="105" cy="111" r="2.8"/>
+        </svg>
+      </div>
+      <div class="tbody">
+        <div class="swrow">
+          <div class="sw" style="background:#ff3d7f"><span>pink</span></div>
+          <div class="sw" style="background:#17d1e8"><span>cyan</span></div>
+          <div class="sw" style="background:#ffe022"><span>acid</span></div>
+          <div class="sw" style="background:#2a1857"><span>purple</span></div>
+        </div>
+        <div class="specimen" style="background:#2a1857">
+          <span style="font-family:'Arial Black','Helvetica',sans-serif; font-weight:900; font-style:italic; font-size:1.5rem; text-transform:uppercase; color:#ffe022; -webkit-text-stroke:2px #000; letter-spacing:-.02em">Monkey Madness</span>
+        </div>
+        <div class="row"><span class="k">Signature</span><span class="v">Halftone dots, fat black outlines, clashing candy colours, screaming type and sticker starbursts on every hit.</span></div>
+        <div class="row"><span class="k">Why fresh</span><span class="v fresh">Pure comedic energy and the strongest "one-more-go" pull. Unexpected colour combos are exactly what the research prescribes.</span></div>
+        <div class="row"><span class="k">Effort</span><span class="v"><span class="effort"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span> Lower — flat vector, fast to make</span></span></div>
+      </div>
+    </div>
+
+    <!-- ============ TILE 4 : DOODLE ============ -->
+    <div class="tile">
+      <div class="thead">
+        <div class="tnum">DIRECTION 04</div>
+        <div class="tname">Doodle</div>
+        <p class="tvibe">A kid's crayon sketchbook come to life</p>
+      </div>
+      <div class="scene s-doodle">
+        <svg viewBox="0 0 200 160">
+          <circle class="ear" cx="77" cy="35" r="10"/><circle class="ear" cx="123" cy="35" r="10"/>
+          <ellipse class="mk" cx="100" cy="42" rx="26" ry="23"/>
+          <ellipse class="face" cx="100" cy="48" rx="15" ry="12"/>
+          <circle class="eye" cx="93" cy="45" r="3.2"/><circle class="eye" cx="107" cy="45" r="3.2"/>
+          <g class="cloud"><circle cx="118" cy="70" r="7"/><circle cx="126" cy="66" r="5"/><circle cx="112" cy="74" r="5"/></g>
+          <g transform="translate(120,92) rotate(28)"><path class="ban" d="M0,0 C10,-2 20,5 21,17 C22,29 14,36 3,35 C13,29 15,20 11,12 C8,6 4,2 0,0 Z"/></g>
+          <rect class="plbody" x="86" y="118" width="28" height="26" rx="6"/>
+          <circle class="plhead" cx="100" cy="112" r="13"/>
+          <circle class="eye" cx="95" cy="111" r="2.6"/><circle class="eye" cx="105" cy="111" r="2.6"/>
+        </svg>
+      </div>
+      <div class="tbody">
+        <div class="swrow">
+          <div class="sw" style="background:#fbf7ea"><span>paper</span></div>
+          <div class="sw" style="background:#e24b3a"><span>crayon red</span></div>
+          <div class="sw" style="background:#3f6fd1"><span>blue</span></div>
+          <div class="sw" style="background:#4aa63e"><span>green</span></div>
+        </div>
+        <div class="specimen" style="background:#fbf7ea">
+          <span style="font-family:'Comic Sans MS','Chalkboard SE','Bradley Hand',cursive; font-weight:700; font-size:1.4rem; color:#e24b3a">Monkey Madness</span>
+        </div>
+        <div class="row"><span class="k">Signature</span><span class="v">Wobbly crayon lines on ruled notebook paper, googly-eye stickers, scribble-fills, the odd juice-stain. Farts are scribbled green scrawls.</span></div>
+        <div class="row"><span class="k">Why fresh</span><span class="v fresh">Deeply personal — it looks like <em>Mateo</em> drew the game. Charming, unmistakable, and dirt-cheap to animate.</span></div>
+        <div class="row"><span class="k">Effort</span><span class="v"><span class="effort"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span> Lower — texture &amp; wobble do the work</span></span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="closing">
+    <h3>My steer</h3>
+    <p>If the goal is <b>funniest, fastest, most addictive</b> → <b>Loud!</b> — it's cheap to build, reads instantly on a phone, and its whole personality is comedy. If the goal is <b>a keepsake made for Mateo</b> → <b>Doodle</b>, which is the most personal and the biggest departure from anything generic. <b>Inkwell</b> and <b>Plasticine</b> are the "wow, this looks like a real studio made it" options — more effort, more payoff.</p>
+    <p>Whichever you pick, the next move is the same: I re-skin the working <b>Fart Back</b> prototype into that world — new palette, characters, textures, type, and a matching sound personality (chip-tune squeaks, wet clay splats, brass raspberries…). The mechanics don't change; only the feel does.</p>
+  </div>
+
+  <footer>
+    Research sources: <a href="https://pixune.com/blog/games-with-unique-art-styles/">Pixune — games with unique art styles</a> ·
+    <a href="https://www.zvky.com/blogs/articles/top-7-art-styles-dominating-mobile-games-in-2025">Zvky — mobile art styles 2025</a> ·
+    <a href="https://www.media.io/color-palette/kids-color-palette.html">Media.io — kids colour palettes</a> ·
+    <a href="https://tvtropes.org/pmwiki/pmwiki.php/ToiletHumour/VideoGames">TV Tropes — toilet humour in games</a>
+  </footer>
+
+</div>
+</div>

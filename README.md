@@ -14,8 +14,10 @@ juice.
 
 | File | What it is |
 |------|------------|
-| **[`MonkeyMadness_FartBack_Prototype.html`](MonkeyMadness_FartBack_Prototype.html)** | 🎮 **Playable prototype** of the "Fart Back" core loop. One self-contained file — just open it in a browser. |
-| **[`MonkeyMadness_FartFury_Roadmap.html`](MonkeyMadness_FartFury_Roadmap.html)** | 🗺️ **Design & gameplay roadmap** — vision, gameplay directions, comedy toolkit, rich-graphics plan, retention loop, and phased build plan. Open in a browser. |
+| **[`MonkeyMadness_FartBack_Themed.html`](MonkeyMadness_FartBack_Themed.html)** | 💥 **Flagship playable build** — the Fart Back core with a **swappable art-direction theme system**. Pick your world (Loud! / Doodle / Inkwell / Plasticine) right on the start screen. Fully vector art, no emoji. |
+| **[`MonkeyMadness_ArtDirections.html`](MonkeyMadness_ArtDirections.html)** | 🎨 **Art-direction explorations** — four fresh, distinct visual worlds, each rendering the same scene so you can compare. Research-backed. |
+| **[`MonkeyMadness_FartBack_Prototype.html`](MonkeyMadness_FartBack_Prototype.html)** | 🎮 **First prototype** of the Fart Back core loop (emoji art). Kept for reference. |
+| **[`MonkeyMadness_FartFury_Roadmap.html`](MonkeyMadness_FartFury_Roadmap.html)** | 🗺️ **Design & gameplay roadmap** — vision, gameplay directions, comedy toolkit, retention loop, phased build plan. |
 
 ---
 
@@ -40,6 +42,19 @@ farts are ~70% of the comedy.
 | Fart blast | 💨 button | F / ↓ |
 
 ---
+
+## 🎨 Art direction — swappable themes
+
+The look-and-feel is a **theme**, not baked in. Each world is defined as data + a few
+draw hooks in a `THEMES` object, so adding a new one doesn't touch the gameplay. Four
+ship today, switchable from the start screen (and remembered):
+
+- **Loud!** — maximalist WarioWare chaos: halftone dots, clashing candy colours, fat outlines, airhorn farts.
+- **Doodle** — a kid's crayon sketchbook: ruled paper, wobbly lines, googly eyes, kazoo farts.
+- **Inkwell** — 1930s rubber-hose cartoon: aged paper, film grain, pie-cut eyes, brass raspberries.
+- **Plasticine** — handmade claymation: warm clay, soft shadows, squishy, wet-squelch farts.
+
+Each theme also carries its own **sound personality** (the fart synth reads the active theme).
 
 ## 🗺️ The plan
 
