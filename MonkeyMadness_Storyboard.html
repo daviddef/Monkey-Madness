@@ -128,8 +128,8 @@
 
   <header>
     <div class="badges">
-      <span class="badge live">● Living doc · v6</span>
-      <span class="badge">HTML lab → Swift</span>
+      <span class="badge live">● Living doc · v8 + native iOS</span>
+      <span class="badge">HTML lab → Swift (porting now)</span>
       <span class="badge grape">Flagship theme: Loud!</span>
     </div>
     <h1>Monkey Madness — <span class="g">Fart Back</span> <span class="y">Storyboard</span></h1>
@@ -139,15 +139,15 @@
   <!-- STATUS -->
   <section>
     <div class="eyebrow"><span class="n">01</span> Status — the road to "fun-complete"</div>
-    <h2>Six gates, then we port to Swift</h2>
-    <p class="lead">We only move to Swift once the game is <b>fun-complete</b> — porting a locked design is mechanical; porting a moving target is painful. Three gates down, three to go.</p>
+    <h2>Fun-complete in HTML — now porting to iOS</h2>
+    <p class="lead">The game is now <b>fun-complete</b> in the HTML lab: full campaign, boss, power-ups, and juice. The native iOS port has begun and the core loop already builds &amp; runs in the Simulator. Next: finish the port + <b>playtest on TestFlight</b> (the real tuning tool).</p>
     <div class="bar">
       <div class="step done"><span class="s">🥊</span><b>Core combat</b><small>✅ Shipped</small></div>
       <div class="step done"><span class="s">🧃</span><b>Juice</b><small>✅ Shipped</small></div>
       <div class="step done"><span class="s">🐒</span><b>Monkey variety</b><small>✅ Shipped</small></div>
-      <div class="step now"><span class="s">🎁</span><b>Power-ups</b><small>🔨 Building next</small></div>
-      <div class="step"><span class="s">👑</span><b>Levels + Boss</b><small>📋 Queued</small></div>
-      <div class="step"><span class="s">🎚️</span><b>Tune + lock theme</b><small>📋 Queued</small></div>
+      <div class="step done"><span class="s">🎁</span><b>Power-ups</b><small>✅ Shipped</small></div>
+      <div class="step done"><span class="s">👑</span><b>Levels + Boss</b><small>✅ Shipped</small></div>
+      <div class="step now"><span class="s">📱</span><b>iOS + TestFlight</b><small>🔨 In progress</small></div>
     </div>
     <div class="legend"><span>✅ shipped</span><span>🔨 building</span><span>📋 queued</span><span>💡 backlog idea</span></div>
   </section>
@@ -185,7 +185,7 @@
 
     <!-- Power-ups -->
     <div class="spec">
-      <div class="h"><span class="ic">🎁</span><h3>Power-ups</h3><span class="st now">Building next</span></div>
+      <div class="h"><span class="ic">🎁</span><h3>Power-ups</h3><span class="st now">✓ Shipped</span></div>
       <p style="color:var(--muted); font-size:.94rem; margin:.5rem 0 0">Temporary abilities that <b>drop from stunned monkeys</b> — so offense (farting back) feeds your defense. Each one answers a specific threat, and grabbing it is a risk (you leave your safe spot).</p>
       <div class="grid2">
         <div class="mini"><b>😷 Gas Mask</b><p>~6s shield — walk through one hit. Counters black/boomer blasts.</p></div>
@@ -203,7 +203,7 @@
 
     <!-- Boss -->
     <div class="spec">
-      <div class="h"><span class="ic">👑</span><h3>Boss: King Kong-a-Toot</h3><span class="st next">Queued</span></div>
+      <div class="h"><span class="ic">👑</span><h3>Boss: King Kong-a-Toot</h3><span class="st now">✓ Shipped</span></div>
       <p style="color:var(--muted); font-size:.94rem; margin:.5rem 0 0">A giant gorilla in a crown, hanging from the whole branch. Three <b>distinct phases</b> — each a different puzzle, not just "more bananas". You damage it by farting its own bananas back.</p>
       <div class="grid2">
         <div class="mini"><b>Phase 1 — Aimed</b><p>Slow, single well-telegraphed shots. Teaches the fart-back rhythm.</p></div>
@@ -348,6 +348,9 @@
     <div class="eyebrow"><span class="n">06</span> Changelog</div>
     <h2>What's shipped so far</h2>
     <div class="changelog">
+      <div class="cl"><span class="v">iOS</span><span class="d"><b>Native iOS v0.1</b> — CoreGraphics port of the core loop (UIKit + CADisplayLink). Builds, installs &amp; renders in the iOS 26 Simulator; TestFlight-ready pending your signing.</span></div>
+      <div class="cl"><span class="v">v8</span><span class="d"><b>Levels + Boss</b> — 10 survive-levels, King Kong-a-Toot (3 telegraphed phases), win screen with the "$10 in your bank!" moment.</span></div>
+      <div class="cl"><span class="v">v7</span><span class="d"><b>Power-ups</b> — Gas Mask (shield), Golden Banana (×2), Nose Plug (slow-mo), Beano (clear); drops from stuns, HUD pips, on-body effects.</span></div>
       <div class="cl"><span class="v">v6</span><span class="d"><b>Monkey types</b> — Machine-Gun Marmoset (rapid small bananas) + Boomer Baboon (charged wide blast), size + <b>!!</b> tells.</span></div>
       <div class="cl"><span class="v">v5</span><span class="d"><b>Combat juice</b> — POW!/BONK!/MEGA! sticker pops, combo screen-flash, hitstop; monkeys no longer bunch up.</span></div>
       <div class="cl"><span class="v">v4</span><span class="d"><b>Branch &amp; swinging</b> — monkeys hang from a branch and swing/patrol left-right.</span></div>
