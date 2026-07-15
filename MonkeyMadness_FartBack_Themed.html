@@ -397,7 +397,50 @@ function drawThemePicker(){
 // ============================================================
 // SCREENS
 // ============================================================
-function panel(x,y,w,h){ ctx.fillStyle=T.panel; rr(x,y,w,h,18); ctx.fill(); ctx.strokeStyle=T.border; ctx.lineWidth=3; rr(x,y,w,h,18); ctx.stroke(); }
+function burstShape(cx,cy,r){ ctx.beginPath(); const n=11; for(let i=0;i<n*2;i++){const a=i*Math.PI/n;const rr2=i%2?r*.55:r;ctx.lineTo(cx+Math.cos(a)*rr2,cy+Math.sin(a)*rr2);} ctx.closePath(); }
+function tape(cx,cy,deg){ ctx.save(); ctx.translate(cx,cy); ctx.rotate(deg*Math.PI/180); ctx.fillStyle='rgba(240,214,96,.55)'; ctx.fillRect(-17,-7,34,14); ctx.strokeStyle='rgba(180,150,40,.5)'; ctx.lineWidth=1; ctx.strokeRect(-17,-7,34,14); ctx.restore(); }
+
+// Per-theme screen frame — each world gets bespoke menu chrome.
+function panel(x,y,w,h){
+  if(T.stickers){                    // LOUD — comic panel
+    ctx.fillStyle=T.panel; rr(x,y,w,h,16); ctx.fill();
+    ctx.lineWidth=6; ctx.strokeStyle='#000'; ctx.lineJoin='round'; rr(x,y,w,h,16); ctx.stroke();
+    ctx.lineWidth=2.5; ctx.strokeStyle=T.accent; rr(x+6,y+6,w-12,h-12,11); ctx.stroke();
+    [[x+10,y+8,'#ff3d7f'],[x+w-10,y+8,'#17d1e8']].forEach(([bx,by,col],i)=>{
+      ctx.fillStyle='#000'; burstShape(bx,by,26); ctx.fill();
+      ctx.fillStyle=col; burstShape(bx,by,22); ctx.fill();
+      ctx.fillStyle='#000'; ctx.font='900 9px "Arial Black",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.save(); ctx.translate(bx,by); ctx.rotate((i?12:-12)*Math.PI/180); ctx.fillText(i?'POW!':'PBBT!',0,0); ctx.restore(); });
+  } else if(T.wobble){               // DOODLE — hand-drawn sketch box
+    ctx.fillStyle=T.panel; rr(x,y,w,h,14); ctx.fill();
+    ctx.strokeStyle=T.border; ctx.lineWidth=2.5; rr(x,y,w,h,14); ctx.stroke();
+    ctx.strokeStyle=T.outline; ctx.lineWidth=1.4; rr(x+3,y+2.5,w-6,h-5,12); ctx.stroke();
+    tape(x+22,y,-13); tape(x+w-22,y,13);
+  } else if(T.grain){                // INKWELL — old-timey title card
+    ctx.fillStyle=T.panel; rr(x,y,w,h,10); ctx.fill();
+    ctx.save(); rr(x,y,w,h,10); ctx.clip();
+    const g=ctx.createRadialGradient(x+w/2,y+72,8,x+w/2,y+72,w*.75); g.addColorStop(0,'rgba(215,165,44,.2)'); g.addColorStop(1,'transparent');
+    ctx.fillStyle=g; ctx.fillRect(x,y,w,h); ctx.restore();
+    ctx.strokeStyle=T.border; ctx.lineWidth=3; rr(x+5,y+5,w-10,h-10,7); ctx.stroke();
+    ctx.lineWidth=1; rr(x+10,y+10,w-20,h-20,5); ctx.stroke();
+    ctx.fillStyle=T.border; [[x+10,y+10],[x+w-10,y+10],[x+10,y+h-10],[x+w-10,y+h-10]].forEach(([dx,dy])=>{ctx.save();ctx.translate(dx,dy);ctx.rotate(.785);ctx.fillRect(-3.5,-3.5,7,7);ctx.restore();});
+  } else {                           // PLASTICINE — clay slab
+    ctx.save(); ctx.shadowColor='rgba(50,34,18,.55)'; ctx.shadowBlur=20; ctx.shadowOffsetY=9; ctx.fillStyle=T.panel; rr(x,y,w,h,22); ctx.fill(); ctx.restore();
+    ctx.fillStyle='rgba(255,255,255,.4)'; rr(x+12,y+9,w-24,9,5); ctx.fill();
+    ctx.lineWidth=4; ctx.strokeStyle=T.border; rr(x,y,w,h,22); ctx.stroke();
+  }
+}
+
+// Themed title lettering.
+function drawTitle(text,x,y,size,color){
+  color=color||T.accent; ctx.font=T.titleFont(size); ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  if(T.stickers){ ctx.lineJoin='round'; ctx.lineWidth=size*.15; ctx.strokeStyle='#000'; ctx.strokeText(text,x,y); ctx.fillStyle=color; ctx.fillText(text,x,y); }
+  else if(T.grain){ ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillText(text,x+2,y+2); ctx.fillStyle=color; ctx.fillText(text,x,y); }
+  else if(T.wobble){ ctx.fillStyle=color; ctx.fillText(text,x,y); const w=ctx.measureText(text).width;
+    ctx.strokeStyle=T.border; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.beginPath();
+    for(let i=0;i<=w;i+=6){ const px=x-w/2+i; ctx.lineTo(px,y+7+Math.sin(i*.4)*1.6); } ctx.stroke(); }
+  else { ctx.fillStyle='rgba(255,255,255,.5)'; ctx.fillText(text,x,y-1.5); ctx.fillStyle=color; ctx.fillText(text,x,y); }
+}
 function sampleScene(){ // a couple of themed characters behind the menus
   drawBg();
   const m={x:120,y:110,bobT:1,angryT:0,stun:0,wob:0}; drawMonkey(m);
@@ -408,8 +451,8 @@ function sampleScene(){ // a couple of themed characters behind the menus
 function drawStart(){
   sampleScene();
   panel(W/2-205,84,410,470);
+  drawTitle('FART BACK!',W/2,152,40);
   ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-  ctx.fillStyle=T.accent; ctx.font=T.titleFont(40); ctx.fillText('FART BACK!',W/2,150);
   ctx.fillStyle=T.text; ctx.font=T.hudFont(15); ctx.fillText('Monkey Madness',W/2,180);
   ctx.font=T.hudFont(16); ctx.fillStyle=T.text; ctx.globalAlpha=.95;
   ctx.fillText('Monkeys fart bananas at you.',W/2,236);
@@ -428,8 +471,8 @@ function drawStart(){
 function drawOver(){
   sampleScene(); drawParticles();
   panel(W/2-190,H/2-170,380,300);
-  ctx.textAlign='center';
-  ctx.fillStyle='#ff5a5a'; ctx.font=T.titleFont(38); ctx.fillText('GAME OVER',W/2,H/2-118);
+  drawTitle('GAME OVER',W/2,H/2-118,38,'#ff5a5a');
+  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
   ctx.fillStyle=T.accent; ctx.font=T.titleFont(30); ctx.fillText('Score '+Math.floor(score),W/2,H/2-64);
   ctx.fillStyle=T.text; ctx.font=T.hudFont(16); ctx.fillText('Best combo this run: x'+comboBestRun,W/2,H/2-28);
   ctx.globalAlpha=.6; ctx.fillText('Best score: '+best,W/2,H/2-2); ctx.globalAlpha=1;
