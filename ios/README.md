@@ -4,17 +4,26 @@ A native iOS port of the HTML **Fart Back** prototype, using UIKit + `CADisplayL
 + Core Graphics (the closest 1:1 translation of the HTML `<canvas>` code, as the
 design brief suggested).
 
-## Status: v0.1 — core loop
+## Status: gameplay-complete (Loud! theme) — builds & runs in the Simulator
 
-Ported and building/running in the iOS Simulator:
-- Swinging, farting monkeys hanging from the branch
+The **full game** is ported and verified rendering in the iOS 26 Simulator:
+- Swinging, farting monkeys on the branch; three monkey types (regular,
+  Machine-Gun Marmoset, Boomer Baboon)
 - Dodge + **Fart Back** (shoot a banana back + fart barrier)
-- Banana types (yellow / brown mushy / black), gas meter, 4 lives, combo, score
-- Start / Game Over screens, on-screen touch controls — **Loud!** theme
+- Banana types (yellow / brown mushy / black), slippery peels
+- **Power-ups** (Gas Mask, Golden Banana, Nose Plug, Beano)
+- **10-level campaign → King Kong-a-Toot boss (3 phases) → "$10" win**
+- Juice (sticker pops, screen-flash, hit-stop), gas/lives/combo/score
+- **Procedural fart audio** (AVAudioEngine), edge-to-edge background
+- Start / level-complete / game-over / win screens, on-screen touch controls
 
-**Not yet ported** (queued): audio (fart synth via AVAudioEngine), the other 3
-themes, power-ups, peels, levels + boss, and edge-to-edge background (currently
-letterboxed to the 480×760 logical canvas).
+**This is the SwiftUI/Xcode turning point.** What remains is naturally native-app
+work: the other **3 swappable themes** (pure data — a `Theme` struct + swap), a
+SwiftUI menu/settings shell, Game Center leaderboards, App Store assets, and the
+TestFlight distribution below.
+
+> Dev note: launch with the `AUTOPLAY` env var (`1` / `boss` / `win`) to jump
+> straight into a state for screenshots.
 
 ## Build & run locally
 
