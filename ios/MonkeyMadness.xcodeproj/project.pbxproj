@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0953B99A6BAEE5E073D42796 /* FartAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BADD1C0796AC657ACCC0A9B /* FartAudio.swift */; };
 		24E0A6E87343D94512BD5763 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4F1D24EFDAC954C53C9ACA /* GameView.swift */; };
 		3897CA1E46E2F0EEC96A99B5 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E41B44D190913CBD288C84E5 /* GameViewController.swift */; };
 		A7BDDA2D359B8CB6AA80EF5D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B578C2C55758553A5BBF3DD5 /* AppDelegate.swift */; };
@@ -16,6 +17,7 @@
 /* Begin PBXFileReference section */
 		1F21C85D3EB594B449EAF66C /* MonkeyMadness.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MonkeyMadness.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2621040CA8FEA45D7AA89787 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		3BADD1C0796AC657ACCC0A9B /* FartAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FartAudio.swift; sourceTree = "<group>"; };
 		A72F87650CD98ABADEAAF129 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B578C2C55758553A5BBF3DD5 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		CE4F1D24EFDAC954C53C9ACA /* GameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameView.swift; sourceTree = "<group>"; };
@@ -52,6 +54,7 @@
 			isa = PBXGroup;
 			children = (
 				B578C2C55758553A5BBF3DD5 /* AppDelegate.swift */,
+				3BADD1C0796AC657ACCC0A9B /* FartAudio.swift */,
 				CE4F1D24EFDAC954C53C9ACA /* GameView.swift */,
 				E41B44D190913CBD288C84E5 /* GameViewController.swift */,
 				2621040CA8FEA45D7AA89787 /* Info.plist */,
@@ -127,6 +130,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A7BDDA2D359B8CB6AA80EF5D /* AppDelegate.swift in Sources */,
+				0953B99A6BAEE5E073D42796 /* FartAudio.swift in Sources */,
 				24E0A6E87343D94512BD5763 /* GameView.swift in Sources */,
 				3897CA1E46E2F0EEC96A99B5 /* GameViewController.swift in Sources */,
 			);

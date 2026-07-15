@@ -99,6 +99,7 @@ final class GameView: UIView {
     private var lastTs: CFTimeInterval = 0
     private var s: CGFloat = 1, tx: CGFloat = 0, ty: CGFloat = 0
     private var cg: CGContext!
+    private let audio = FartAudio()
 
     override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .black; isMultipleTouchEnabled = true; P.y = PLAYER_GY }
     required init?(coder: NSCoder) { fatalError() }
@@ -133,6 +134,7 @@ final class GameView: UIView {
     private func doJump() {
         guard st == .play, P.onGround else { return }
         P.vy = JUMP; P.onGround = false
+        audio.fart(freq: Double(R(200, 260)), dur: 0.15, flutter: 28, cutoff: 1700, gain: 0.28, square: true)
         for _ in 0..<7 { particles.append(puff(P.x + R(-8, 8), PLAYER_GY + 20, R(-40, 40), R(20, 90))) }
         clouds.append(Cloud(x: P.x, y: PLAYER_GY + 22, r: 12, life: 0.7))
     }
@@ -140,6 +142,7 @@ final class GameView: UIView {
         guard st == .play else { return }
         if P.gas < BLAST_COST { return }
         P.gas -= BLAST_COST; P.blastFlash = 0.22; P.face = 2; P.faceT = 0.4; P.barrierT = BARRIER_T; addShake(7, 0.18)
+        audio.fart(freq: Double(R(70, 92)), dur: 0.42, flutter: 14, cutoff: 1200, gain: 0.5)
         clouds.append(Cloud(x: P.x, y: P.y + 22, r: 20, life: 0.9))
         for _ in 0..<14 { let a = R(2.3, 4.0); particles.append(puff(P.x, P.y + 18, cos(a)*R(60, 150), sin(a)*R(30, 120)+40)) }
         // shoot a banana up at nearest monkey
@@ -155,7 +158,7 @@ final class GameView: UIView {
             if abs(dx) < 64 && dy > -74 && dy < 14 { burstFx(b.x, b.y, 5); blocked += 1; return false }
             return true
         }
-        if blocked > 0 { addFloat(P.x, P.y - 56, "BLOCK!", cFart, 15); score += CGFloat(blocked) * 10 }
+        if blocked > 0 { addFloat(P.x, P.y - 56, "BLOCK!", cFart, 15); score += CGFloat(blocked) * 10; audio.tone(f0: 320, f1: 760, dur: 0.14, gain: 0.22) }
     }
     private func nearestMonkey(_ x: CGFloat, _ y: CGFloat) -> Monkey? {
         var best: Monkey? = nil; var bd: CGFloat = 1e9
@@ -184,11 +187,13 @@ final class GameView: UIView {
             burstFx(bx, by, 6); addShake(6, 0.18); addFloat(P.x, P.y-44, "SPLAT!", hex("b07a44"), 18); return }
         lives -= 1; combo = 0; P.inv = true; P.invT = 1.8; P.blinkT = 0; P.face = 1; P.faceT = 1
         burstFx(bx, by, 10); addShake(type == "black" ? 14 : 12, 0.3)
+        audio.fart(freq: 270, dur: 0.5, flutter: 22, cutoff: 1300, gain: 0.4)
         addFloat(P.x, P.y-44, type == "black" ? "BLECH!" : "OUCH!", hex("ff5a5a"), 20)
         if lives <= 0 { gameOver() }
     }
     private func gameOver() {
         st = .over; burstFx(P.x, P.y, 16); addShake(14, 0.4)
+        audio.fart(freq: 150, dur: 0.7, flutter: 10, cutoff: 900, gain: 0.5)
         let fs = Int(score); if fs > best { best = fs; UserDefaults.standard.set(best, forKey: "fartback_best") }
     }
 
@@ -230,6 +235,7 @@ final class GameView: UIView {
                 let count = gameT > 50 ? 3 : (gameT > 24 ? 2 : 1)
                 let roll = CGFloat.random(in: 0...1); let bt = roll < 0.26 ? "black" : (roll < 0.48 ? "brown" : "yellow")
                 throwBanana(m.bx, m.by+24, P.x, flight, count, spread, bt)
+                audio.fart(freq: Double(R(115, 155)), dur: 0.2, flutter: 20, cutoff: 1000, gain: 0.3)
                 if bt == "black" { for _ in 0..<8 { let a = R(1.5, 3.0); particles.append(puff(m.bx + R(-6, 6), m.by+26, cos(a)*R(30, 90), sin(a)*R(30, 90)+30)) } }
             }
         }
@@ -254,7 +260,7 @@ final class GameView: UIView {
                         m.stun = 3; m.wob = 0; m.angryT = 0; combo += 1
                         let pts = 100 * combo; score += CGFloat(pts)
                         addFloat(m.bx, m.by-38, "+\(pts)" + (combo > 1 ? "  x\(combo)" : ""), cAccent, combo > 2 ? 22 : 17)
-                        burstFx(m.bx, m.by, 12); addShake(combo >= 3 ? 9 : 6, 0.16); return false
+                        burstFx(m.bx, m.by, 12); addShake(combo >= 3 ? 9 : 6, 0.16); audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24); return false
                     }
                 }
                 return true
@@ -322,8 +328,13 @@ final class GameView: UIView {
     override func draw(_ rect: CGRect) {
         guard let ctx = UIGraphicsGetCurrentContext() else { return }
         cg = ctx
+        // edge-to-edge: fill the whole view so there are no black letterbox bars
+        cBgBase.setFill(); ctx.fill(bounds)
         s = min(bounds.width/LW, bounds.height/LH)
         tx = (bounds.width - LW*s)/2; ty = (bounds.height - LH*s)/2
+        // extend the control-bar dark strip to the bottom edge
+        UIColor(white: 0, alpha: 0.32).setFill()
+        ctx.fill(CGRect(x: 0, y: ty + CTRL_TOP*s, width: bounds.width, height: bounds.height - (ty + CTRL_TOP*s)))
         ctx.saveGState()
         ctx.translateBy(x: tx, y: ty); ctx.scaleBy(x: s, y: s)
 
