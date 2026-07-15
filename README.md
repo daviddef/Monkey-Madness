@@ -28,9 +28,14 @@ mobile). No build step, no dependencies. **Turn the sound on** — the synthesiz
 farts are ~70% of the comedy.
 
 ### How to play
-- **Dodge** the bananas the monkeys fart at you.
-- Tap **💨 FART BLAST** to deflect a nearby banana and rocket it *back* — a returned
-  banana **stuns** a monkey and scores **100 × combo**.
+- **Dodge** — monkeys moon you and **fart bananas** out their butts (with a gust + "PBBT!").
+- Tap **💨 FART BLAST** to fire a **banana out of your own butt** at the nearest monkey
+  *and* raise a **fart barrier** above you that blocks incoming bananas. A landed shot
+  **stuns** a monkey for **100 × combo**.
+- **Banana types**: 🟡 regular (–1 life) · 🟤 **brown mushy** (soft splat, slows you, no
+  life lost) · ⚫ **black farted** (dangerous, stink trail, –1 life).
+- **Peels**: bananas that hit the ground can leave a peel — **jump over it** or you
+  **slip and fall** (lose control for a moment).
 - **Gas meter**: blasting costs gas that recharges, so you can't just spam it.
 - Chain stuns to build your combo. Getting hit resets it. You have 4 lives.
 
