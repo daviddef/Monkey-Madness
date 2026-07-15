@@ -29,9 +29,12 @@ TestFlight distribution below.
 
 ```bash
 cd ios
-xcodegen generate          # regenerate MonkeyMadness.xcodeproj from project.yml
+brew install xcodegen      # once, if you don't have it
+xcodegen generate          # creates MonkeyMadness.xcodeproj from project.yml
 open MonkeyMadness.xcodeproj
 ```
+> The `.xcodeproj` is **generated** (not committed) — `project.yml` is the source
+> of truth. Always run `xcodegen generate` after cloning or pulling.
 Or from the command line (Simulator):
 ```bash
 xcodebuild -project MonkeyMadness.xcodeproj -scheme MonkeyMadness \
