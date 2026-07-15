@@ -114,12 +114,17 @@ final class GameView: UIView {
     // input
     private struct Btn { let id: String; let cx: CGFloat; let cy: CGFloat; let r: CGFloat; let glyph: String }
     private lazy var buttons: [Btn] = [
-        Btn(id: "L", cx: 54, cy: LH - 60, r: 38, glyph: "\u{25C0}"),
-        Btn(id: "R", cx: 140, cy: LH - 60, r: 38, glyph: "\u{25B6}"),
-        Btn(id: "FART", cx: 302, cy: LH - 62, r: 47, glyph: "\u{1F4A8}"),
-        Btn(id: "JUMP", cx: 424, cy: LH - 60, r: 38, glyph: "\u{2912}")
+        Btn(id: "L", cx: 54, cy: LH - 62, r: 42, glyph: "\u{25C0}"),
+        Btn(id: "R", cx: 150, cy: LH - 62, r: 42, glyph: "\u{25B6}"),
+        Btn(id: "JUMP", cx: 316, cy: LH - 62, r: 42, glyph: "\u{2912}"),
+        Btn(id: "FART", cx: 426, cy: LH - 64, r: 50, glyph: "\u{1F4A8}")
     ]
-    private var touchBtn: [ObjectIdentifier: String] = [:]
+    private struct TouchRec { var role: String; var sx: CGFloat = 0; var sy: CGFloat = 0; var st: TimeInterval = 0 }
+    private var touchRecs: [ObjectIdentifier: TouchRec] = [:]
+    private let ZONE_TOP: CGFloat = 470
+    private var controlStyle: String = (UserDefaults.standard.string(forKey: "mm_ctrl") == "zones") ? "zones" : "buttons"
+    private func setControlStyle(_ s: String) { controlStyle = s; UserDefaults.standard.set(s, forKey: "mm_ctrl") }
+    private var zFart: (cx: CGFloat, cy: CGFloat, r: CGFloat) { (LW/2, LH-62, 54) }
 
     // display link + transform
     private var link: CADisplayLink?
@@ -485,33 +490,53 @@ final class GameView: UIView {
         }
     }
 
-    private func leftHeld() -> Bool { touchBtn.values.contains("L") }
-    private func rightHeld() -> Bool { touchBtn.values.contains("R") }
+    private func leftHeld() -> Bool { touchRecs.values.contains { $0.role == "L" || $0.role == "zoneL" } }
+    private func rightHeld() -> Bool { touchRecs.values.contains { $0.role == "R" || $0.role == "zoneR" } }
 
     // MARK: - Touch
     private func toLogical(_ p: CGPoint) -> CGPoint { CGPoint(x: (p.x - tx)/s, y: (p.y - ty)/s) }
     private func btnAt(_ x: CGFloat, _ y: CGFloat) -> String? {
-        for b in buttons { let dx = x - b.cx, dy = y - b.cy; if dx*dx + dy*dy <= (b.r+8)*(b.r+8) { return b.id } }
+        for b in buttons { let dx = x - b.cx, dy = y - b.cy; if dx*dx + dy*dy <= (b.r+10)*(b.r+10) { return b.id } }
         return nil
     }
+    private func inZFart(_ x: CGFloat, _ y: CGFloat) -> Bool { let z = zFart; let dx = x-z.cx, dy = y-z.cy; return dx*dx + dy*dy <= (z.r+10)*(z.r+10) }
+    private func ctrlChips() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
+        let w: CGFloat = 126, h: CGFloat = 32, gap: CGFloat = 12, y: CGFloat = 584, tot = 2*w + gap, x0 = LW/2 - tot/2
+        return [("buttons", "\u{1F446} Buttons", x0, y, w, h), ("zones", "\u{1F590} Zones", x0+w+gap, y, w, h)]
+    }
+    private func ctrlChipAt(_ x: CGFloat, _ y: CGFloat) -> String? { for c in ctrlChips() { if x >= c.x && x <= c.x+c.w && y >= c.y && y <= c.y+c.h { return c.id } }; return nil }
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
             let p = toLogical(t.location(in: self))
             if st == .leveldone { nextLevel(); return }
-            if st != .play && st != .boss { startGame(); return }
-            if let id = btnAt(p.x, p.y) {
-                touchBtn[ObjectIdentifier(t)] = id
-                if id == "JUMP" { doJump() } else if id == "FART" { doBlast() }
+            if st != .play && st != .boss {
+                if let cc = ctrlChipAt(p.x, p.y) { setControlStyle(cc); return }
+                startGame(); return
+            }
+            if controlStyle == "buttons" {
+                if let id = btnAt(p.x, p.y) { touchRecs[ObjectIdentifier(t)] = TouchRec(role: id); if id == "JUMP" { doJump() } else if id == "FART" { doBlast() } }
+            } else {
+                if inZFart(p.x, p.y) { touchRecs[ObjectIdentifier(t)] = TouchRec(role: "FART"); doBlast() }
+                else if p.y > ZONE_TOP { touchRecs[ObjectIdentifier(t)] = TouchRec(role: p.x < LW/2 ? "zoneL" : "zoneR", sx: p.x, sy: p.y, st: t.timestamp) }
             }
         }
     }
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
-            let key = ObjectIdentifier(t); guard let cur = touchBtn[key], cur == "L" || cur == "R" else { continue }
-            let p = toLogical(t.location(in: self)); if let id = btnAt(p.x, p.y), id == "L" || id == "R" { touchBtn[key] = id }
+            let key = ObjectIdentifier(t); guard var rec = touchRecs[key], rec.role == "L" || rec.role == "R" else { continue }
+            let p = toLogical(t.location(in: self)); if let id = btnAt(p.x, p.y), id == "L" || id == "R" { rec.role = id; touchRecs[key] = rec }
         }
     }
-    private func endTouch(_ touches: Set<UITouch>) { for t in touches { touchBtn[ObjectIdentifier(t)] = nil } }
+    private func endTouch(_ touches: Set<UITouch>) {
+        for t in touches {
+            let key = ObjectIdentifier(t)
+            if let rec = touchRecs[key], rec.role == "zoneL" || rec.role == "zoneR" {
+                let p = toLogical(t.location(in: self)); let dt = t.timestamp - rec.st; let dist = hypot(p.x - rec.sx, p.y - rec.sy)
+                if dt < 0.25 && dist < 28 { doJump() }
+            }
+            touchRecs[key] = nil
+        }
+    }
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { endTouch(touches) }
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { endTouch(touches) }
 
@@ -818,19 +843,37 @@ final class GameView: UIView {
         cg.addCurve(to: CGPoint(x: x, y: y + sz*0.4), control1: CGPoint(x: x + sz*1.1, y: y + sz*0.3), control2: CGPoint(x: x + sz, y: y - sz*0.6))
         cg.fillPath()
     }
+    private func drawBtn(_ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat, _ glyph: String, _ gs: CGFloat, _ pressed: Bool, _ ready: Bool, _ accent: Bool) {
+        let sc: CGFloat = pressed ? 0.9 : 1
+        cg.setAlpha(pressed ? 0.97 : 0.62)
+        fillCircle(cx, cy, r*sc, accent ? (ready ? cBorder : UIColor(white: 0.33, alpha: 1)) : UIColor(white: 1, alpha: 0.13))
+        cg.setAlpha(pressed ? 1 : 0.85)
+        cg.setStrokeColor((accent ? (ready ? cAccent : UIColor(white: 0.53, alpha: 1)) : UIColor(white: 1, alpha: 0.55)).cgColor)
+        cg.setLineWidth(2.6); cg.strokeEllipse(in: CGRect(x: cx-r*sc, y: cy-r*sc, width: r*sc*2, height: r*sc*2))
+        cg.setAlpha(1); text(glyph, cx, cy, gs*sc, .white, weight: .regular)
+    }
     private func drawControls() {
         UIColor(white: 0, alpha: 0.32).setFill(); cg.fill(CGRect(x: 0, y: CTRL_TOP, width: LW, height: LH - CTRL_TOP))
-        for b in buttons {
-            let pressed = touchBtn.values.contains(b.id), isFart = b.id == "FART", ready = isFart ? P.gas >= BLAST_COST : true
-            cg.setAlpha(pressed ? 0.95 : 0.6)
-            (isFart ? (ready ? cBorder : UIColor(white: 0.33, alpha: 1)) : UIColor(white: 1, alpha: 0.12)).setFill()
-            fillCircle(b.cx, b.cy, b.r, isFart ? (ready ? cBorder : UIColor(white: 0.33, alpha: 1)) : UIColor(white: 1, alpha: 0.12))
-            cg.setAlpha(pressed ? 1 : 0.85)
-            cg.setStrokeColor((isFart ? (ready ? cAccent : UIColor(white: 0.53, alpha: 1)) : UIColor(white: 1, alpha: 0.5)).cgColor)
-            cg.setLineWidth(2.5); cg.strokeEllipse(in: CGRect(x: b.cx-b.r, y: b.cy-b.r, width: b.r*2, height: b.r*2))
-            cg.setAlpha(1)
-            text(b.glyph, b.cx, b.cy, isFart ? 30 : 24, .white, weight: .regular)
+        let fartReady = P.gas >= BLAST_COST || P.freeFartT > 0
+        let held = touchRecs.values.map { $0.role }
+        if controlStyle == "buttons" {
+            for b in buttons { let isFart = b.id == "FART"; drawBtn(b.cx, b.cy, b.r, b.glyph, isFart ? 30 : 24, held.contains(b.id), isFart ? fartReady : true, isFart) }
+        } else {
+            cg.setStrokeColor(UIColor(white: 1, alpha: 0.14).cgColor); cg.setLineWidth(2)
+            cg.move(to: CGPoint(x: LW/2, y: CTRL_TOP+4)); cg.addLine(to: CGPoint(x: LW/2, y: LH-6)); cg.strokePath()
+            cg.setAlpha(held.contains("zoneL") ? 0.55 : 0.24); text("\u{25C0}", LW*0.22, LH-62, 34, .white, weight: .regular)
+            cg.setAlpha(held.contains("zoneR") ? 0.55 : 0.24); text("\u{25B6}", LW*0.78, LH-62, 34, .white, weight: .regular); cg.setAlpha(1)
+            text("hold to move \u{00B7} tap = jump", LW/2, CTRL_TOP+14, 10, UIColor(white: 1, alpha: 0.5))
+            let z = zFart; drawBtn(z.cx, z.cy, z.r, "\u{1F4A8}", 34, held.contains("FART"), fartReady, true)
         }
+    }
+    private func drawCtrlToggle() {
+        for c in ctrlChips() {
+            let active = c.id == controlStyle
+            roundRect(c.x, c.y, c.w, c.h, 9, active ? cBorder : UIColor(white: 1, alpha: 0.08), stroke: active ? cAccent : UIColor(white: 1, alpha: 0.25), lw: active ? 2.5 : 1.5)
+            text(c.label, c.x + c.w/2, c.y + c.h/2, 13, active ? .white : UIColor(white: 1, alpha: 0.7))
+        }
+        cg.setAlpha(0.55); text("CONTROLS", LW/2, ctrlChips()[0].y - 11, 10, cText); cg.setAlpha(1)
     }
 
     // MARK: - Screens
@@ -849,6 +892,7 @@ final class GameView: UIView {
         text("\u{25C0} \u{25B6} move    \u{2912} jump    \u{1F4A8} FART", LW/2, 392, 15, cAccent)
         if Int(Date().timeIntervalSince1970*2) % 2 == 0 { text("TAP TO START", LW/2, 460, 22, cAccent) }
         if best > 0 { cg.setAlpha(0.6); text("Best: \(best)", LW/2, 496, 12, cText); cg.setAlpha(1) }
+        drawCtrlToggle()
     }
     private func drawOver() {
         drawBg()
@@ -858,6 +902,7 @@ final class GameView: UIView {
         text("Score \(Int(score))", LW/2, LH/2-44, 28, cAccent)
         cg.setAlpha(0.7); text("Best \(best)", LW/2, LH/2-8, 15, cText); cg.setAlpha(1)
         if Int(Date().timeIntervalSince1970*2) % 2 == 0 { text("Tap to fart again!", LW/2, LH/2+52, 18, cText) }
+        drawCtrlToggle()
     }
     private func drawBoss(_ b: Boss) {
         let x = b.bx, y = b.by; let col = b.hitFlash > 0 ? UIColor.white : cMonkeyBody
