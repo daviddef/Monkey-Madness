@@ -3,3 +3,9 @@
 
 # macOS
 .DS_Store
+
+# Xcode / iOS build artifacts
+ios/build/
+ios/DerivedData/
+**/xcuserdata/
+**/*.xcuserstate
