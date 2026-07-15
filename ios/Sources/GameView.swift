@@ -89,7 +89,7 @@ final class GameView: UIView {
     // state
     private enum St { case start, play, leveldone, boss, win, over }
     private var st: St = .start
-    private let LEVELS: [(secs: CGFloat, monkeys: Int)] = [(9,1),(10,1),(11,2),(12,2),(13,3),(13,3),(14,4),(14,4),(15,5),(16,5)]
+    private let LEVELS: [(secs: CGFloat, monkeys: Int)] = [(9,1),(10,1),(11,1),(12,2),(12,2),(13,2),(13,3),(14,3),(15,3),(16,4)]
     private var level = 1, levelT: CGFloat = 0
     private var boss: Boss?
     private var lives = 4
@@ -242,9 +242,10 @@ final class GameView: UIView {
     private func addPop(_ x: CGFloat, _ y: CGFloat, _ t: String, _ c: UIColor) { pops.append(Pop(x: x, y: y, text: t, color: c, rot: R(-0.18, 0.18))) }
     private func doFlash(_ c: UIColor, _ amt: CGFloat) { flashT = max(flashT, amt); flashCol = c }
     private func pickKind() -> String {
-        if gameT < 10 { return "reg" }
+        if level < 5 { return "reg" }
         let r = CGFloat.random(in: 0...1)
-        return r < 0.52 ? "reg" : (r < 0.8 ? "gun" : "boom")
+        if level >= 7 && r < 0.16 { return "boom" }
+        return r < 0.70 ? "reg" : "gun"
     }
     private func groundSplat(_ b: Banana) {
         burstFx(b.x, GROUND_Y-2, 4)
@@ -403,30 +404,31 @@ final class GameView: UIView {
             m.bx = m.x + sin(m.swingT)*m.swayX; m.by = m.y + (1 - cos(m.swingT))*3
             if m.angryT > 0 { m.angryT -= dt }
             m.throwT -= dt
+            // difficulty driven by LEVEL (not cumulative time) + crowd-compensated per-monkey rate
+            let L = CGFloat(level), nMon = CGFloat(max(1, monkeys.count)), crowd = 1 + 0.36*(nMon-1)
+            let flight = max(0.62, 1.05 - (L-1)*0.035), spread = min(0.42, 0.05 + (L-1)*0.038), baseIv = (2.9 - (L-1)*0.13)*crowd
             if m.charge > 0 {
                 m.charge -= dt; m.gust = max(m.gust, 0.32)
                 if m.charge <= 0 {
-                    let flight = max(0.55, 0.9 - gameT*0.005)
-                    throwBanana(m.bx, m.by+26, P.x, flight, 3, 0.55, "black"); m.gust = 0.55
+                    throwBanana(m.bx, m.by+26, P.x, flight+0.05, 3, 0.55, "black"); m.gust = 0.55
                     audio.fart(freq: Double(R(70, 92)), dur: 0.4, flutter: 13, cutoff: 900, gain: 0.46)
                     for _ in 0..<12 { let a = R(1.3, 3.1); particles.append(puff(m.bx + R(-8, 8), m.by+28, cos(a)*R(40, 110), sin(a)*R(40, 110)+30)) }
                 }
             } else if m.throwT <= 0 {
-                let flight = max(0.5, 0.95 - gameT*0.006), spread = min(0.5, 0.1 + gameT*0.006)
                 if m.kind == "gun" {
-                    m.throwT = R(0.7, 1.15); m.angryT = 0.22; m.gust = 0.28
+                    m.throwT = baseIv * R(0.72, 1.0); m.angryT = 0.22; m.gust = 0.28
                     for _ in 0..<2 {
-                        let tf: CGFloat = 0.5, fx = m.bx + R(-4, 4), fy = m.by+22, rx = P.x + R(-34, 34)
+                        let tf: CGFloat = max(0.5, flight*0.72), fx = m.bx + R(-4, 4), fy = m.by+22, rx = P.x + R(-30, 30)
                         let b = Banana(x: fx, y: fy, vx: (rx-fx)/tf, vy: (PLAYER_GY-fy-0.5*GRAV*tf*tf)/tf, rotV: R(-14, 14), friendly: false, type: "yellow")
                         b.small = true; bananas.append(b)
                     }
                     audio.fart(freq: Double(R(115, 155)), dur: 0.16, flutter: 24, cutoff: 1400, gain: 0.26)
                 } else if m.kind == "boom" {
-                    m.throwT = R(2.6, 3.8); m.charge = 0.85; m.angryT = 0.85
+                    m.throwT = baseIv * R(1.5, 2.1); m.charge = 0.9; m.angryT = 0.9
                 } else {
-                    m.throwT = max(0.7, 1.9 - gameT*0.02) * R(0.7, 1.35); m.angryT = 0.4; m.gust = 0.4
-                    let count = gameT > 50 ? 3 : (gameT > 24 ? 2 : 1)
-                    let roll = CGFloat.random(in: 0...1); let bt = roll < 0.26 ? "black" : (roll < 0.48 ? "brown" : "yellow")
+                    m.throwT = baseIv * R(0.8, 1.25); m.angryT = 0.4; m.gust = 0.4
+                    let count = level >= 7 ? 2 : 1
+                    let roll = CGFloat.random(in: 0...1); let bt = roll < 0.22 ? "black" : (roll < 0.46 ? "brown" : "yellow")
                     throwBanana(m.bx, m.by+24, P.x, flight, count, spread, bt)
                     audio.fart(freq: Double(R(115, 155)), dur: 0.2, flutter: 20, cutoff: 1000, gain: 0.3)
                     if bt == "black" { for _ in 0..<8 { let a = R(1.5, 3.0); particles.append(puff(m.bx + R(-6, 6), m.by+26, cos(a)*R(30, 90), sin(a)*R(30, 90)+30)) } }
