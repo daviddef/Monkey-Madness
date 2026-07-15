@@ -20,9 +20,7 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         SWIFT_VERSION: "5.0"
         CODE_SIGN_STYLE: Automatic
-        # >>> Set this to your 10-character Apple Developer Team ID (developer.apple.com -> Membership).
-        #     This is NOT the API Key ID or Issuer ID. Without it, archives fail with "No Team Found".
-        # DEVELOPMENT_TEAM: XXXXXXXXXX
+        DEVELOPMENT_TEAM: L9SAXP2E2W
     info:
       path: Sources/Info.plist
       properties:
