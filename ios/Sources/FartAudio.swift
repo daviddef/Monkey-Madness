@@ -1,12 +1,13 @@
 import AVFoundation
 
-/// Procedural fart synth — mirrors the HTML Web Audio synth.
-/// Generates short PCM buffers on the fly and plays them through a small pool
-/// of player nodes so sounds can overlap.
+/// Plays real fart samples (bundled WAVs) with pitch variation, falling back to a
+/// procedural synth if the samples don't load. Mirrors the web build's audio layer.
 final class FartAudio {
     private let engine = AVAudioEngine()
     private let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
     private var players: [AVAudioPlayerNode] = []
+    private var varis: [AVAudioUnitVarispeed] = []
+    private var samples: [AVAudioPCMBuffer] = []
     private var idx = 0
     private let sr: Double = 44100
     private var ok = false
@@ -17,22 +18,50 @@ final class FartAudio {
             try AVAudioSession.sharedInstance().setActive(true)
         } catch { }
         let mixer = engine.mainMixerNode
-        mixer.outputVolume = 0.7
-        for _ in 0..<12 {
-            let p = AVAudioPlayerNode()
-            engine.attach(p)
-            engine.connect(p, to: mixer, format: format)
-            players.append(p)
+        mixer.outputVolume = 0.8
+        for _ in 0..<14 {
+            let p = AVAudioPlayerNode(); let v = AVAudioUnitVarispeed()
+            engine.attach(p); engine.attach(v)
+            engine.connect(p, to: v, format: format)
+            engine.connect(v, to: mixer, format: format)
+            players.append(p); varis.append(v)
         }
+        loadSamples()
         do { try engine.start(); ok = true } catch { ok = false }
         for p in players { p.play() }
     }
 
-    private func nextPlayer() -> AVAudioPlayerNode { let p = players[idx]; idx = (idx + 1) % players.count; return p }
+    private func loadSamples() {
+        for i in 1...8 {
+            let name = String(format: "fart_%02d", i)
+            guard let url = Bundle.main.url(forResource: name, withExtension: "wav"),
+                  let file = try? AVAudioFile(forReading: url) else { continue }
+            let len = AVAudioFrameCount(file.length)
+            guard len > 0, let buf = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: len) else { continue }
+            do { try file.read(into: buf); samples.append(buf) } catch { }
+        }
+    }
 
-    /// A raspberry fart: gliding, warbling oscillator through a one-pole lowpass.
+    private func next() -> Int { let i = idx; idx = (idx + 1) % players.count; return i }
+
+    /// Play a random real fart sample at a given playback rate (pitch/speed) and volume.
+    private func playSample(rate: Float, gain: Float) {
+        guard ok, !samples.isEmpty else { return }
+        let i = next()
+        varis[i].rate = max(0.5, min(2.0, rate))
+        players[i].volume = gain
+        let buf = samples[Int.random(in: 0..<samples.count)]
+        players[i].scheduleBuffer(buf, at: nil, options: [], completionHandler: nil)
+    }
+
+    /// A fart — uses a real sample when available (pitch scaled from `freq`), else the synth.
     func fart(freq: Double, dur: Double, flutter: Double, cutoff: Double, gain: Double, square: Bool = false) {
         guard ok else { return }
+        if !samples.isEmpty {
+            let rate = Float(min(1.7, max(0.6, freq / 150.0)))   // jump=high squeak, blast/boss=low & beefy
+            playSample(rate: rate, gain: Float(min(1.0, gain * 1.5)))
+            return
+        }
         let n = max(1, Int(sr * dur))
         guard let buf = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(n)) else { return }
         buf.frameLength = AVAudioFrameCount(n)
@@ -54,11 +83,11 @@ final class FartAudio {
             lp += alpha * (sample - lp)
             out[i] = Float(lp)
         }
-        let pl = nextPlayer()
-        pl.scheduleBuffer(buf, at: nil, options: [], completionHandler: nil)
+        let i = next(); varis[i].rate = 1; players[i].volume = 1
+        players[i].scheduleBuffer(buf, at: nil, options: [], completionHandler: nil)
     }
 
-    /// A clean pitch-sweep tone (stun sparkle / deflect boing).
+    /// A clean pitch-sweep tone (stun sparkle / deflect boing / pickup) — always synth.
     func tone(f0: Double, f1: Double, dur: Double, gain: Double) {
         guard ok else { return }
         let n = max(1, Int(sr * dur))
@@ -73,7 +102,7 @@ final class FartAudio {
             let env = exp(-3.5 * frac)
             out[i] = Float(sin(phase) * env * gain)
         }
-        let pl = nextPlayer()
-        pl.scheduleBuffer(buf, at: nil, options: [], completionHandler: nil)
+        let i = next(); varis[i].rate = 1; players[i].volume = 1
+        players[i].scheduleBuffer(buf, at: nil, options: [], completionHandler: nil)
     }
 }
