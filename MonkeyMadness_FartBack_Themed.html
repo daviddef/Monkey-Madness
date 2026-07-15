@@ -154,6 +154,7 @@ function initAudio(){
     noiseBuf=AC.createBuffer(1,AC.sampleRate*0.3,AC.sampleRate); const d=noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
   }catch(e){AC=null;} }
   if(AC&&AC.state==='suspended')AC.resume();
+  loadSamples();
 }
 function fart(cfg){
   if(!AC)return; const {freq=110,dur=.3,flutter=20,cutoff=1200,gain=.5,type='sawtooth'}=cfg;
@@ -181,14 +182,21 @@ function squelch(gain){ if(!AC||!noiseBuf)return; const t0=AC.currentTime; const
 function airhorn(){ if(!AC)return; const t0=AC.currentTime; [380,560].forEach((f,i)=>{ const o=AC.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
   const g=AC.createGain(); g.gain.setValueAtTime(.0001,t0); g.gain.exponentialRampToValueAtTime(.18,t0+.03); g.gain.setValueAtTime(.18,t0+.18); g.gain.exponentialRampToValueAtTime(.0001,t0+.28);
   o.connect(g); g.connect(master); o.start(t0); o.stop(t0+.3); }); }
+// ---- real fart samples (fall back to the synth if none load) ----
+const SAMPLE_URLS=['assets/sounds/fart_01.wav'];   // add more file paths here for variety
+let sampleBuffers=[], samplesTried=false;
+function loadSamples(){ if(!AC||samplesTried)return; samplesTried=true;
+  SAMPLE_URLS.forEach(url=>{ fetch(url).then(r=>r.ok?r.arrayBuffer():Promise.reject()).then(b=>AC.decodeAudioData(b)).then(buf=>sampleBuffers.push(buf)).catch(()=>{}); }); }
+function playSample(rate,gain){ if(!AC||!sampleBuffers.length)return false; const buf=sampleBuffers[Math.floor(Math.random()*sampleBuffers.length)];
+  const src=AC.createBufferSource(); src.buffer=buf; src.playbackRate.value=rate||1; const g=AC.createGain(); g.gain.value=gain||.7; src.connect(g); g.connect(master); src.start(); return true; }
 const sfx={
-  throw:()=>fart(T.sound.throw),
-  jump:()=>fart(T.sound.jump),
-  blast:()=>{ fart(T.sound.blast); if(T.sound.airhorn) airhorn(); },
+  throw:()=>{ if(!playSample(R(.92,1.12),.6)) fart(T.sound.throw); },
+  jump:()=>{ if(!playSample(R(1.35,1.65),.5)) fart(T.sound.jump); },
+  blast:()=>{ if(!playSample(R(.72,.86),.85)){ fart(T.sound.blast); if(T.sound.airhorn) airhorn(); } },
   deflect:()=>tone({f0:320,f1:760,dur:.14,gain:.22}),
   stun:()=>tone({f0:520,f1:120,dur:.3,gain:.24,type:'triangle'}),
-  hurt:()=>fart({freq:270,dur:.5,flutter:22,cutoff:1300,gain:.4,type:T.sound.blast.type}),
-  over:()=>fart({freq:150,dur:.7,flutter:10,cutoff:900,gain:.5,type:T.sound.blast.type}),
+  hurt:()=>{ if(!playSample(R(.6,.72),.7)) fart({freq:270,dur:.5,flutter:22,cutoff:1300,gain:.4,type:T.sound.blast.type}); },
+  over:()=>{ if(!playSample(.5,.85)) fart({freq:150,dur:.7,flutter:10,cutoff:900,gain:.5,type:T.sound.blast.type}); },
   pick:()=>tone({f0:400,f1:900,dur:.1,gain:.2,type:'square'})
 };
 
