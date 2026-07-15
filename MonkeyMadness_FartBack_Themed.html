@@ -137,7 +137,7 @@ buildPatterns();
 // STATE
 // ============================================================
 const ST={START:0,PLAY:1,LEVELDONE:2,BOSS:3,WIN:4,OVER:5};
-const LEVELS=[{secs:9,monkeys:1},{secs:10,monkeys:1},{secs:11,monkeys:2},{secs:12,monkeys:2},{secs:13,monkeys:3},{secs:13,monkeys:3},{secs:14,monkeys:4},{secs:14,monkeys:4},{secs:15,monkeys:5},{secs:16,monkeys:5}];
+const LEVELS=[{secs:9,monkeys:1},{secs:10,monkeys:1},{secs:11,monkeys:1},{secs:12,monkeys:2},{secs:12,monkeys:2},{secs:13,monkeys:2},{secs:13,monkeys:3},{secs:14,monkeys:3},{secs:15,monkeys:3},{secs:16,monkeys:4}];
 let st=ST.START, lives, score, best=0, combo, comboBestRun, gameT, tipT, lastTs=0, level=1, levelT=0, boss=null;
 try{best=parseInt(localStorage.getItem('fartback_best')||'0',10)||0;}catch(e){}
 let monkeys=[],bananas=[],particles=[],clouds=[],floaters=[],peels=[],pops=[],powerups=[],stars=[];
@@ -246,7 +246,7 @@ function startBoss(){ st=ST.BOSS; levelT=0; clearField(); resetPlayer(1.6); monk
   boss={x:W/2,bx:W/2,by:98,hp:100,maxHp:100,atkT:1.4,chargeT:0,phase:1,lastPhase:1,bobT:0,swingT:0,hitFlash:0,vx:46,roarT:1.4,weakT:0,slamT:0,slamHit:0,deathT:0,minionsSpawned:false,wob:0,tell:null,angryT:0};
   addPop(W/2,168,'KING KONG-A-TOOT!','#ff5a5a'); doFlash('#ff5a5a',.4); addShake(14,.6); tone({f0:90,f1:50,dur:1.0,gain:.5,type:'sawtooth'}); }
 function winGame(){ st=ST.WIN; sfx.pick(); for(let i=0;i<40;i++)particles.push({x:R(0,W),y:R(-40,H*.4),vx:R(-30,30),vy:R(60,180),kind:'star',life:R(1.5,3),maxLife:3,size:R(6,13)}); const fs=Math.floor(score); if(fs>best){best=fs;try{localStorage.setItem('fartback_best',String(best));}catch(e){}} }
-function pickKind(){ const r=Math.random(); const boomOk=level>=5, gunOk=level>=3; if(!gunOk)return 'reg'; return r<.52?'reg':(r<.8&&gunOk)?'gun':(boomOk?'boom':'gun'); }
+function pickKind(){ if(level<5)return 'reg'; const r=Math.random(); if(level>=7&&r<.16)return 'boom'; return r<.70?'reg':'gun'; }
 function setMonkeyCount(n){ while(monkeys.length<n){ const nx=R(60,W-60), ny=R(94,110), kind=pickKind();
     monkeys.push({x:nx,y:ny,bx:nx,by:ny,kind,swingT:Math.random()*6.28,swayX:R(7,13),vx:(Math.random()<.5?-1:1)*R(30,68),retargetT:R(1.4,3.4),bobT:Math.random()*6.28,throwT:kind==='boom'?R(1.6,2.6):R(.7,1.8),angryT:0,charge:0,stun:0,wob:0,gust:0}); }
   monkeys.length=Math.min(monkeys.length,n); }
@@ -305,15 +305,19 @@ function update(dt){
     m.x+=m.vx*dt; if(m.x<52){m.x=52;m.vx=Math.abs(m.vx);} else if(m.x>W-52){m.x=W-52;m.vx=-Math.abs(m.vx);}
     m.bx=m.x+Math.sin(m.swingT)*m.swayX; m.by=m.y+(1-Math.cos(m.swingT))*3;
     if(m.angryT>0)m.angryT-=dt; m.throwT-=dt;
+    // difficulty is driven by LEVEL (not cumulative time), and each monkey throws
+    // slower when the branch is crowded so 2+ monkeys don't multiply the barrage.
+    const L=level, nMon=Math.max(1,monkeys.length), crowd=1+.36*(nMon-1);
+    const flight=Math.max(.62,1.05-(L-1)*.035), spread=Math.min(.42,.05+(L-1)*.038), baseIv=(2.9-(L-1)*.13)*crowd;
     if(m.charge>0){ m.charge-=dt; m.gust=Math.max(m.gust,.32);
-      if(m.charge<=0){ const flight=Math.max(.55,.9-gameT*.005); throwBanana(m.bx,m.by+26,P.x,flight,3,.55,'black'); m.gust=.55; sfx.throw();
+      if(m.charge<=0){ throwBanana(m.bx,m.by+26,P.x,flight+.05,3,.55,'black'); m.gust=.55; sfx.throw();
         for(let i=0;i<12;i++){const a=R(1.3,3.1);particles.push(puff(m.bx+R(-8,8),m.by+28,Math.cos(a)*R(40,110),Math.sin(a)*R(40,110)+30));} } }
-    else if(m.throwT<=0){ const flight=Math.max(.5,.95-gameT*.006), spread=Math.min(.5,.1+gameT*.006);
-      if(m.kind==='gun'){ m.throwT=R(.7,1.15); m.angryT=.22; m.gust=.28;
-        for(let k=0;k<2;k++){ const tf=.5,fx=m.bx+R(-4,4),fy=m.by+22,rx=P.x+R(-34,34); bananas.push({x:fx,y:fy,vx:(rx-fx)/tf,vy:(PLAYER_GY-fy-.5*GRAV*tf*tf)/tf,rot:0,rotV:R(-14,14),friendly:false,type:'yellow',small:true}); } sfx.throw(); }
-      else if(m.kind==='boom'){ m.throwT=R(2.6,3.8); m.charge=.85; m.angryT=.85; }
-      else { m.throwT=Math.max(.7,1.9-gameT*.02)*R(.7,1.35); m.angryT=.4; m.gust=.4;
-        const count=gameT>50?3:gameT>24?2:1, roll=Math.random(), bt=roll<.26?'black':roll<.48?'brown':'yellow';
+    else if(m.throwT<=0){
+      if(m.kind==='gun'){ m.throwT=baseIv*R(.72,1.0); m.angryT=.22; m.gust=.28;
+        for(let k=0;k<2;k++){ const tf=Math.max(.5,flight*.72),fx=m.bx+R(-4,4),fy=m.by+22,rx=P.x+R(-30,30); bananas.push({x:fx,y:fy,vx:(rx-fx)/tf,vy:(PLAYER_GY-fy-.5*GRAV*tf*tf)/tf,rot:0,rotV:R(-14,14),friendly:false,type:'yellow',small:true}); } sfx.throw(); }
+      else if(m.kind==='boom'){ m.throwT=baseIv*R(1.5,2.1); m.charge=.9; m.angryT=.9; }
+      else { m.throwT=baseIv*R(.8,1.25); m.angryT=.4; m.gust=.4;
+        const count=L>=7?2:1, roll=Math.random(), bt=roll<.22?'black':roll<.46?'brown':'yellow';
         throwBanana(m.bx,m.by+24,P.x,flight,count,spread,bt); sfx.throw();
         if(bt==='black')for(let i=0;i<8;i++){const a=R(1.5,3.0);particles.push(puff(m.bx+R(-6,6),m.by+26,Math.cos(a)*R(30,90),Math.sin(a)*R(30,90)+30));} } } }
   // keep monkeys from bunching up — gentle separation
