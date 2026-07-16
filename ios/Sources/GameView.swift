@@ -238,6 +238,7 @@ final class GameView: UIView {
     private var score: CGFloat = 0
     private var best = UserDefaults.standard.integer(forKey: "fartback_best")
     private var combo = 0
+    private var comboBestRun = 0   // shown on game over
     private var gameT: CGFloat = 0, tipT: CGFloat = 3.5
     private var shakeT: CGFloat = 0, shakeMag: CGFloat = 0
     private var hitstop: CGFloat = 0, flashT: CGFloat = 0, megaRingT: CGFloat = 0
@@ -356,7 +357,7 @@ final class GameView: UIView {
         P.bananas = AMMO_START; P.throwT = 0
     }
     private func startGame() {
-        st = .play; lives = LIVES_MAX; score = 0; combo = 0; gameT = 0; tipT = 3.5; hitstop = 0; flashT = 0
+        st = .play; lives = LIVES_MAX; score = 0; combo = 0; comboBestRun = 0; gameT = 0; tipT = 3.5; hitstop = 0; flashT = 0
         level = 1; levelT = 0; boss = nil
         resetForLevel(1.2); setMonkeyCount(LEVELS[0].monkeys)
     }
@@ -571,7 +572,7 @@ final class GameView: UIView {
     private func bossHit(_ bx: CGFloat, _ by: CGFloat) {
         guard let b = boss, b.hp > 0, b.roarT <= 0, b.deathT <= 0 else { return }
         let weak = b.weakT > 0; let dmg: CGFloat = weak ? 16 : 8
-        b.hp = max(0, b.hp - dmg); b.hitFlash = 0.24; combo += 1
+        b.hp = max(0, b.hp - dmg); b.hitFlash = 0.24; combo += 1; comboBestRun = max(comboBestRun, combo)
         let pts = (weak ? 300 : 150) * combo * (P.x2T > 0 ? 2 : 1); score += CGFloat(pts)
         addFloat(bx, by-20, "+\(pts)", weak ? cFart : cAccent, weak ? 22 : 18); burstFx(bx, by, weak ? 16 : 10)
         addPop(bx, by-6, weak ? "WEAK POINT!" : (combo >= 4 ? "CRUNCH!" : "BONK!"), weak ? cFart : cAccent)
@@ -691,7 +692,7 @@ final class GameView: UIView {
                 for m in monkeys where m.stun <= 0 {
                     let dx = b.x - m.bx, dy = b.y - m.by
                     if dx*dx + dy*dy < 30*30 {
-                        m.stun = 3; m.wob = 0; m.angryT = 0; combo += 1
+                        m.stun = 3; m.wob = 0; m.angryT = 0; combo += 1; comboBestRun = max(comboBestRun, combo)
                         let pts = 100 * combo * (P.x2T > 0 ? 2 : 1); score += CGFloat(pts)
                         addFloat(m.bx, m.by-38, "+\(pts)" + (combo > 1 ? "  x\(combo)" : ""), cAccent, combo > 2 ? 22 : 17)
                         burstFx(m.bx, m.by, 12); addShake(combo >= 3 ? 9 : 6, 0.16)
@@ -724,7 +725,7 @@ final class GameView: UIView {
                 let dx = m.bx - fc.x, dy = m.by - fc.y
                 if dx*dx + dy*dy < (fc.r+26)*(fc.r+26) {
                     fc.hit.insert(ObjectIdentifier(m))
-                    m.stun = 3; m.wob = 0; m.angryT = 0; combo += 1
+                    m.stun = 3; m.wob = 0; m.angryT = 0; combo += 1; comboBestRun = max(comboBestRun, combo)
                     let pts = 60 * combo * (P.x2T > 0 ? 2 : 1); score += CGFloat(pts)
                     addFloat(m.bx, m.by-38, "+\(pts)" + (combo > 1 ? "  x\(combo)" : ""), cFart, combo > 2 ? 21 : 16)
                     burstFx(m.bx, m.by, 10); addPop(m.bx, m.by-8, combo >= 6 ? "GASSED!" : "PHEW!", cFart)
@@ -788,26 +789,6 @@ final class GameView: UIView {
         return [("buttons", "\u{1F446} Buttons", x0, y, w, h), ("zones", "\u{1F590} Zones", x0+w+gap, y, w, h)]
     }
     private func ctrlChipAt(_ x: CGFloat, _ y: CGFloat) -> String? { for c in ctrlChips() { if x >= c.x && x <= c.x+c.w && y >= c.y && y <= c.y+c.h { return c.id } }; return nil }
-    private func themeChips() -> [(id: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
-        let n = CGFloat(THEME_ORDER.count), w: CGFloat = 104, h: CGFloat = 46, gap: CGFloat = 8
-        let tot = n*w + (n-1)*gap, x0 = LW/2 - tot/2, y = LH - 114
-        return THEME_ORDER.enumerated().map { (i, id) in (id, x0 + CGFloat(i)*(w+gap), y, w, h) }
-    }
-    private func themeChipAt(_ x: CGFloat, _ y: CGFloat) -> String? {
-        for c in themeChips() where x >= c.x && x <= c.x+c.w && y >= c.y && y <= c.y+c.h { return c.id }
-        return nil
-    }
-    private func drawThemePicker() {
-        cg.setAlpha(0.55); text("ART STYLE", LW/2, themeChips()[0].y - 12, 10, cText); cg.setAlpha(1)
-        for c in themeChips() {
-            guard let th = THEMES[c.id] else { continue }
-            let active = c.id == themeId
-            roundRect(c.x, c.y, c.w, c.h, 10, active ? cBorder : UIColor(white: 1, alpha: 0.08),
-                      stroke: active ? cAccent : UIColor(white: 1, alpha: 0.25), lw: active ? 2.5 : 1.5)
-            text(th.icon, c.x + c.w/2, c.y + 15, 17, cText)
-            text(th.name, c.x + c.w/2, c.y + 34, 11, active ? cText : cText.withAlphaComponent(0.75))
-        }
-    }
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
             let p = toLogical(t.location(in: self))
@@ -819,10 +800,13 @@ final class GameView: UIView {
                 return
             }
             if st == .leveldone { nextLevel(); return }
+            // Menu / game-over: the lanes ARE the picker, so a tap can no longer mean
+            // "start" — only PLAY starts. Otherwise choosing a world would launch a run.
             if st != .play && st != .boss {
                 if let cc = ctrlChipAt(p.x, p.y) { setControlStyle(cc); return }
-                if let tc = themeChipAt(p.x, p.y) { setTheme(tc); return }
-                startGame(); return
+                if playBtn.contains(CGPoint(x: p.x, y: p.y)) { startGame(); return }
+                let lane = laneAt(p.x); if lane != themeId { setTheme(lane); haptic(.pick) }
+                return
             }
             if inRound(pauseBtn, p.x, p.y) { pauseGame(); return }
             if controlStyle == "buttons" {
@@ -1355,12 +1339,16 @@ final class GameView: UIView {
         }
     }
     private func drawCtrlToggle() {
-        for c in ctrlChips() {
+        // Dark backing: this row sits over four different (and dimmed) lanes now, so it
+        // can't lean on T.text — Inkwell's cream label was invisible against them.
+        let cs = ctrlChips(), x0 = cs[0].x - 12, x1 = cs[1].x + cs[1].w + 12
+        roundRect(x0, cs[0].y - 24, x1 - x0, cs[0].h + 34, 14, UIColor(white: 0, alpha: 0.55), stroke: nil, lw: 0)
+        for c in cs {
             let active = c.id == controlStyle
-            roundRect(c.x, c.y, c.w, c.h, 9, active ? cBorder : UIColor(white: 1, alpha: 0.08), stroke: active ? cAccent : UIColor(white: 1, alpha: 0.25), lw: active ? 2.5 : 1.5)
-            text(c.label, c.x + c.w/2, c.y + c.h/2, 13, active ? .white : UIColor(white: 1, alpha: 0.7))
+            roundRect(c.x, c.y, c.w, c.h, 9, active ? cBorder : UIColor(white: 1, alpha: 0.10), stroke: active ? cAccent : UIColor(white: 1, alpha: 0.3), lw: active ? 2.5 : 1.5)
+            text(c.label, c.x + c.w/2, c.y + c.h/2, 13, active ? .white : UIColor(white: 1, alpha: 0.75))
         }
-        cg.setAlpha(0.55); text("CONTROLS", LW/2, ctrlChips()[0].y - 11, 10, cText); cg.setAlpha(1)
+        cg.setAlpha(0.7); text("CONTROLS", LW/2, cs[0].y - 13, 10, .white, system: true); cg.setAlpha(1)
     }
 
     // MARK: - Screens
@@ -1376,47 +1364,77 @@ final class GameView: UIView {
         fn()
         themeId = saved
     }
-    // ---------- splash: all four worlds at once ----------
-    // Each theme gets a vertical slice drawn in its OWN palette, so the art system
-    // introduces itself before you touch anything.
-    private func drawSplash() {
-        let n = THEME_ORDER.count, cw = LW/CGFloat(n), t = splashT
+    // ---------- the swim lanes: one world per lane ----------
+    // SHARED by the splash and the menu so they read as the same screen. On the menu the
+    // lanes ARE the theme picker: tap a lane, that world lights up and the rest dim.
+    private var LANE_W: CGFloat { LW/CGFloat(THEME_ORDER.count) }
+    private func laneAt(_ x: CGFloat) -> String {
+        let i = Int(x/LANE_W); return THEME_ORDER[max(0, min(THEME_ORDER.count-1, i))]
+    }
+    private var laneNameY: CGFloat { (LH*0.60).rounded() }
+    private func drawLanes(_ t: CGFloat, wipe: CGFloat?, dim: Bool) {
+        let cw = LANE_W
         for (i, id) in THEME_ORDER.enumerated() {
-            let fi = CGFloat(i)
-            let appear = max(0, min(1, (t - fi*0.16)/0.5))          // staggered wipe-in
-            if appear <= 0 { continue }
-            let ease = 1 - pow(1 - appear, 3)
+            let fi = CGFloat(i), sel = (id == themeId)
+            var ease: CGFloat = 1
+            if let w = wipe {
+                let appear = max(0, min(1, (w - fi*0.16)/0.5))      // staggered wipe-in
+                if appear <= 0 { continue }
+                ease = 1 - pow(1 - appear, 3)
+            }
             cg.saveGState()
-            cg.clip(to: CGRect(x: fi*cw, y: 0, width: cw, height: LH))   // this slice only
+            cg.clip(to: CGRect(x: fi*cw, y: 0, width: cw, height: LH))   // this lane only
             withTheme(id) {
                 drawBg()
-                // no control strip on the splash — carry each world's ground to the edge
+                // no control strip here — carry each world's ground to the bottom edge
                 T.ground.setFill(); cg.fill(CGRect(x: fi*cw, y: CTRL_TOP, width: cw, height: LH - CTRL_TOP))
-                // a monkey hanging in this world. gust:0 — the PBBT! sticker collides at slice width.
+                // a monkey hanging in this world. gust:0 — the PBBT! sticker collides at lane width.
                 let m = Monkey(x: fi*cw + cw/2, y: 132)
                 m.bx = fi*cw + cw/2 + sin(t*1.6 + fi)*5; m.by = 132 + sin(t*2.1 + fi*1.3)*3
                 m.swingT = t*1.5 + fi; m.swayX = 0; m.gust = 0; m.kind = "reg"; m.aimT = 0; m.stun = 0
                 drawMonkey(m)
-                // ...farting a banana down the slice
+                // ...farting a banana down the lane
                 let by = 200 + (t*150 + fi*90).truncatingRemainder(dividingBy: max(1, GROUND_Y - 230))
                 cg.saveGState(); cg.translateBy(x: m.bx, y: by); cg.rotate(by: t*3 + fi); cg.translateBy(x: -10, y: -17)
                 cg.addPath(bananaPath()); cg.setFillColor(T.banana.cgColor); cg.fillPath()
                 if T.outlineW > 0 { cg.addPath(bananaPath()); cg.setStrokeColor(T.outline.cgColor)
                     cg.setLineWidth(T.outlineW*0.7); cg.setLineJoin(.round); cg.strokePath() }
                 cg.restoreGState()
-                // World name in a pill, NOT bare T.text — Inkwell's text is cream on a cream
-                // background and vanishes. The pill reads in every palette.
-                let nx = fi*cw + cw/2, ny = GROUND_Y - 22
-                let pw = max(58, (T.name as NSString).size(withAttributes: [.font: themeFont(11, .heavy)]).width + 18)
-                roundRect(nx - pw/2, ny - 10, pw, 20, 10, UIColor(white: 0, alpha: 0.6), stroke: nil, lw: 0)
-                text(T.name, nx, ny, 11, .white)
             }
             cg.restoreGState()
-            if ease < 1 { UIColor(white: 0, alpha: 0.55).setFill(); cg.fill(CGRect(x: fi*cw, y: ease*LH, width: cw, height: LH)) }
+            if wipe != nil && ease < 1 { UIColor(white: 0, alpha: 0.55).setFill(); cg.fill(CGRect(x: fi*cw, y: ease*LH, width: cw, height: LH)) }
+            // unpicked worlds recede
+            if dim && !sel { UIColor(white: 0, alpha: 0.46).setFill(); cg.fill(CGRect(x: fi*cw, y: 0, width: cw, height: LH)) }
             cg.setStrokeColor(UIColor(white: 0, alpha: 0.35).cgColor); cg.setLineWidth(2)
             cg.move(to: CGPoint(x: fi*cw, y: 0)); cg.addLine(to: CGPoint(x: fi*cw, y: LH)); cg.strokePath()
+            // the picked lane gets a frame — the selection, without a separate widget
+            if dim && sel {
+                cg.setStrokeColor(T.accent.cgColor); cg.setLineWidth(5)
+                cg.stroke(CGRect(x: fi*cw + 2.5, y: 2.5, width: cw - 5, height: LH - 5))
+            }
+            // World name in a pill, NOT bare T.text — Inkwell's text is cream on a cream
+            // background and vanishes. The pill reads in every palette.
+            guard let th = THEMES[id] else { continue }
+            let nx = fi*cw + cw/2, ny = dim ? laneNameY : GROUND_Y - 22
+            let label = th.icon + "  " + th.name
+            let pw = max(58, (label as NSString).size(withAttributes: [.font: themeFont(dim ? 12 : 11, .heavy)]).width + 16)
+            roundRect(nx - pw/2, ny - 12, pw, 24, 12, (dim && sel) ? th.border : UIColor(white: 0, alpha: 0.62),
+                      stroke: (dim && sel) ? th.accent : nil, lw: 2)
+            text(label, nx, ny, dim ? 12 : 11, (dim && !sel) ? UIColor(white: 1, alpha: 0.72) : .white)
         }
-        // title lands once the slices are in
+    }
+    /// The big PLAY button. Needed now that a tap on a lane MEANS "pick this world" —
+    /// without it there'd be no way to say "go" that isn't also a theme change.
+    private var playBtn: CGRect { CGRect(x: LW/2 - 107, y: (LH*0.435).rounded(), width: 214, height: 66) }
+    private func drawPlayBtn(_ label: String) {
+        let b = playBtn
+        roundRect(b.minX, b.minY, b.width, b.height, 16, T.border, stroke: T.accent, lw: 4)
+        text(label, b.midX, b.midY, 26, .white)
+    }
+    private func drawSplash() {
+        let t = splashT
+        drawLanes(t, wipe: t, dim: false)
+        // title lands once the lanes are in
         let tt = max(0, min(1, (t - 0.75)/0.45))
         if tt > 0 {
             let pop = 1 + 0.12*sin(min(1, tt)*CGFloat.pi)
@@ -1433,31 +1451,41 @@ final class GameView: UIView {
             text("tap to skip", LW/2, LH-43, 13, .white)
         }
     }
+    /// menuT — the lanes idle-animate on the menu the same way they do on the splash.
+    private var menuT: CGFloat { CGFloat(CACurrentMediaTime().truncatingRemainder(dividingBy: 100000)) }
+    // The menu IS the splash, still on its lanes — you just get to touch it now.
     private func drawStart() {
-        drawBg()
-        cg.saveGState(); cg.translateBy(x: 0, y: SY)
-        panel(LW/2-205, 120, 410, 400)
-        text("FART BACK!", LW/2, 190, 40, cAccent)
-        text("Monkey Fart Madness", LW/2, 230, 15, cText)
-        text("Monkeys fart bananas at you.", LW/2, 290, 16, cText, weight: .semibold)
-        text("Dodge them, then FART them back", LW/2, 316, 15, cText, weight: .semibold)
-        text("or THROW their own bananas at them!", LW/2, 340, 15, cText, weight: .semibold)
-        text("\u{25C0} \u{25B6} move   \u{2912} jump   \u{1F4A8} fart   \u{1F34C} throw", LW/2, 384, 14, cAccent)
-        cg.setAlpha(0.85); text("walk over landed bananas to reload \u{1F34C}", LW/2, 410, 12, cFart); cg.setAlpha(1)
-        if Int(Date().timeIntervalSince1970*2) % 2 == 0 { text("TAP TO START", LW/2, 460, 22, cAccent) }
-        if best > 0 { cg.setAlpha(0.6); text("Best: \(best)", LW/2, 496, 12, cText); cg.setAlpha(1) }
+        drawLanes(menuT, wipe: nil, dim: true)
+        cg.saveGState(); cg.translateBy(x: LW/2, y: (LH*0.22).rounded())
+        roundRect(-198, -62, 396, 124, 18, UIColor(white: 0, alpha: 0.72), stroke: cAccent, lw: 4)
+        text("FART BACK!", 0, -14, 42, hex("ffe022"))
+        text("MONKEY FART MADNESS", 0, 20, 15, .white)
+        text("dodge \u{00B7} fart back \u{00B7} throw bananas", 0, 44, 12, hex("7CFF5A"), system: true)
         cg.restoreGState()
-        drawCtrlToggle(); drawThemePicker()
+        drawPlayBtn("\u{25B6} PLAY")
+        // tells you the lanes are the picker
+        roundRect(LW/2-118, laneNameY-46, 236, 24, 12, UIColor(white: 0, alpha: 0.6), stroke: nil, lw: 0)
+        text("\u{1F446} tap a lane to change the look", LW/2, laneNameY-34, 12, .white, system: true)
+        if best > 0 {
+            roundRect(LW/2-52, LH-40, 104, 22, 11, UIColor(white: 0, alpha: 0.6), stroke: nil, lw: 0)
+            text("Best: \(best)", LW/2, LH-29, 11, .white, system: true)
+        }
+        drawCtrlToggle()
     }
+    // Same lanes, same PLAY button — game over is the menu with your score on it.
     private func drawOver() {
-        drawBg()
+        drawLanes(menuT, wipe: nil, dim: true)
         for p in particles { drawParticle(p) }
-        panel(LW/2-190, LH/2-150, 380, 260)
-        text("GAME OVER", LW/2, LH/2-96, 36, hex("ff5a5a"))
-        text("Score \(Int(score))", LW/2, LH/2-44, 28, cAccent)
-        cg.setAlpha(0.7); text("Best \(best)", LW/2, LH/2-8, 15, cText); cg.setAlpha(1)
-        if Int(Date().timeIntervalSince1970*2) % 2 == 0 { text("Tap to fart again!", LW/2, LH/2+52, 18, cText) }
-        drawCtrlToggle(); drawThemePicker()
+        cg.saveGState(); cg.translateBy(x: LW/2, y: (LH*0.22).rounded())
+        roundRect(-190, -62, 380, 124, 18, UIColor(white: 0, alpha: 0.72), stroke: hex("ff5a5a"), lw: 4)
+        text("GAME OVER", 0, -20, 34, hex("ff5a5a"))
+        text("Score \(Int(score))", 0, 18, 22, hex("ffe022"))
+        text("best combo x\(comboBestRun)  \u{00B7}  best score \(best)", 0, 44, 12, .white, system: true)
+        cg.restoreGState()
+        drawPlayBtn("\u{25B6} AGAIN")
+        roundRect(LW/2-118, laneNameY-46, 236, 24, 12, UIColor(white: 0, alpha: 0.6), stroke: nil, lw: 0)
+        text("\u{1F446} tap a lane to change the look", LW/2, laneNameY-34, 12, .white, system: true)
+        drawCtrlToggle()
     }
     private func drawBoss(_ b: Boss) {
         let x = b.bx, y = b.by; let col = b.hitFlash > 0 ? UIColor.white : cMonkeyBody
