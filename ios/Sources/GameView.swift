@@ -885,7 +885,7 @@ final class GameView: UIView {
         drawBg()
         panel(LW/2-205, 120, 410, 400)
         text("FART BACK!", LW/2, 190, 40, cAccent)
-        text("Monkey Madness", LW/2, 230, 15, cText)
+        text("Monkey Fart Madness", LW/2, 230, 15, cText)
         text("Monkeys fart bananas at you.", LW/2, 290, 16, cText, weight: .semibold)
         text("Dodge them, then fart them RIGHT BACK", LW/2, 316, 15, cText, weight: .semibold)
         text("to stun the monkeys!", LW/2, 340, 15, cText, weight: .semibold)
