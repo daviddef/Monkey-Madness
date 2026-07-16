@@ -35,13 +35,13 @@ function resize(){const s=Math.min(window.innerWidth/W,window.innerHeight/H);can
 resize(); window.addEventListener('resize',resize);
 
 // ---------- layout ----------
-const CTRL_TOP=H-120, GROUND_Y=CTRL_TOP-42, PLAYER_GY=GROUND_Y-26, LIVES_MAX=4;
+const CTRL_TOP=H-120, GROUND_Y=CTRL_TOP-42, PLAYER_GY=GROUND_Y-26;   // lives come from the difficulty
 const BRANCH_Y=42;
 const SY=Math.round(H/2-380);   // menu screens were laid out against H=760; re-centre them
 const GRAV=1500, JUMP=-660, PSPEED=305;
 const GAS_MAX=100, BLAST_COST=34, GAS_RECHARGE=30;
 const BARRIER_T=0.5, SLIP_T=1.2, PEEL_LIFE=5, PEEL_R=20;
-const PU_SHIELD=6, PU_X2=8, PU_SLOW=4, PU_DROP_LIFE=7, PU_FREE=4.5;
+const PU_SHIELD=6, PU_X2=8, PU_SLOW=4, PU_DROP_LIFE=7, PU_FREE=4.5, PU_MAGNET=7;
 // The rise is DERIVED from the field height so the cloud always takes ~FCLOUD_T seconds
 // to reach the branch, whatever the screen shape — slow enough that a monkey can swing
 // clear, unlike the auto-aimed throw. (Hard-coding it means it can't reach a tall field.)
@@ -50,7 +50,7 @@ const AMMO_MAX=6, AMMO_START=3, FCLOUD_LIFE=2.6, FCLOUD_DRAG=10, GBAN_LIFE=6;
 // window plus the shot's travel is your cue to step off the line.
 const AIM_T=1.15, LOCK_T=.4, SNIPE_SPD=640;
 const FCLOUD_T=1.5, FCLOUD_RISE=-((PLAYER_GY-110-60)/FCLOUD_T);
-const PU_COLORS={mask:'#25d4e8',gold:'#ffe234',plug:'#b06bff',beano:'#93e552',bean:'#ffab2e',mega:'#ff4db8'};
+const PU_COLORS={mask:'#25d4e8',gold:'#ffe234',plug:'#b06bff',beano:'#93e552',bean:'#ffab2e',mega:'#ff4db8',magnet:'#ff5b4a'};
 const R=(a,b)=>a+Math.random()*(b-a);
 
 // ============================================================
@@ -169,15 +169,36 @@ function withTheme(id,fn){ const sT=themeId,sH=patHalftone,sG=patGrain;
 // ============================================================
 // STATE
 // ============================================================
-const ST={START:0,PLAY:1,LEVELDONE:2,BOSS:3,WIN:4,OVER:5,PAUSE:6,SPLASH:7};
+const ST={START:0,PLAY:1,LEVELDONE:2,BOSS:3,WIN:4,OVER:5,PAUSE:6,SPLASH:7,SHOP:8};
 let pauseFrom=ST.PLAY;   // so RESUME returns you to PLAY or BOSS, whichever you paused from
 let splashT=0; const SPLASH_LEN=3.4;   // auto-advances; tap skips
 const LEVELS=[{secs:9,monkeys:1},{secs:10,monkeys:1},{secs:11,monkeys:1},{secs:12,monkeys:2},{secs:12,monkeys:2},{secs:13,monkeys:2},{secs:13,monkeys:3},{secs:14,monkeys:3},{secs:15,monkeys:3},{secs:16,monkeys:4}];
 let st=ST.SPLASH, lives, score, best=0, combo, comboBestRun, gameT, tipT, lastTs=0, level=1, levelT=0, boss=null;
-try{best=parseInt(localStorage.getItem('fartback_best')||'0',10)||0;}catch(e){}
-let monkeys=[],bananas=[],particles=[],clouds=[],floaters=[],peels=[],pops=[],powerups=[],fartClouds=[],groundBananas=[],stars=[];
+
+// ---------- save data ----------
+const SAVE={ best:'fartback_best', coins:'mm_coins', life:'mm_lifetime', owned:'mm_owned',
+             hat:'mm_hat', skin:'mm_skin', diff:'mm_diff', daily:'mm_daily' };
+function load(k,d){ try{ const v=localStorage.getItem(k); return v===null?d:v; }catch(e){ return d; } }
+function save(k,v){ try{ localStorage.setItem(k,String(v)); }catch(e){} }
+function loadInt(k,d){ const n=parseInt(load(k,''),10); return Number.isFinite(n)?n:d; }
+best=loadInt(SAVE.best,0);
+let coins=loadInt(SAVE.coins,0);          // spendable
+let lifetime=loadInt(SAVE.life,0);        // never spent — drives rank
+let runCoins=0;                           // earned this run, for the game-over tally
+
+// ---------- difficulty ----------
+// Easy isn't just more lives: the whole barrage relaxes. Mateo is 6.
+const DIFFS={
+  easy:  {label:'😌 Easy',   lives:6, ivMul:1.34, flightAdd:.15, aimMul:1.45, blackMul:.45, coinMul:1},
+  normal:{label:'🔥 Normal', lives:4, ivMul:1,    flightAdd:0,   aimMul:1,    blackMul:1,   coinMul:1.35},
+};
+let diffId=(load(SAVE.diff,'normal')in DIFFS)?load(SAVE.diff,'normal'):'normal';
+let D=DIFFS[diffId];
+function setDiff(id){ if(!DIFFS[id])return; diffId=id; D=DIFFS[id]; save(SAVE.diff,id); }
+
+let monkeys=[],bananas=[],particles=[],clouds=[],floaters=[],peels=[],pops=[],powerups=[],fartClouds=[],groundBananas=[],coinsOnGround=[],stars=[];
 let shakeT=0,shakeMag=0,flashT=0,flashCol='#fff',hitstop=0;
-const P={x:W/2,y:PLAYER_GY,vy:0,onGround:true,inv:false,invT:0,blinkT:0,gas:GAS_MAX,squashT:0,stretch:0,face:0,faceT:0,blastFlash:0,barrierT:0,slipT:0,mushT:0,shieldT:0,x2T:0,slowT:0,freeFartT:0,bananas:AMMO_START,throwT:0};
+const P={x:W/2,y:PLAYER_GY,vy:0,onGround:true,inv:false,invT:0,blinkT:0,gas:GAS_MAX,squashT:0,stretch:0,face:0,faceT:0,blastFlash:0,barrierT:0,slipT:0,mushT:0,shieldT:0,x2T:0,slowT:0,freeFartT:0,bananas:AMMO_START,throwT:0,magnetT:0};
 let megaRingT=0;
 
 // ============================================================
@@ -266,7 +287,7 @@ function toCanvas(e){const r=canvas.getBoundingClientRect();return {x:(e.clientX
 // nearest-wins, so the tighter 5-button spacing can't hand a tap to the wrong neighbour
 function btnAt(x,y){let best=null,bd=1e9;for(const b of BTN){const dx=x-b.cx,dy=y-b.cy,d=dx*dx+dy*dy;if(d<=(b.r+10)*(b.r+10)&&d<bd){bd=d;best=b.id;}}return best;}
 function inRound(z,x,y){const dx=x-z.cx,dy=y-z.cy;return dx*dx+dy*dy<=(z.r+10)*(z.r+10);}
-function ctrlChips(){ const w=126,h=32,gap=12,y=H-176,tot=2*w+gap,x0=(W-tot)/2; return [{id:'buttons',label:'👆 Buttons',x:x0,y,w,h},{id:'zones',label:'🖐 Zones',x:x0+w+gap,y,w,h}]; }
+function ctrlChips(){ const w=126,h=32,gap=12,y=H-186,tot=2*w+gap,x0=(W-tot)/2; return [{id:'buttons',label:'👆 Buttons',x:x0,y,w,h},{id:'zones',label:'🖐 Zones',x:x0+w+gap,y,w,h}]; }
 function ctrlChipAt(x,y){ for(const c of ctrlChips()){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h)return c.id; } return null; }
 const roles=()=>{ const a=[]; for(const r of pointers.values())a.push(r.role); return a; };
 
@@ -278,8 +299,12 @@ canvas.addEventListener('pointerdown',e=>{
   if(st===ST.LEVELDONE){ nextLevel(); return; }
   // Menu / game-over: the lanes ARE the picker, so a tap can no longer mean "start" —
   // only PLAY starts. Otherwise choosing a world would launch a run at the same time.
+  if(st===ST.SHOP){ const c=shopCellAt(x,y); if(c){ shopTap(c); return; }
+    if(inShopBack(x,y)){ st=ST.START; sfx.pick(); } return; }
   if(st!==ST.PLAY&&st!==ST.BOSS){
     const cc=ctrlChipAt(x,y); if(cc){ setControlStyle(cc); sfx.pick(); return; }
+    const dc=diffChipAt(x,y); if(dc){ setDiff(dc); sfx.pick(); return; }
+    if(inShopBtn(x,y)){ st=ST.SHOP; sfx.pick(); return; }
     if(inPlayBtn(x,y)){ startGame(); return; }
     const lane=laneAt(x); if(lane&&lane!==themeId){ setTheme(lane); sfx.pick(); }
     return;
@@ -307,8 +332,14 @@ window.addEventListener('keydown',e=>{ if([' ','ArrowUp','ArrowDown','ArrowLeft'
   if(st===ST.SPLASH){ if(!e.repeat) st=ST.START; return; }
   if(st===ST.PAUSE){ if(!e.repeat){ if(e.key==='Escape'||e.key==='p'||e.key==='P'){ st=pauseFrom; sfx.pick(); } else if(e.key==='m'||e.key==='M'){ toMenu(); } } return; }
   if((st===ST.PLAY||st===ST.BOSS)&&!e.repeat&&(e.key==='Escape'||e.key==='p'||e.key==='P')){ pauseGame(); return; }
+  if(st===ST.SHOP){ if(!e.repeat&&(e.key==='Escape'||e.key==='b'||e.key==='B')){ st=ST.START; sfx.pick(); } return; }
   if(st===ST.LEVELDONE){ if(!e.repeat)nextLevel(); return; }
-  if(st!==ST.PLAY&&st!==ST.BOSS){ if(!e.repeat){ if(e.key==='t'||e.key==='T'){ const i=THEME_ORDER.indexOf(themeId); setTheme(THEME_ORDER[(i+1)%THEME_ORDER.length]); sfx.pick(); } else if(e.key==='c'||e.key==='C'){ setControlStyle(controlStyle==='buttons'?'zones':'buttons'); sfx.pick(); } else startGame(); } return; }
+  if(st!==ST.PLAY&&st!==ST.BOSS){ if(!e.repeat){
+    if(e.key==='t'||e.key==='T'){ const i=THEME_ORDER.indexOf(themeId); setTheme(THEME_ORDER[(i+1)%THEME_ORDER.length]); sfx.pick(); }
+    else if(e.key==='c'||e.key==='C'){ setControlStyle(controlStyle==='buttons'?'zones':'buttons'); sfx.pick(); }
+    else if(e.key==='e'||e.key==='E'){ setDiff(diffId==='easy'?'normal':'easy'); sfx.pick(); }
+    else if(e.key==='s'||e.key==='S'){ st=ST.SHOP; sfx.pick(); }
+    else startGame(); } return; }
   if(e.repeat)return; if(e.key===' '||e.key==='ArrowUp'||e.key==='w')doJump();
   if(e.key==='f'||e.key==='F'||e.key==='ArrowDown'||e.key==='Shift')doFart();
   if(e.key==='b'||e.key==='B'||e.key==='x'||e.key==='X'||e.key==='Enter')doThrow(); keys.add(e.key); });
@@ -332,22 +363,81 @@ function moveDir(){
 // ============================================================
 // GAME FLOW / LOGIC  (unchanged across themes)
 // ============================================================
-function resetPlayer(inv){ P.x=W/2;P.y=PLAYER_GY;P.vy=0;P.onGround=true;P.inv=true;P.invT=inv||1.2;P.blinkT=0;P.gas=GAS_MAX;P.squashT=0;P.face=0;P.faceT=0;P.blastFlash=0;P.barrierT=0;P.slipT=0;P.mushT=0;P.shieldT=0;P.x2T=0;P.slowT=0;P.freeFartT=0;P.bananas=AMMO_START;P.throwT=0; megaRingT=0; }
-function clearField(){ bananas=[];particles=[];clouds=[];floaters=[];pops=[];peels=[];powerups=[];fartClouds=[];groundBananas=[];flashT=0;hitstop=0; }
-function startGame(){ st=ST.PLAY; lives=LIVES_MAX; score=0; combo=0; comboBestRun=0; gameT=0; level=1; levelT=0; boss=null; tipT=3.6;
+// ============================================================
+// PROGRESSION — coins, ranks, cosmetics, the daily
+// Everything here is EARNED. No ads, no IAP, nothing to buy with money (project rule).
+// ============================================================
+const RANKS=[ {at:0,name:'Fart Cadet',icon:'🥚'}, {at:60,name:'Parp Private',icon:'🌱'},
+  {at:180,name:'Gas Corporal',icon:'💨'}, {at:400,name:'Toot Sergeant',icon:'🎖️'},
+  {at:800,name:'Blast Captain',icon:'💥'}, {at:1400,name:'Methane Major',icon:'🔥'},
+  {at:2400,name:'Gas Guardian',icon:'👑'} ];
+function rankFor(n){ let r=RANKS[0]; for(const x of RANKS) if(n>=x.at) r=x; return r; }
+function rankNext(n){ for(const x of RANKS) if(n<x.at) return x; return null; }
+let rankUpTo=null;   // set when a run pushes you over a threshold; celebrated on game over
+
+// Cosmetics. Hats draw on the player's head; skins tint your gas.
+const HATS=[ {id:'none',name:'Bare',cost:0,icon:'🐵'}, {id:'cap',name:'Cap',cost:40,icon:'🧢'},
+  {id:'party',name:'Party',cost:90,icon:'🥳'}, {id:'crown',name:'Crown',cost:180,icon:'👑'},
+  {id:'top',name:'Top Hat',cost:300,icon:'🎩'}, {id:'horns',name:'Horns',cost:450,icon:'😈'} ];
+const SKINS=[ {id:'classic',name:'Classic',cost:0,col:null,icon:'💨'}, {id:'pink',name:'Bubblegum',cost:70,col:'#ff7ad5',icon:'🩷'},
+  {id:'blue',name:'Deep Freeze',cost:140,col:'#5ad6ff',icon:'🧊'}, {id:'gold',name:'Golden Gas',cost:260,col:'#ffd93d',icon:'🌟'},
+  {id:'purple',name:'Toxic',cost:380,col:'#c07aff',icon:'☠️'} ];
+let owned=(()=>{ try{ const a=JSON.parse(load(SAVE.owned,'[]')); return Array.isArray(a)?a:[]; }catch(e){ return []; } })();
+if(!owned.includes('none'))owned.push('none'); if(!owned.includes('classic'))owned.push('classic');
+let hatId=owned.includes(load(SAVE.hat,'none'))?load(SAVE.hat,'none'):'none';
+let skinId=owned.includes(load(SAVE.skin,'classic'))?load(SAVE.skin,'classic'):'classic';
+function saveOwned(){ save(SAVE.owned,JSON.stringify(owned)); }
+function itemById(id){ return HATS.find(h=>h.id===id)||SKINS.find(s=>s.id===id)||null; }
+/// Your gas colour — the skin overrides the theme's fart colour when equipped.
+function fartCol(){ const s=SKINS.find(s=>s.id===skinId); return (s&&s.col)?s.col:T.fart; }
+
+// Fart of the Day — deterministic from the date, so it's the same for everyone all day
+// and can't be re-rolled. Kept FUN, never punishing: a kid shouldn't lose to the calendar.
+const DAILIES=[
+  {id:'coins', name:'Double Coins',  blurb:'every 🍌 coin counts twice',   icon:'🪙'},
+  {id:'floaty',name:'Floaty Farts',  blurb:'you jump way higher',          icon:'🎈'},
+  {id:'beans', name:'Bean Feast',    blurb:'start every level rapid-fire', icon:'🫘'},
+  {id:'stock', name:'Well Stocked',  blurb:'pockets full of bananas',      icon:'🍌'},
+  {id:'slow',  name:'Slow-Mo Start', blurb:'bananas crawl for a bit',      icon:'🐌'},
+];
+function todayKey(){ const d=new Date(); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
+function dailyOfDay(){ const k=todayKey(); let h=0; for(let i=0;i<k.length;i++)h=(h*31+k.charCodeAt(i))|0;
+  return DAILIES[Math.abs(h)%DAILIES.length]; }
+function dailyDone(){ return load(SAVE.daily,'')===todayKey(); }
+function applyDaily(){ const d=dailyOfDay();
+  if(d.id==='beans'){ P.freeFartT=PU_FREE; }
+  if(d.id==='stock'){ P.bananas=AMMO_MAX; }
+  if(d.id==='slow'){ P.slowT=3.5; }
+}
+function coinMul(){ return dailyOfDay().id==='coins'?2:1; }
+/// Award coins straight to the purse (level/boss bonuses). Drops use spawnCoin instead.
+function awardCoins(n,x,y){ const amt=Math.max(1,Math.round(n*coinMul()*D.coinMul));
+  runCoins+=amt; coins+=amt; lifetime+=amt; save(SAVE.coins,coins); save(SAVE.life,lifetime);
+  if(x!=null) addFloat(x,y,'+'+amt+' 🍌','#ffd93d',15);
+  const before=rankFor(lifetime-amt), after=rankFor(lifetime);
+  if(after.name!==before.name) rankUpTo=after;
+}
+function spawnCoin(x,y,n){ for(let i=0;i<(n||1);i++)
+  coinsOnGround.push({x:Math.max(20,Math.min(W-20,x+R(-14,14))),y,vy:R(-120,-40),vx:R(-50,50),landed:false,life:9,spin:R(0,6.28)}); }
+
+function resetPlayer(inv){ P.x=W/2;P.y=PLAYER_GY;P.vy=0;P.onGround=true;P.inv=true;P.invT=inv||1.2;P.blinkT=0;P.gas=GAS_MAX;P.squashT=0;P.face=0;P.faceT=0;P.blastFlash=0;P.barrierT=0;P.slipT=0;P.mushT=0;P.shieldT=0;P.x2T=0;P.slowT=0;P.freeFartT=0;P.bananas=AMMO_START;P.throwT=0;P.magnetT=0; megaRingT=0; }
+function clearField(){ bananas=[];particles=[];clouds=[];floaters=[];pops=[];peels=[];powerups=[];fartClouds=[];groundBananas=[];coinsOnGround=[];flashT=0;hitstop=0; }
+function startGame(){ st=ST.PLAY; lives=D.lives; score=0; combo=0; comboBestRun=0; gameT=0; level=1; levelT=0; boss=null; tipT=3.6;
+  runCoins=0; rankUpTo=null; applyDaily();
   clearField(); resetPlayer(1.2); monkeys=[]; setMonkeyCount(LEVELS[0].monkeys); }
-function completeLevel(){ if(level>=10){ startBoss(); } else { st=ST.LEVELDONE; levelT=0; burstFx(P.x,P.y,14); sfx.stun(); } }
+function completeLevel(){ awardCoins(5,P.x,P.y-40);
+  if(level>=10){ startBoss(); } else { st=ST.LEVELDONE; levelT=0; burstFx(P.x,P.y,14); sfx.stun(); } }
 function nextLevel(){ level++; levelT=0; clearField(); resetPlayer(1.0); monkeys=[]; setMonkeyCount(LEVELS[level-1].monkeys); st=ST.PLAY; }
 function startBoss(){ st=ST.BOSS; levelT=0; clearField(); resetPlayer(1.6); monkeys=[];
   boss={x:W/2,bx:W/2,by:98,hp:100,maxHp:100,atkT:1.4,chargeT:0,phase:1,lastPhase:1,bobT:0,swingT:0,hitFlash:0,vx:46,roarT:1.4,weakT:0,slamT:0,slamHit:0,deathT:0,minionsSpawned:false,wob:0,tell:null,angryT:0};
   addPop(W/2,168,'KING KONG-A-TOOT!','#ff5a5a'); doFlash('#ff5a5a',.4); addShake(14,.6); tone({f0:90,f1:50,dur:1.0,gain:.5,type:'sawtooth'}); }
-function winGame(){ st=ST.WIN; sfx.pick(); for(let i=0;i<40;i++)particles.push({x:R(0,W),y:R(-40,H*.4),vx:R(-30,30),vy:R(60,180),kind:'star',life:R(1.5,3),maxLife:3,size:R(6,13)}); const fs=Math.floor(score); if(fs>best){best=fs;try{localStorage.setItem('fartback_best',String(best));}catch(e){}} }
+function winGame(){ st=ST.WIN; sfx.pick(); for(let i=0;i<40;i++)particles.push({x:R(0,W),y:R(-40,H*.4),vx:R(-30,30),vy:R(60,180),kind:'star',life:R(1.5,3),maxLife:3,size:R(6,13)}); awardCoins(60); dailyPaid=false; endRun(); }
 function pickKind(){ if(level<5)return 'reg'; const r=Math.random();
   if(level>=7&&r<.14)return 'boom'; if(level>=6&&r<.30)return 'sniper'; return r<.72?'reg':'gun'; }
 function setMonkeyCount(n){ while(monkeys.length<n){ const nx=R(60,W-60), ny=R(94,110), kind=pickKind();
     monkeys.push({x:nx,y:ny,bx:nx,by:ny,kind,swingT:Math.random()*6.28,swayX:R(7,13),vx:(Math.random()<.5?-1:1)*R(30,68),retargetT:R(1.4,3.4),bobT:Math.random()*6.28,throwT:kind==='boom'?R(1.6,2.6):R(.7,1.8),angryT:0,charge:0,stun:0,wob:0,gust:0,aimT:0,lockX:0,lockY:0}); }
   monkeys.length=Math.min(monkeys.length,n); }
-function doJump(){ if((st!==ST.PLAY&&st!==ST.BOSS)||!P.onGround||P.slipT>0)return; P.vy=JUMP; P.onGround=false; P.stretch=1; P.squashT=0; sfx.jump();
+function doJump(){ if((st!==ST.PLAY&&st!==ST.BOSS)||!P.onGround||P.slipT>0)return; P.vy=JUMP*(dailyOfDay().id==='floaty'?1.24:1); P.onGround=false; P.stretch=1; P.squashT=0; sfx.jump();
   for(let i=0;i<7;i++)particles.push(puff(P.x+R(-8,8),PLAYER_GY+20,R(-40,40),R(20,90))); clouds.push({x:P.x,y:PLAYER_GY+22,r:12,life:.7,maxLife:.7}); }
 // 💨 FART BACK — costs GAS. Blocks whatever is already above you, then sends a rising
 // wall of gas up the screen that eats bananas and gasses monkeys it drifts into.
@@ -386,6 +476,8 @@ function doFlash(col,amt){flashT=Math.max(flashT,amt);flashCol=col;}
 function update(dt){
   if(st===ST.PAUSE)return;   // freeze everything, particles included
   if(st===ST.SPLASH){ splashT+=dt; if(splashT>=SPLASH_LEN) st=ST.START; return; }
+  if(st===ST.SHOP){ pops=pops.filter(p=>{p.life-=dt;p.y-=12*dt;return p.life>0;});
+    floaters=floaters.filter(f=>{f.y+=f.vy*dt;f.vy+=60*dt;f.life-=dt;return f.life>0;}); if(flashT>0)flashT-=dt*2.6; return; }
   for(const s of stars)s.tw+=dt;
   if(shakeT>0)shakeT-=dt; if(megaRingT>0)megaRingT-=dt;
   particles=particles.filter(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=(p.kind==='star'?520:40)*dt;p.life-=dt;return p.life>0;});
@@ -405,7 +497,7 @@ function update(dt){
   if(P.inv){P.invT-=dt;P.blinkT+=dt;if(P.invT<=0)P.inv=false;}
   if(P.faceT>0){P.faceT-=dt;if(P.faceT<=0)P.face=0;}
   if(P.blastFlash>0)P.blastFlash-=dt; if(P.barrierT>0)P.barrierT-=dt; if(P.slipT>0)P.slipT-=dt; if(P.mushT>0)P.mushT-=dt;
-  if(P.shieldT>0)P.shieldT-=dt; if(P.x2T>0)P.x2T-=dt; if(P.slowT>0)P.slowT-=dt; if(P.freeFartT>0)P.freeFartT-=dt;
+  if(P.shieldT>0)P.shieldT-=dt; if(P.x2T>0)P.x2T-=dt; if(P.slowT>0)P.slowT-=dt; if(P.freeFartT>0)P.freeFartT-=dt; if(P.magnetT>0)P.magnetT-=dt;
   if(P.throwT>0)P.throwT-=dt;
   P.gas=Math.min(GAS_MAX,P.gas+GAS_RECHARGE*dt);
   for(const m of monkeys){ m.bobT+=dt*2.4; m.swingT+=dt*2.6; if(m.gust>0)m.gust-=dt;
@@ -419,7 +511,8 @@ function update(dt){
     // difficulty is driven by LEVEL (not cumulative time), and each monkey throws
     // slower when the branch is crowded so 2+ monkeys don't multiply the barrage.
     const L=level, nMon=Math.max(1,monkeys.length), crowd=1+.36*(nMon-1);
-    const flight=Math.max(.62,1.05-(L-1)*.035), spread=Math.min(.42,.05+(L-1)*.038), baseIv=(2.9-(L-1)*.13)*crowd;
+    // difficulty scales the whole barrage, not just the life count
+    const flight=Math.max(.62,1.05-(L-1)*.035)+D.flightAdd, spread=Math.min(.42,.05+(L-1)*.038), baseIv=(2.9-(L-1)*.13)*crowd*D.ivMul;
     if(m.charge>0){ m.charge-=dt; m.gust=Math.max(m.gust,.32);
       if(m.charge<=0){ throwBanana(m.bx,m.by+26,P.x,flight+.05,3,.55,'black'); m.gust=.55; sfx.throw();
         for(let i=0;i<12;i++){const a=R(1.3,3.1);particles.push(puff(m.bx+R(-8,8),m.by+28,Math.cos(a)*R(40,110),Math.sin(a)*R(40,110)+30));} } }
@@ -432,12 +525,13 @@ function update(dt){
         bananas.push({x:m.bx,y:m.by+24,vx:dx/d*SNIPE_SPD,vy:dy/d*SNIPE_SPD,rot:Math.atan2(dy,dx),rotV:0,friendly:false,type:'black',straight:true});
         for(let i=0;i<10;i++){const a=Math.atan2(dy,dx)+R(-.5,.5);particles.push(puff(m.bx,m.by+26,Math.cos(a)*R(60,130),Math.sin(a)*R(60,130)));} } }
     else if(m.throwT<=0){
-      if(m.kind==='sniper'){ m.throwT=baseIv*R(1.35,1.8); m.aimT=AIM_T; m.locked=false; m.lockX=P.x; m.lockY=P.y-14; }
+      // aimMul stretches the TRACKING half; the red lock stays 0.4s so the "move NOW" beat reads the same
+      if(m.kind==='sniper'){ m.throwT=baseIv*R(1.35,1.8); m.aimT=AIM_T*D.aimMul; m.locked=false; m.lockX=P.x; m.lockY=P.y-14; }
       else if(m.kind==='gun'){ m.throwT=baseIv*R(.72,1.0); m.angryT=.22; m.gust=.28;
         for(let k=0;k<2;k++){ const tf=Math.max(.5,flight*.72),fx=m.bx+R(-4,4),fy=m.by+22,rx=P.x+R(-30,30); bananas.push({x:fx,y:fy,vx:(rx-fx)/tf,vy:(PLAYER_GY-fy-.5*GRAV*tf*tf)/tf,rot:0,rotV:R(-14,14),friendly:false,type:'yellow',small:true}); } sfx.throw(); }
       else if(m.kind==='boom'){ m.throwT=baseIv*R(1.5,2.1); m.charge=.9; m.angryT=.9; }
       else { m.throwT=baseIv*R(.8,1.25); m.angryT=.4; m.gust=.4;
-        const count=L>=7?2:1, roll=Math.random(), bt=roll<.22?'black':roll<.46?'brown':'yellow';
+        const count=L>=7?2:1, roll=Math.random(), bt=roll<.22*D.blackMul?'black':roll<.46?'brown':'yellow';
         throwBanana(m.bx,m.by+24,P.x,flight,count,spread,bt); sfx.throw();
         if(bt==='black')for(let i=0;i<8;i++){const a=R(1.5,3.0);particles.push(puff(m.bx+R(-6,6),m.by+26,Math.cos(a)*R(30,90),Math.sin(a)*R(30,90)+30));} } } }
   // keep monkeys from bunching up — gentle separation
@@ -456,7 +550,8 @@ function update(dt){
         if(dx*dx+dy*dy<30*30){ m.stun=3;m.wob=0;m.angryT=0; combo++; comboBestRun=Math.max(comboBestRun,combo); const pts=100*combo*(P.x2T>0?2:1); score+=pts;
           addFloat(m.bx,m.by-38,'+'+pts+(combo>1?('  x'+combo):''),T.accent,combo>2?22:17); burstFx(m.bx,m.by,12);
           addPop(m.bx,m.by-8, combo>=6?'MEGA!':combo>=3?'BONK!':'POW!', T.accent); doFlash(T.fart,combo>=3?.3:.15); hitstop=Math.max(hitstop,.05);
-          addShake(combo>=3?9:6,.16); sfx.stun(); if(Math.random()<.32)spawnPU(m.bx,m.by); return false; } } return true; }
+          addShake(combo>=3?9:6,.16); sfx.stun(); spawnCoin(m.bx,m.by,Math.random()<.25?2:1);
+          if(Math.random()<.32)spawnPU(m.bx,m.by); return false; } } return true; }
     // hostile: barrier block window
     if(P.barrierT>0){ const dx=b.x-P.x,dy=b.y-P.y; if(Math.abs(dx)<64&&dy>-74&&dy<14){ burstFx(b.x,b.y,4); score+=8; return false; } }
     // ground contact -> splat / maybe leave a peel
@@ -473,11 +568,21 @@ function update(dt){
       if(dx*dx+dy*dy<(fc.r+26)*(fc.r+26)){ fc.hit.add(m); m.stun=3; m.wob=0; m.angryT=0; combo++; comboBestRun=Math.max(comboBestRun,combo);
         const pts=60*combo*(P.x2T>0?2:1); score+=pts; addFloat(m.bx,m.by-38,'+'+pts+(combo>1?('  x'+combo):''),T.fart,combo>2?21:16);
         burstFx(m.bx,m.by,10); addPop(m.bx,m.by-8,combo>=6?'GASSED!':'PHEW!',T.fart); doFlash(T.fart,.16); sfx.stun(); addShake(5,.12);
-        if(Math.random()<.28)spawnPU(m.bx,m.by); } }
+        spawnCoin(m.bx,m.by,1); if(Math.random()<.28)spawnPU(m.bx,m.by); } }
     if(st===ST.BOSS&&boss&&boss.hp>0&&!boss.deathT&&!fc.hit.has(boss)){ const dx=boss.bx-fc.x,dy=boss.by-fc.y;
       if(dx*dx+dy*dy<(fc.r+42)*(fc.r+42)){ fc.hit.add(boss); const d=boss.weakT>0?10:5; boss.hp=Math.max(0,boss.hp-d); boss.hitFlash=.25;
         addFloat(boss.bx,boss.by-30,'-'+d,T.fart,17); if(boss.hp<=0)killBoss(); } }
     return fc.life>0&&fc.y>-50; });
+  // 🍌 coins — fall, land, get collected. The Magnet drags them to you from across the screen.
+  const magR=P.magnetT>0?170:30;
+  coinsOnGround=coinsOnGround.filter(c=>{ c.life-=dt; c.spin+=dt*5;
+    const dx=P.x-c.x, dy=(P.y-14)-c.y, d=Math.hypot(dx,dy);
+    if(P.magnetT>0&&d<magR){ const pull=520*dt/Math.max(24,d); c.x+=dx*pull; c.y+=dy*pull; c.landed=false; }
+    else if(!c.landed){ c.vy+=GRAV*.55*dt; c.x+=c.vx*dt; c.y+=c.vy*dt;
+      if(c.y>=GROUND_Y-10){ c.y=GROUND_Y-10; c.landed=true; c.vy=0; c.vx=0; } }
+    if(d<26||(P.magnetT>0&&d<20)){ awardCoins(1); sfx.pick();
+      for(let i=0;i<3;i++)particles.push(puff(c.x,c.y,R(-30,30),R(-60,-10))); return false; }
+    return c.life>0; });
   // bananas that landed intact — walk over them to reload your ammo
   groundBananas=groundBananas.filter(g=>{ g.life-=dt; g.bob+=dt*4;
     if(P.bananas<AMMO_MAX&&Math.abs(g.x-P.x)<26&&Math.abs(g.y-P.y)<44){ P.bananas++; sfx.pick(); addFloat(g.x,g.y-26,'+1 🍌','#ffd83d',15);
@@ -488,7 +593,7 @@ function update(dt){
   powerups=powerups.filter(pu=>{ if(!pu.landed){ pu.vy+=GRAV*.5*dt; pu.y+=pu.vy*dt; if(pu.y>=GROUND_Y-12){pu.y=GROUND_Y-12;pu.landed=true;pu.vy=0;} } pu.life-=dt;
     if(Math.abs(pu.x-P.x)<26&&Math.abs(pu.y-P.y)<32){ collectPU(pu); return false; } return pu.life>0; });
 }
-function spawnPU(x,y){ const r=Math.random(), kind=r<.22?'mask':r<.42?'gold':r<.57?'plug':r<.70?'beano':r<.90?'bean':'mega';
+function spawnPU(x,y){ const r=Math.random(), kind=r<.20?'mask':r<.38?'gold':r<.51?'plug':r<.63?'beano':r<.80?'bean':r<.92?'magnet':'mega';
   powerups.push({x:Math.max(24,Math.min(W-24,x)),y,vy:R(10,50),kind,life:PU_DROP_LIFE,landed:false}); }
 function collectPU(pu){ tone({f0:400,f1:1100,dur:.16,gain:.24,type:'square'}); addShake(5,.12); burstFx(P.x,P.y-16,9);
   if(pu.kind==='mask'){ P.shieldT=PU_SHIELD; addPop(P.x,P.y-52,'SHIELD!',PU_COLORS.mask); }
@@ -496,6 +601,7 @@ function collectPU(pu){ tone({f0:400,f1:1100,dur:.16,gain:.24,type:'square'}); a
   else if(pu.kind==='plug'){ P.slowT=PU_SLOW; addPop(P.x,P.y-52,'SLO-MO!',PU_COLORS.plug); }
   else if(pu.kind==='beano'){ clouds=[]; peels=[]; addPop(P.x,P.y-52,'FRESH AIR!',PU_COLORS.beano); doFlash(T.fart,.2); }
   else if(pu.kind==='bean'){ P.gas=GAS_MAX; P.freeFartT=PU_FREE; P.bananas=AMMO_MAX; addPop(P.x,P.y-52,'RAPID FIRE!',PU_COLORS.bean); doFlash(PU_COLORS.bean,.2); }
+  else if(pu.kind==='magnet'){ P.magnetT=PU_MAGNET; addPop(P.x,P.y-52,'MAGNET!',PU_COLORS.magnet); doFlash(PU_COLORS.magnet,.2); }
   else { megaFart(); } }
 function megaFart(){ doFlash(T.fart,.6); addShake(16,.5); hitstop=Math.max(hitstop,.06); sfx.blast(); tone({f0:120,f1:520,dur:.4,gain:.4}); megaRingT=.6;
   addPop(P.x,P.y-52,'MEGA FART!!',PU_COLORS.mega);
@@ -517,8 +623,13 @@ function hitPlayer(bx,by,type){
   lives--; combo=0; P.inv=true;P.invT=1.8;P.blinkT=0;P.face=1;P.faceT=1;
   burstFx(bx,by,10); addShake(type==='black'?14:12,.3); doFlash('#ff5a5a',.32); hitstop=Math.max(hitstop,.08); sfx.hurt();
   addPop(P.x,P.y-46,type==='black'?'BLECH!':'OUCH!','#ff5a5a'); if(lives<=0)gameOver(); }
-function gameOver(){ st=ST.OVER; sfx.over(); burstFx(P.x,P.y,16); addShake(14,.4); const fs=Math.floor(score); if(fs>best){best=fs;try{localStorage.setItem('fartback_best',String(best));}catch(e){}} }
-function killBoss(){ if(boss.deathT>0)return; boss.deathT=1.3; boss.weakT=0; boss.chargeT=0; boss.slamT=0; bananas=bananas.filter(b=>b.friendly); addShake(16,.6); doFlash('#ffffff',.4); sfx.stun(); }
+function endRun(){ // shared by gameOver + winGame: bank the score and pay the daily
+  const fs=Math.floor(score); if(fs>best){ best=fs; save(SAVE.best,best); }
+  if(!dailyDone()){ save(SAVE.daily,todayKey()); awardCoins(25); dailyPaid=true; }
+}
+let dailyPaid=false;
+function gameOver(){ st=ST.OVER; sfx.over(); burstFx(P.x,P.y,16); addShake(14,.4); dailyPaid=false; endRun(); }
+function killBoss(){ if(boss.deathT>0)return; awardCoins(40,boss.bx,boss.by-40); spawnCoin(boss.bx,boss.by,8); boss.deathT=1.3; boss.weakT=0; boss.chargeT=0; boss.slamT=0; bananas=bananas.filter(b=>b.friendly); addShake(16,.6); doFlash('#ffffff',.4); sfx.stun(); }
 function spawnMinions(n){ for(let i=0;i<n;i++){ const side=i%2===0?1:-1, nx=W/2+side*R(120,180); monkeys.push({x:nx,y:R(96,116),bx:nx,by:100,kind:'gun',swingT:Math.random()*6.28,swayX:R(6,10),vx:side*R(40,80),retargetT:R(1,2.4),bobT:0,throwT:R(.7,1.4),angryT:0,charge:0,stun:0,wob:0,gust:0}); }
   addPop(W/2,150,'MINIONS!',T.accent); doFlash(T.fart,.2); }
 function bossReleaseCharge(){ boss.atkT=1.4; sfx.blast(); addShake(7,.2);
@@ -656,17 +767,50 @@ function drawPowerup(pu){ if(pu.life<1.4&&Math.floor(pu.life*8)%2===0)return; co
   if(big){ ctx.globalAlpha=.4+.35*Math.sin(pu.life*8); ctx.strokeStyle=col; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,22,0,6.28); ctx.stroke(); ctx.globalAlpha=1; }
   ctx.shadowColor=col; ctx.shadowBlur=big?18:12; ctx.fillStyle=col; ctx.beginPath(); ctx.arc(0,0,big?17:15,0,6.28); ctx.fill(); ctx.shadowBlur=0;
   ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.lineCap='round';
-  if(pu.kind==='gold'){ ctx.fillStyle='#7a5a10'; star(0,0,8,5); }
+  if(pu.kind==='magnet'){ ctx.strokeStyle='#5a0f08'; ctx.lineWidth=4.5; ctx.lineCap='butt';
+    ctx.beginPath(); ctx.arc(0,1,6,Math.PI,0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-6,1); ctx.lineTo(-6,6); ctx.moveTo(6,1); ctx.lineTo(6,6); ctx.stroke(); }
+  else if(pu.kind==='gold'){ ctx.fillStyle='#7a5a10'; star(0,0,8,5); }
   else if(pu.kind==='mask'){ ctx.fillStyle='#0a3a44'; ctx.beginPath(); ctx.moveTo(0,-8); ctx.lineTo(8,-3); ctx.lineTo(6,7); ctx.lineTo(0,10); ctx.lineTo(-6,7); ctx.lineTo(-8,-3); ctx.closePath(); ctx.fill(); }
   else if(pu.kind==='plug'){ ctx.strokeStyle='#2a1050'; ctx.beginPath(); ctx.arc(0,0,7,0,6.28); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-5); ctx.moveTo(0,0); ctx.lineTo(4,1); ctx.stroke(); }
   else if(pu.kind==='beano'){ ctx.fillStyle='#0c3a10'; [[-4,2,4],[3,-1,5],[1,6,3]].forEach(([bx,by,br])=>{ctx.beginPath();ctx.arc(bx,by,br,0,6.28);ctx.fill();}); }
   else if(pu.kind==='bean'){ ctx.fillStyle='#5a2e00'; ctx.beginPath(); ctx.moveTo(2,-9); ctx.lineTo(-5,1); ctx.lineTo(0,1); ctx.lineTo(-3,9); ctx.lineTo(6,-2); ctx.lineTo(0,-2); ctx.closePath(); ctx.fill(); }
   else { ctx.fillStyle='#5a0033'; star(0,0,9,7); }
   ctx.restore(); }
-function drawEffectPips(){ const list=[]; if(P.shieldT>0)list.push([P.shieldT/PU_SHIELD,PU_COLORS.mask,'SHIELD']); if(P.x2T>0)list.push([P.x2T/PU_X2,PU_COLORS.gold,'×2']); if(P.slowT>0)list.push([P.slowT/PU_SLOW,PU_COLORS.plug,'SLO-MO']); if(P.freeFartT>0)list.push([P.freeFartT/PU_FREE,PU_COLORS.bean,'RAPID']);
+function drawEffectPips(){ const list=[]; if(P.shieldT>0)list.push([P.shieldT/PU_SHIELD,PU_COLORS.mask,'SHIELD']); if(P.x2T>0)list.push([P.x2T/PU_X2,PU_COLORS.gold,'×2']); if(P.slowT>0)list.push([P.slowT/PU_SLOW,PU_COLORS.plug,'SLO-MO']); if(P.freeFartT>0)list.push([P.freeFartT/PU_FREE,PU_COLORS.bean,'RAPID']); if(P.magnetT>0)list.push([P.magnetT/PU_MAGNET,PU_COLORS.magnet,'MAGNET']);
   if(!list.length)return; const pw=66,ph=13,gap=6,tot=list.length*pw+(list.length-1)*gap,x0=W/2-tot/2,y=52;
   ctx.textAlign='center'; ctx.textBaseline='middle';
   list.forEach((e,i)=>{ const x=x0+i*(pw+gap); ctx.fillStyle='rgba(0,0,0,.45)'; rr(x-1,y-1,pw+2,ph+2,5); ctx.fill(); ctx.fillStyle=e[1]; rr(x,y,pw*Math.max(0,e[0]),ph,4); ctx.fill(); ctx.fillStyle='#000'; ctx.font=T.hudFont(9); ctx.fillText(e[2],x+pw/2,y+ph/2); }); }
+// Hats are vector, not emoji — they have to sit right on the head and take an outline in
+// whichever world you're wearing them. Drawn in the player's local space, head at (0,-8) r14.
+function drawHat(id){
+  if(id==='none'||!id)return;
+  const oc=T.outlineW>0?T.outline:'rgba(0,0,0,.55)', ow=Math.max(1.5,T.outlineW*.5);
+  ctx.lineJoin='round'; ctx.lineCap='round'; ctx.strokeStyle=oc; ctx.lineWidth=ow;
+  if(id==='cap'){
+    // brim rides ON the dome's base line — any lower and it slices across the eyes
+    ctx.fillStyle='#e0453a'; ctx.beginPath(); ctx.arc(0,-17,12,Math.PI,0); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); if(ctx.roundRect)ctx.roundRect(-1,-19.5,17,4.5,2.2); else ctx.rect(-1,-19.5,17,4.5); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(0,-25,2.2,0,6.28); ctx.fill();
+  } else if(id==='party'){
+    ctx.fillStyle='#ff4fa3'; ctx.beginPath(); ctx.moveTo(0,-34); ctx.lineTo(9,-15); ctx.lineTo(-9,-15); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#ffe022'; [[-4,-20],[3,-24],[-1,-28]].forEach(([x,y])=>{ctx.beginPath();ctx.arc(x,y,1.8,0,6.28);ctx.fill();});
+    ctx.fillStyle='#5ad6ff'; ctx.beginPath(); ctx.arc(0,-35,3,0,6.28); ctx.fill(); ctx.stroke();
+  } else if(id==='crown'){
+    ctx.fillStyle='#ffd93d'; ctx.beginPath();
+    ctx.moveTo(-11,-15); ctx.lineTo(-11,-26); ctx.lineTo(-5,-20); ctx.lineTo(0,-29); ctx.lineTo(5,-20); ctx.lineTo(11,-26); ctx.lineTo(11,-15);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#ff4fa3'; ctx.beginPath(); ctx.arc(0,-18,2,0,6.28); ctx.fill();
+  } else if(id==='top'){
+    ctx.fillStyle='#1d1a24'; ctx.beginPath(); if(ctx.roundRect)ctx.roundRect(-13,-18,26,4,2); else ctx.rect(-13,-18,26,4); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); if(ctx.roundRect)ctx.roundRect(-8,-33,16,16,2); else ctx.rect(-8,-33,16,16); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#d7333f'; ctx.fillRect(-8,-23,16,4);
+  } else if(id==='horns'){
+    ctx.fillStyle='#e0453a';
+    [[-1,-1],[1,1]].forEach(([s])=>{ ctx.beginPath(); ctx.moveTo(s*7,-17); ctx.quadraticCurveTo(s*15,-24,s*11,-32);
+      ctx.quadraticCurveTo(s*8,-25,s*3,-18); ctx.closePath(); ctx.fill(); ctx.stroke(); });
+  }
+}
 function drawPlayer(){
   if(P.inv&&Math.floor(P.blinkT*8)%2===0)return;
   const slipping=P.slipT>0;
@@ -674,7 +818,7 @@ function drawPlayer(){
   ctx.save(); ctx.translate(P.x,P.y);
   if(slipping)ctx.rotate(1.35); else ctx.scale(sx,sy);
   // fart gust out the butt while blasting
-  if(P.blastFlash>0){ ctx.globalAlpha=.7; ctx.fillStyle=T.fart; for(let k=0;k<4;k++){ctx.beginPath();ctx.arc(-3+k*2,26+k*4,10-k*1.5,0,6.28);ctx.fill();} ctx.globalAlpha=1; }
+  if(P.blastFlash>0){ ctx.globalAlpha=.7; ctx.fillStyle=fartCol(); for(let k=0;k<4;k++){ctx.beginPath();ctx.arc(-3+k*2,26+k*4,10-k*1.5,0,6.28);ctx.fill();} ctx.globalAlpha=1; }
   // body
   ctx.beginPath(); if(ctx.roundRect)ctx.roundRect(-15,4,30,26,9); else ctx.rect(-15,4,30,26); fillStroke(T.playerBody);
   // butt-crack hint
@@ -684,27 +828,44 @@ function drawPlayer(){
   if(T.highlight){ctx.beginPath();ctx.ellipse(-5,-13,5,3,0,0,6.28);ctx.fillStyle='rgba(255,255,255,.3)';ctx.fill();}
   drawEyes(-5,-8,5,-8,slipping);
   if(P.face===1&&!slipping){ctx.strokeStyle=T.outline||'#333';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,-1,4,3.4,6.0);ctx.stroke();}
+  drawHat(hatId);      // whatever you bought, sitting on your head
   ctx.restore();
   if(slipping){ ctx.fillStyle=T.accent; ctx.font=T.hudFont(11); ctx.textAlign='center'; ctx.textBaseline='middle'; for(let k=0;k<3;k++){const a=P.slipT*10+k*2.1;ctx.fillText('✦',P.x+Math.cos(a)*18,P.y-24+Math.sin(a)*5);} }
   // active power-up effects
   if(P.shieldT>0 && !(P.shieldT<1.2&&Math.floor(P.shieldT*8)%2===0)){ ctx.globalAlpha=.14; ctx.fillStyle=PU_COLORS.mask; ctx.beginPath(); ctx.arc(P.x,P.y,27,0,6.28); ctx.fill(); ctx.globalAlpha=.5; ctx.strokeStyle=PU_COLORS.mask; ctx.lineWidth=2.5; ctx.beginPath(); ctx.arc(P.x,P.y,27,0,6.28); ctx.stroke(); ctx.globalAlpha=1; }
   if(P.x2T>0){ ctx.fillStyle=PU_COLORS.gold; ctx.font=T.hudFont(13); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('×2',P.x+22,P.y-22); }
   if(P.freeFartT>0){ ctx.globalAlpha=.5+.3*Math.sin(P.freeFartT*22); ctx.strokeStyle=PU_COLORS.bean; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(P.x,P.y+6,28,0,6.28); ctx.stroke(); ctx.globalAlpha=.5; ctx.fillStyle=PU_COLORS.bean; for(let k=0;k<3;k++){const a=P.freeFartT*10+k*2.1;ctx.beginPath();ctx.arc(P.x+Math.cos(a)*26,P.y+6+Math.sin(a)*26,4,0,6.28);ctx.fill();} ctx.globalAlpha=1; }
-  if(megaRingT>0){ const a=megaRingT/.6, rr2=(1-a)*300+20; ctx.globalAlpha=a*.7; ctx.strokeStyle=T.fart; ctx.lineWidth=10*a+2; ctx.beginPath(); ctx.arc(P.x,P.y,rr2,0,6.28); ctx.stroke(); ctx.globalAlpha=1; }
+  if(P.magnetT>0){ const a=.28+.22*Math.sin(P.magnetT*9); ctx.globalAlpha=a; ctx.strokeStyle=PU_COLORS.magnet; ctx.lineWidth=2.5;
+    ctx.setLineDash([6,7]); ctx.beginPath(); ctx.arc(P.x,P.y-8,42,0,6.28); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1; }
+  if(megaRingT>0){ const a=megaRingT/.6, rr2=(1-a)*300+20; ctx.globalAlpha=a*.7; ctx.strokeStyle=fartCol(); ctx.lineWidth=10*a+2; ctx.beginPath(); ctx.arc(P.x,P.y,rr2,0,6.28); ctx.stroke(); ctx.globalAlpha=1; }
   // fart barrier arc above the head
-  if(P.barrierT>0){ const a=P.barrierT/BARRIER_T; ctx.globalAlpha=a*.6; ctx.strokeStyle=T.fart; ctx.lineWidth=6; ctx.lineCap='round'; ctx.beginPath(); ctx.arc(P.x,P.y-6,58,Math.PI*1.12,Math.PI*1.88); ctx.stroke();
-    ctx.globalAlpha=a*.4; ctx.fillStyle=T.fart; for(let k=0;k<5;k++){ctx.beginPath();ctx.arc(P.x-42+k*21,P.y-54+Math.sin(k+P.barrierT*12)*4,7,0,6.28);ctx.fill();} ctx.globalAlpha=1; }
+  if(P.barrierT>0){ const a=P.barrierT/BARRIER_T; ctx.globalAlpha=a*.6; ctx.strokeStyle=fartCol(); ctx.lineWidth=6; ctx.lineCap='round'; ctx.beginPath(); ctx.arc(P.x,P.y-6,58,Math.PI*1.12,Math.PI*1.88); ctx.stroke();
+    ctx.globalAlpha=a*.4; ctx.fillStyle=fartCol(); for(let k=0;k<5;k++){ctx.beginPath();ctx.arc(P.x-42+k*21,P.y-54+Math.sin(k+P.barrierT*12)*4,7,0,6.28);ctx.fill();} ctx.globalAlpha=1; }
 }
 function drawCloud(c){ const a=Math.max(0,c.life/c.maxLife); ctx.globalAlpha=a*.6; ctx.fillStyle=T.fart;
   for(let k=0;k<4;k++){ctx.beginPath();ctx.arc(c.x+Math.sin(k*1.7)*c.r*.5,c.y+Math.cos(k*1.3)*c.r*.4,Math.max(1,c.r*.7-k*4),0,6.28);ctx.fill();}
   if(T.smokeRings){ctx.globalAlpha=a*.5;ctx.strokeStyle=T.fartRing;ctx.lineWidth=2;ctx.beginPath();ctx.arc(c.x,c.y,c.r*.6,0,6.28);ctx.stroke();}
   ctx.globalAlpha=1; }
 function drawFartCloud(fc){ const a=Math.max(0,Math.min(1,fc.life/(fc.maxLife*.55)));
-  ctx.globalAlpha=a*.72; ctx.fillStyle=T.fart;
+  ctx.globalAlpha=a*.72; ctx.fillStyle=fartCol();
   for(let k=0;k<6;k++){ const ang=k*1.05+fc.wob*.5; ctx.beginPath();
     ctx.arc(fc.x+Math.cos(ang)*fc.r*.55,fc.y+Math.sin(ang*1.3)*fc.r*.42,Math.max(2,fc.r*.62-k*3),0,6.28); ctx.fill(); }
-  ctx.globalAlpha=a*.55; ctx.strokeStyle=T.fartRing||T.fart; ctx.lineWidth=3;
+  ctx.globalAlpha=a*.55; ctx.strokeStyle=fartCol(); ctx.lineWidth=3;
   ctx.beginPath(); ctx.arc(fc.x,fc.y,fc.r*.9,0,6.28); ctx.stroke(); ctx.globalAlpha=1; }
+// A 🍌 coin: a banana medallion, spinning. Reads as loot at 12px.
+function drawCoin(c){
+  const a=c.life<1.4?Math.abs(Math.sin(c.life*12)):1, sq=Math.abs(Math.cos(c.spin));   // spin = squash on X
+  ctx.save(); ctx.globalAlpha=a; ctx.translate(c.x,c.y);
+  if(c.landed){ ctx.globalAlpha=a*.22; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(0,11,9,3,0,0,6.28); ctx.fill(); ctx.globalAlpha=a; }
+  ctx.scale(Math.max(.12,sq),1);
+  ctx.shadowColor='#ffd93d'; ctx.shadowBlur=10;
+  ctx.beginPath(); ctx.arc(0,0,9,0,6.28); ctx.fillStyle='#ffd93d'; ctx.fill(); ctx.shadowBlur=0;
+  ctx.beginPath(); ctx.arc(0,0,9,0,6.28); ctx.strokeStyle='#b8860b'; ctx.lineWidth=1.8; ctx.stroke();
+  ctx.beginPath(); ctx.arc(0,0,5.6,0,6.28); ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=1; ctx.stroke();
+  if(sq>.45){ ctx.strokeStyle='#8a6410'; ctx.lineWidth=1.8; ctx.lineCap='round';   // tiny banana glyph
+    ctx.beginPath(); ctx.arc(1.5,-1,4.2,Math.PI*.15,Math.PI*.95); ctx.stroke(); }
+  ctx.restore(); ctx.globalAlpha=1;
+}
 function drawGroundBanana(g){ const a=g.life<1.2?Math.abs(Math.sin(g.life*14)):1;
   ctx.save(); ctx.globalAlpha=a; ctx.translate(g.x,g.y+Math.sin(g.bob)*2.5);
   ctx.globalAlpha=a*.25; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(0,11,12,3.5,0,0,6.28); ctx.fill(); ctx.globalAlpha=a;
@@ -759,10 +920,11 @@ function drawOverlay(){
 // ---------- HUD & controls ----------
 function drawHUD(){
   ctx.textAlign='left'; ctx.textBaseline='middle';
-  for(let i=0;i<LIVES_MAX;i++){ ctx.globalAlpha=i<lives?1:.22; drawHeart(56+i*26,22,9); } ctx.globalAlpha=1;
+  for(let i=0;i<D.lives;i++){ ctx.globalAlpha=i<lives?1:.22; drawHeart(56+i*22,22,8); } ctx.globalAlpha=1;
   drawPauseBtn();
   ctx.textAlign='right'; ctx.fillStyle=T.accent; ctx.font=T.hudFont(22); ctx.fillText(Math.floor(score),W-12,20);
   ctx.fillStyle=T.text; ctx.globalAlpha=.6; ctx.font=T.hudFont(11); ctx.fillText('BEST '+best,W-12,40); ctx.globalAlpha=1;
+  if(runCoins>0){ ctx.fillStyle='#ffd93d'; ctx.font=T.hudFont(13); ctx.fillText('🍌 '+runCoins,W-12,58); }
   if(combo>1){ ctx.textAlign='center'; ctx.fillStyle=T.fart; ctx.font=T.hudFont(18); ctx.fillText('COMBO x'+combo,W/2,16); }
   if(st===ST.PLAY){ ctx.textAlign='center'; ctx.fillStyle=T.accent; ctx.font=T.hudFont(13); ctx.fillText('LEVEL '+level+' / 10',W/2,64);
     const cfg=LEVELS[level-1], prog=Math.min(1,levelT/cfg.secs), bw=190,bx=W/2-bw/2,by=CTRL_TOP-40;
@@ -899,7 +1061,7 @@ function drawTitle(text,x,y,size,color){
 // lanes ARE the theme picker: tap a lane, that world lights up and the rest dim.
 const LANE_N=THEME_ORDER.length, LANE_W=()=>W/LANE_N;
 function laneAt(x){ const i=Math.floor(x/LANE_W()); return THEME_ORDER[Math.max(0,Math.min(LANE_N-1,i))]; }
-function laneNameY(){ return Math.round(H*0.60); }
+function laneNameY(){ return Math.round(H*0.665); }
 function drawLanes(t,opts){
   const cw=LANE_W(), wipe=opts.wipe, dim=opts.dim;
   for(let i=0;i<LANE_N;i++){
@@ -935,6 +1097,7 @@ function drawLanes(t,opts){
       ctx.strokeRect(i*cw+2.5,2.5,cw-5,H-5); }
     // World name in a pill, NOT bare T.text — Inkwell's text is cream on a cream
     // background and vanishes. The pill reads in every palette.
+    if(opts.pills===false) continue;   // shop: the lanes are backdrop, not a picker
     const th=THEMES[id], nx=i*cw+cw/2, ny=dim?laneNameY():GROUND_Y-22;
     ctx.font=th.hudFont(dim?12:11); ctx.textAlign='center'; ctx.textBaseline='middle';
     const label=th.icon+'  '+th.name, pw=Math.max(58,ctx.measureText(label).width+16);
@@ -969,9 +1132,79 @@ function drawSplash(){
     ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#fff';
     ctx.font='700 13px system-ui,sans-serif'; ctx.fillText('tap to skip',W/2,H-43); ctx.textBaseline='alphabetic'; }
 }
+// ---------- shop ----------
+// Cosmetic only, and every price is paid in coins you EARNED. Nothing here costs money,
+// nothing is gated behind an ad, and nothing affects difficulty.
+function shopRows(){ return [ {title:'HATS',items:HATS,eq:hatId}, {title:'FART COLOUR',items:SKINS,eq:skinId} ]; }
+function shopCells(){
+  const cells=[], cw=Math.min(88,(W-40)/6), ch=76, y0=Math.round(H*0.30);
+  shopRows().forEach((row,ri)=>{
+    const n=row.items.length, tot=n*cw+(n-1)*6, x0=(W-tot)/2;
+    row.items.forEach((it,i)=>cells.push({row:ri,it,x:x0+i*(cw+6),y:y0+ri*(ch+58),w:cw,h:ch,eq:row.eq}));
+  });
+  return cells;
+}
+function shopCellAt(x,y){ for(const c of shopCells()) if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h) return c; return null; }
+function shopBack(){ return {x:W/2-90,y:Math.round(H*0.80),w:180,h:54}; }
+function inShopBack(x,y){ const b=shopBack(); return x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h; }
+/// Buy if you can afford it, equip if you own it. One tap does the obvious thing.
+function shopTap(c){
+  const id=c.it.id;
+  if(owned.includes(id)){ if(c.row===0){ hatId=id; save(SAVE.hat,id); } else { skinId=id; save(SAVE.skin,id); } sfx.pick(); return; }
+  if(coins>=c.it.cost){ coins-=c.it.cost; save(SAVE.coins,coins); owned.push(id); saveOwned();
+    if(c.row===0){ hatId=id; save(SAVE.hat,id); } else { skinId=id; save(SAVE.skin,id); }
+    tone({f0:520,f1:1200,dur:.22,gain:.3,type:'square'}); addPop(W/2,H*0.24,'UNLOCKED!','#ffd93d'); doFlash('#ffd93d',.22);
+  } else { tone({f0:300,f1:150,dur:.12,gain:.14}); addFloat(W/2,H*0.72,'not enough 🍌','#ff5a5a',15); }
+}
+function drawShop(){
+  const t=(Date.now()%100000)/1000;
+  drawLanes(t,{wipe:null,dim:true,pills:false});
+  ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(0,0,W,H);
+  // header
+  ctx.save(); ctx.translate(W/2,Math.round(H*0.15));
+  ctx.fillStyle='rgba(0,0,0,.78)'; rr(-180,-42,360,84,16); ctx.fill();
+  ctx.strokeStyle='#ffd93d'; ctx.lineWidth=4; rr(-180,-42,360,84,16); ctx.stroke();
+  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  ctx.font='900 italic 30px "Arial Black",Impact,sans-serif';
+  ctx.lineWidth=6; ctx.strokeStyle='#000'; ctx.strokeText('BANANA SHOP',0,-4);
+  ctx.fillStyle='#ffd93d'; ctx.fillText('BANANA SHOP',0,-4);
+  ctx.font='900 18px "Arial Black",Impact,sans-serif'; ctx.fillStyle='#fff';
+  ctx.fillText('🍌 '+coins,0,24);
+  ctx.restore();
+  // rows
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const cells=shopCells();
+  shopRows().forEach((row,ri)=>{
+    const y=cells.find(c=>c.row===ri).y;
+    ctx.fillStyle='rgba(0,0,0,.6)'; rr(W/2-70,y-30,140,22,11); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='700 11px system-ui,sans-serif'; ctx.fillText(row.title,W/2,y-19);
+  });
+  for(const c of cells){
+    const own=owned.includes(c.it.id), eq=(c.it.id===c.eq), afford=coins>=c.it.cost;
+    ctx.fillStyle=eq?'rgba(255,217,61,.22)':'rgba(0,0,0,.5)'; rr(c.x,c.y,c.w,c.h,10); ctx.fill();
+    ctx.strokeStyle=eq?'#ffd93d':(own?'rgba(255,255,255,.45)':'rgba(255,255,255,.18)');
+    ctx.lineWidth=eq?3:1.5; rr(c.x,c.y,c.w,c.h,10); ctx.stroke();
+    ctx.globalAlpha=own?1:(afford?.85:.4);
+    ctx.font='24px Arial'; ctx.fillStyle='#fff'; ctx.fillText(c.it.icon,c.x+c.w/2,c.y+24);
+    ctx.font='700 10px system-ui,sans-serif'; ctx.fillStyle='#fff'; ctx.fillText(c.it.name,c.x+c.w/2,c.y+46);
+    ctx.font='700 11px system-ui,sans-serif';
+    ctx.fillStyle=eq?'#ffd93d':(own?'#7CFF5A':(afford?'#ffd93d':'#ff8a8a'));
+    ctx.fillText(eq?'EQUIPPED':(own?'tap to wear':'🍌 '+c.it.cost),c.x+c.w/2,c.y+63);
+    ctx.globalAlpha=1;
+  }
+  // hint + back
+  ctx.fillStyle='rgba(255,255,255,.75)'; ctx.font='700 11px system-ui,sans-serif';
+  ctx.fillText('earn 🍌 by bonking monkeys — never with real money',W/2,Math.round(H*0.74));
+  const b=shopBack();
+  ctx.fillStyle=T.border; rr(b.x,b.y,b.w,b.h,14); ctx.fill();
+  ctx.strokeStyle=T.accent; ctx.lineWidth=3; rr(b.x,b.y,b.w,b.h,14); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font=T.titleFont(20); ctx.fillText('◀ BACK',b.x+b.w/2,b.y+b.h/2+1);
+  drawPops(); drawFloaters();
+  ctx.textBaseline='alphabetic';
+}
 // The big PLAY button. Needed now that a tap on a lane MEANS "pick this world" —
 // without it there'd be no way to say "go" that isn't also a theme change.
-function playBtn(){ const w=214,h=66; return {x:W/2-w/2,y:Math.round(H*0.435),w,h}; }
+function playBtn(){ const w=214,h=66; return {x:W/2-w/2,y:Math.round(H*0.44),w,h}; }
 function inPlayBtn(x,y){ const b=playBtn(); return x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h; }
 function drawPlayBtn(label){
   const b=playBtn(), pulse=.5+.5*Math.sin(Date.now()/380);
@@ -991,9 +1224,9 @@ function drawStart(){
   const t=(Date.now()%100000)/1000;
   drawLanes(t,{wipe:null,dim:true});
   // title
-  ctx.save(); ctx.translate(W/2,Math.round(H*0.22));
-  ctx.fillStyle='rgba(0,0,0,.72)'; rr(-198,-62,396,124,18); ctx.fill();
-  ctx.strokeStyle=T.accent; ctx.lineWidth=4; rr(-198,-62,396,124,18); ctx.stroke();
+  ctx.save(); ctx.translate(W/2,Math.round(H*0.20));
+  ctx.fillStyle='rgba(0,0,0,.72)'; rr(-198,-58,396,116,18); ctx.fill();
+  ctx.strokeStyle=T.accent; ctx.lineWidth=4; rr(-198,-58,396,116,18); ctx.stroke();
   ctx.textAlign='center'; ctx.textBaseline='alphabetic';
   ctx.font='900 italic 44px "Arial Black",Impact,sans-serif';
   ctx.lineWidth=8; ctx.strokeStyle='#000'; ctx.strokeText('FART BACK!',0,0);
@@ -1003,16 +1236,72 @@ function drawStart(){
   ctx.font='700 12px system-ui,sans-serif'; ctx.fillStyle='#7CFF5A';
   ctx.fillText('dodge · fart back · throw bananas',0,48);
   ctx.restore();
+  drawRankStrip(Math.round(H*0.316));
+  drawDailyBanner(Math.round(H*0.374));
   drawPlayBtn('▶ PLAY');
+  drawShopBtn();
   // tells you the lanes are the picker
   ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillStyle='rgba(0,0,0,.6)'; rr(W/2-118,laneNameY()-46,236,24,12); ctx.fill();
   ctx.fillStyle='#fff'; ctx.font='700 12px system-ui,sans-serif';
   ctx.fillText('👆 tap a lane to change the look',W/2,laneNameY()-34);
-  if(best>0){ ctx.fillStyle='rgba(0,0,0,.6)'; rr(W/2-52,H-40,104,22,11); ctx.fill();
-    ctx.fillStyle='#fff'; ctx.font='700 11px system-ui,sans-serif'; ctx.fillText('Best: '+best,W/2,H-29); }
+  if(best>0){ ctx.fillStyle='rgba(0,0,0,.6)'; rr(W/2-52,H-42,104,20,10); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font='700 10px system-ui,sans-serif'; ctx.fillText('best '+best,W/2,H-32); }
   ctx.textBaseline='alphabetic';
-  drawCtrlToggle();
+  drawCtrlToggle(); drawDiffToggle();
+}
+// Rank + purse, one strip. Rank is LIFETIME coins, so it only ever goes up —
+// nothing you buy can demote you.
+function drawRankStrip(y){
+  const rk=rankFor(lifetime), nx=rankNext(lifetime);
+  ctx.textBaseline='middle';
+  ctx.fillStyle='rgba(0,0,0,.68)'; rr(W/2-186,y-23,372,46,21); ctx.fill();
+  ctx.strokeStyle='rgba(255,217,61,.5)'; ctx.lineWidth=1.5; rr(W/2-186,y-23,372,46,21); ctx.stroke();
+  ctx.textAlign='left'; ctx.font='700 13px system-ui,sans-serif'; ctx.fillStyle='#ffd93d';
+  ctx.fillText(rk.icon+'  '+rk.name,W/2-174,y-10);
+  ctx.textAlign='right'; ctx.fillStyle='#fff'; ctx.font='700 14px system-ui,sans-serif';
+  ctx.fillText('🍌 '+coins,W/2+174,y-10);
+  const bw=340, bx=W/2-bw/2, by=y+5;
+  ctx.fillStyle='rgba(255,255,255,.16)'; rr(bx,by,bw,7,3.5); ctx.fill();
+  if(nx){ const a=(lifetime-rk.at)/(nx.at-rk.at);
+    ctx.fillStyle='#ffd93d'; rr(bx,by,bw*Math.max(.02,Math.min(1,a)),7,3.5); ctx.fill();
+    ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,.72)'; ctx.font='700 8px system-ui,sans-serif';
+    ctx.fillText((nx.at-lifetime)+' 🍌 to '+nx.icon+' '+nx.name,W/2,y+17);
+  } else { ctx.fillStyle='#ffd93d'; rr(bx,by,bw,7,3.5); ctx.fill();
+    ctx.textAlign='center'; ctx.fillStyle='#ffd93d'; ctx.font='700 8px system-ui,sans-serif'; ctx.fillText('MAX RANK — you are the Gas Guardian',W/2,y+17); }
+}
+function drawDailyBanner(y){
+  const d=dailyOfDay(), done=dailyDone();
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle=done?'rgba(0,0,0,.5)':'rgba(124,255,90,.16)'; rr(W/2-160,y-14,320,28,14); ctx.fill();
+  ctx.strokeStyle=done?'rgba(255,255,255,.2)':'#7CFF5A'; ctx.lineWidth=1.5; rr(W/2-160,y-14,320,28,14); ctx.stroke();
+  ctx.font='700 11px system-ui,sans-serif'; ctx.fillStyle=done?'rgba(255,255,255,.55)':'#fff';
+  ctx.fillText(d.icon+'  TODAY: '+d.name+' — '+d.blurb+(done?'':'  (+25 🍌)'),W/2,y);
+}
+function shopBtn(){ const w=150,h=44; return {x:W/2-w/2,y:Math.round(H*0.545),w,h}; }
+function inShopBtn(x,y){ const b=shopBtn(); return x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h; }
+function drawShopBtn(){
+  const b=shopBtn(), canBuy=HATS.concat(SKINS).some(i=>!owned.includes(i.id)&&coins>=i.cost);
+  ctx.fillStyle='rgba(0,0,0,.62)'; rr(b.x,b.y,b.w,b.h,13); ctx.fill();
+  ctx.strokeStyle=canBuy?'#ffd93d':'rgba(255,255,255,.35)'; ctx.lineWidth=canBuy?3:1.5; rr(b.x,b.y,b.w,b.h,13); ctx.stroke();
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#fff'; ctx.font='700 15px system-ui,sans-serif';
+  ctx.fillText('🛍  SHOP',b.x+b.w/2,b.y+b.h/2);
+  if(canBuy){ ctx.fillStyle='#ffd93d'; ctx.beginPath(); ctx.arc(b.x+b.w-7,b.y+7,6,0,6.28); ctx.fill();
+    ctx.fillStyle='#000'; ctx.font='700 9px system-ui,sans-serif'; ctx.fillText('!',b.x+b.w-7,b.y+8); }
+}
+function diffChips(){ const w=118,h=30,gap=10,y=H-110,tot=2*w+gap,x0=(W-tot)/2;
+  return [{id:'easy',label:DIFFS.easy.label,x:x0,y,w,h},{id:'normal',label:DIFFS.normal.label,x:x0+w+gap,y,w,h}]; }
+function diffChipAt(x,y){ for(const c of diffChips()){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h)return c.id; } return null; }
+function drawDiffToggle(){
+  const cs=diffChips(), x0=cs[0].x-12, x1=cs[1].x+cs[1].w+12;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='rgba(0,0,0,.55)'; rr(x0,cs[0].y-22,x1-x0,cs[0].h+32,14); ctx.fill();
+  for(const c of cs){ const on=c.id===diffId;
+    ctx.fillStyle=on?T.border:'rgba(255,255,255,.10)'; rr(c.x,c.y,c.w,c.h,9); ctx.fill();
+    ctx.strokeStyle=on?T.accent:'rgba(255,255,255,.3)'; ctx.lineWidth=on?2.5:1.5; rr(c.x,c.y,c.w,c.h,9); ctx.stroke();
+    ctx.fillStyle=on?'#fff':'rgba(255,255,255,.75)'; ctx.font='700 12px system-ui,sans-serif'; ctx.fillText(c.label,c.x+c.w/2,c.y+c.h/2); }
+  ctx.fillStyle='#fff'; ctx.globalAlpha=.7; ctx.font='700 10px system-ui,sans-serif';
+  ctx.fillText('DIFFICULTY  ·  '+DIFFS[diffId].lives+' lives',W/2,cs[0].y-11); ctx.globalAlpha=1;
 }
 // Same lanes, same PLAY button — game over is the menu with your score on it.
 function drawOver(){
@@ -1031,13 +1320,32 @@ function drawOver(){
   ctx.font='700 12px system-ui,sans-serif'; ctx.fillStyle='#fff';
   ctx.fillText('best combo x'+comboBestRun+'  ·  best score '+best,0,48);
   ctx.restore();
+  // what the run actually earned you — the reason to go again
+  const ty=Math.round(H*0.316);
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle='rgba(0,0,0,.7)'; rr(W/2-150,ty-19,300,38,19); ctx.fill();
+  ctx.strokeStyle='#ffd93d'; ctx.lineWidth=2; rr(W/2-150,ty-19,300,38,19); ctx.stroke();
+  ctx.fillStyle='#ffd93d'; ctx.font='900 17px "Arial Black",Impact,sans-serif';
+  ctx.fillText('+'+runCoins+' 🍌 earned'+(dailyPaid?'  (incl. +25 daily)':''),W/2,ty-4);
+  ctx.fillStyle='rgba(255,255,255,.75)'; ctx.font='700 10px system-ui,sans-serif';
+  ctx.fillText('purse: '+coins+' 🍌',W/2,ty+12);
+  if(rankUpTo){ // crossing a rank is the milestone worth celebrating
+    const py=Math.round(H*0.40), pulse=.5+.5*Math.sin(Date.now()/220);
+    ctx.globalAlpha=.85+.15*pulse;
+    ctx.fillStyle='rgba(255,217,61,.2)'; rr(W/2-140,py-20,280,40,20); ctx.fill();
+    ctx.strokeStyle='#ffd93d'; ctx.lineWidth=2.5; rr(W/2-140,py-20,280,40,20); ctx.stroke();
+    ctx.fillStyle='#ffd93d'; ctx.font='900 15px "Arial Black",Impact,sans-serif';
+    ctx.fillText('⬆ NEW RANK: '+rankUpTo.icon+' '+rankUpTo.name,W/2,py);
+    ctx.globalAlpha=1;
+  }
   drawPlayBtn('▶ AGAIN');
+  drawShopBtn();
   ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillStyle='rgba(0,0,0,.6)'; rr(W/2-118,laneNameY()-46,236,24,12); ctx.fill();
   ctx.fillStyle='#fff'; ctx.font='700 12px system-ui,sans-serif';
   ctx.fillText('👆 tap a lane to change the look',W/2,laneNameY()-34);
   ctx.textBaseline='alphabetic';
-  drawCtrlToggle();
+  drawCtrlToggle(); drawDiffToggle();
 }
 function drawBoss(){ const x=boss.bx,y=boss.by; const col=boss.hitFlash>0?'#ffffff':T.monkeyBody;
   const roar=boss.roarT>0, weak=boss.weakT>0, dying=boss.deathT>0;
@@ -1086,11 +1394,12 @@ function drawWin(){ ctx.save(); if(shakeT>0)ctx.translate(R(-1,1)*shakeMag*shake
 function draw(){
   ctx.clearRect(0,0,W,H);
   if(st===ST.SPLASH){drawSplash();return;}
+  if(st===ST.SHOP){drawShop();return;}
   if(st===ST.START){drawStart();return;}
   if(st===ST.OVER){drawOver();return;}
   if(st===ST.WIN){drawWin();return;}
   ctx.save(); if(shakeT>0)ctx.translate(R(-1,1)*shakeMag*shakeT,R(-1,1)*shakeMag*shakeT);
-  drawBg(); for(const c of clouds)drawCloud(c); for(const m of monkeys)drawLaser(m); for(const m of monkeys)drawMonkey(m); if(boss)drawBoss(); for(const p of peels)drawPeel(p); for(const g of groundBananas)drawGroundBanana(g); for(const pu of powerups)drawPowerup(pu); for(const b of bananas)drawBanana(b); drawPlayer(); for(const fc of fartClouds)drawFartCloud(fc); drawParticles(); drawFloaters(); drawPops(); drawOverlay();
+  drawBg(); for(const c of clouds)drawCloud(c); for(const m of monkeys)drawLaser(m); for(const m of monkeys)drawMonkey(m); if(boss)drawBoss(); for(const p of peels)drawPeel(p); for(const g of groundBananas)drawGroundBanana(g); for(const c of coinsOnGround)drawCoin(c); for(const pu of powerups)drawPowerup(pu); for(const b of bananas)drawBanana(b); drawPlayer(); for(const fc of fartClouds)drawFartCloud(fc); drawParticles(); drawFloaters(); drawPops(); drawOverlay();
   ctx.restore();
   if(P.slowT>0){ ctx.globalAlpha=.1; ctx.fillStyle=PU_COLORS.plug; ctx.fillRect(0,0,W,CTRL_TOP); ctx.globalAlpha=1; }
   drawHUD(); drawEffectPips(); drawControls();
