@@ -226,9 +226,11 @@ final class GameView: UIView {
     private var cLeaf: UIColor { T.leaf }
 
     // state
-    private enum St { case start, play, leveldone, boss, win, over, pause }
-    private var st: St = .start
+    private enum St { case start, play, leveldone, boss, win, over, pause, splash }
+    private var st: St = .splash
     private var pauseFrom: St = .play   // so RESUME returns to play or boss, whichever you paused from
+    private var splashT: CGFloat = 0
+    private let SPLASH_LEN: CGFloat = 3.4   // auto-advances; tap skips
     private let LEVELS: [(secs: CGFloat, monkeys: Int)] = [(9,1),(10,1),(11,1),(12,2),(12,2),(13,2),(13,3),(14,3),(15,3),(16,4)]
     private var level = 1, levelT: CGFloat = 0
     private var boss: Boss?
@@ -581,6 +583,7 @@ final class GameView: UIView {
     // MARK: - Update
     private func update(_ dt: CGFloat) {
         if st == .pause { return }   // freeze everything, particles included
+        if st == .splash { splashT += dt; if splashT >= SPLASH_LEN { st = .start }; return }
         particles = particles.filter { p in p.x += p.vx*dt; p.y += p.vy*dt; p.vy += (p.kind == "star" ? 520 : 40)*dt; p.life -= dt; return p.life > 0 }
         clouds = clouds.filter { c in c.r += dt*26; c.life -= dt; c.x += sin(c.life*6)*8*dt; return c.life > 0 }
         floaters = floaters.filter { f in f.y += f.vy*dt; f.vy += 60*dt; f.life -= dt; return f.life > 0 }
@@ -808,6 +811,7 @@ final class GameView: UIView {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
             let p = toLogical(t.location(in: self))
+            if st == .splash { st = .start; return }   // skip — NOT straight into a game
             if st == .pause {
                 if let pc = pauseChoiceAt(p.x, p.y) {
                     if pc == "resume" { st = pauseFrom; audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24) } else { toMenu() }
@@ -903,6 +907,7 @@ final class GameView: UIView {
         ctx.saveGState()
         ctx.translateBy(x: tx, y: ty); ctx.scaleBy(x: s, y: s)
 
+        if st == .splash { drawSplash(); ctx.restoreGState(); return }
         if st == .start { drawStart(); ctx.restoreGState(); return }
         if st == .over { drawOver(); ctx.restoreGState(); return }
         if st == .win { drawWin(); ctx.restoreGState(); return }
@@ -1362,6 +1367,71 @@ final class GameView: UIView {
     private func panel(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat) {
         roundRect(x, y, w, h, 16, cPanel, stroke: cOutline, lw: 6)
         roundRect(x+6, y+6, w-12, h-12, 11, .clear, fill: false, stroke: cAccent, lw: 2.5)
+    }
+    /// Run `fn` with a different theme active, then always put it back — so painting the
+    /// other three worlds on the splash can't leak state into the live game.
+    private func withTheme(_ id: String, _ fn: () -> Void) {
+        let saved = themeId
+        themeId = id
+        fn()
+        themeId = saved
+    }
+    // ---------- splash: all four worlds at once ----------
+    // Each theme gets a vertical slice drawn in its OWN palette, so the art system
+    // introduces itself before you touch anything.
+    private func drawSplash() {
+        let n = THEME_ORDER.count, cw = LW/CGFloat(n), t = splashT
+        for (i, id) in THEME_ORDER.enumerated() {
+            let fi = CGFloat(i)
+            let appear = max(0, min(1, (t - fi*0.16)/0.5))          // staggered wipe-in
+            if appear <= 0 { continue }
+            let ease = 1 - pow(1 - appear, 3)
+            cg.saveGState()
+            cg.clip(to: CGRect(x: fi*cw, y: 0, width: cw, height: LH))   // this slice only
+            withTheme(id) {
+                drawBg()
+                // no control strip on the splash — carry each world's ground to the edge
+                T.ground.setFill(); cg.fill(CGRect(x: fi*cw, y: CTRL_TOP, width: cw, height: LH - CTRL_TOP))
+                // a monkey hanging in this world. gust:0 — the PBBT! sticker collides at slice width.
+                let m = Monkey(x: fi*cw + cw/2, y: 132)
+                m.bx = fi*cw + cw/2 + sin(t*1.6 + fi)*5; m.by = 132 + sin(t*2.1 + fi*1.3)*3
+                m.swingT = t*1.5 + fi; m.swayX = 0; m.gust = 0; m.kind = "reg"; m.aimT = 0; m.stun = 0
+                drawMonkey(m)
+                // ...farting a banana down the slice
+                let by = 200 + (t*150 + fi*90).truncatingRemainder(dividingBy: max(1, GROUND_Y - 230))
+                cg.saveGState(); cg.translateBy(x: m.bx, y: by); cg.rotate(by: t*3 + fi); cg.translateBy(x: -10, y: -17)
+                cg.addPath(bananaPath()); cg.setFillColor(T.banana.cgColor); cg.fillPath()
+                if T.outlineW > 0 { cg.addPath(bananaPath()); cg.setStrokeColor(T.outline.cgColor)
+                    cg.setLineWidth(T.outlineW*0.7); cg.setLineJoin(.round); cg.strokePath() }
+                cg.restoreGState()
+                // World name in a pill, NOT bare T.text — Inkwell's text is cream on a cream
+                // background and vanishes. The pill reads in every palette.
+                let nx = fi*cw + cw/2, ny = GROUND_Y - 22
+                let pw = max(58, (T.name as NSString).size(withAttributes: [.font: themeFont(11, .heavy)]).width + 18)
+                roundRect(nx - pw/2, ny - 10, pw, 20, 10, UIColor(white: 0, alpha: 0.6), stroke: nil, lw: 0)
+                text(T.name, nx, ny, 11, .white)
+            }
+            cg.restoreGState()
+            if ease < 1 { UIColor(white: 0, alpha: 0.55).setFill(); cg.fill(CGRect(x: fi*cw, y: ease*LH, width: cw, height: LH)) }
+            cg.setStrokeColor(UIColor(white: 0, alpha: 0.35).cgColor); cg.setLineWidth(2)
+            cg.move(to: CGPoint(x: fi*cw, y: 0)); cg.addLine(to: CGPoint(x: fi*cw, y: LH)); cg.strokePath()
+        }
+        // title lands once the slices are in
+        let tt = max(0, min(1, (t - 0.75)/0.45))
+        if tt > 0 {
+            let pop = 1 + 0.12*sin(min(1, tt)*CGFloat.pi)
+            cg.saveGState(); cg.translateBy(x: LW/2, y: LH*0.42); cg.scaleBy(x: pop, y: pop); cg.setAlpha(tt)
+            roundRect(-198, -74, 396, 148, 18, UIColor(white: 0, alpha: 0.72), stroke: hex("ffe022"), lw: 4)
+            text("FART BACK!", 0, -14, 44, hex("ffe022"))
+            text("MONKEY FART MADNESS", 0, 26, 16, .white)
+            text("4 worlds \u{00B7} pick yours next", 0, 52, 12, hex("7CFF5A"))
+            cg.restoreGState(); cg.setAlpha(1)
+        }
+        // sits over four different grounds, so it carries its own contrast
+        if t > 1.9 && Int(t*2) % 2 == 0 {
+            roundRect(LW/2-52, LH-56, 104, 26, 13, UIColor(white: 0, alpha: 0.55), stroke: nil, lw: 0)
+            text("tap to skip", LW/2, LH-43, 13, .white)
+        }
     }
     private func drawStart() {
         drawBg()
