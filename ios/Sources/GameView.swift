@@ -26,6 +26,8 @@ private final class Monkey {
     var throwT: CGFloat, angryT: CGFloat = 0, stun: CGFloat = 0, wob: CGFloat = 0, gust: CGFloat = 0
     var kind = "reg", charge: CGFloat = 0
     var aimT: CGFloat = 0, lockX: CGFloat = 0, lockY: CGFloat = 0, locked = false   // Sniper Chimp
+    var floatY: CGFloat = 0, dead = false                                          // Balloon Monkey
+    var bobT: CGFloat = R(0, 6.28)                                                 // balloon bob (HTML had this; the port didn't)
     init(x: CGFloat, y: CGFloat) {
         self.x = x; self.y = y; bx = x; by = y
         swingT = R(0, 6.28); swayX = R(7, 13)
@@ -95,6 +97,8 @@ private struct Theme {
     let text: UIColor, accent: UIColor, panel: UIColor, border: UIColor
     let wood: UIColor, leaf: UIColor
     var smokeRings = false, highlight = false, vignette = false
+    var paraKind: String = ""            // rings | clouds | hills
+    var paraCols: [UIColor] = []
     let fontFamily: String               // "" = system
     var titleItalic = false, rounded = false
     let sThrow: FartSound, sJump: FartSound, sBlast: FartSound
@@ -109,7 +113,7 @@ private let THEMES: [String: Theme] = [
         playerBody: hex("17d1e8"), playerSkin: hex("ffb0c7"),
         banana: hex("ffe234"), bananaTip: hex("e0b800"), fart: hex("7CFF5A"), fartRing: hex("c8ffb0"),
         eye: "dot", text: hex("ffffff"), accent: hex("ffe022"), panel: hex("2a1857", 0.92), border: hex("ff3d7f"),
-        wood: hex("3a2557"), leaf: hex("17d1e8"), fontFamily: "", titleItalic: true,
+        wood: hex("3a2557"), leaf: hex("17d1e8"), paraKind: "rings", paraCols: [hex("3a2270"), hex("472a86")], fontFamily: "", titleItalic: true,
         sThrow: FartSound(freq: 150, dur: 0.2, flutter: 24, cutoff: 1500, gain: 0.32),
         sJump: FartSound(freq: 250, dur: 0.14, flutter: 30, cutoff: 1900, gain: 0.28),
         sBlast: FartSound(freq: 90, dur: 0.4, flutter: 16, cutoff: 1300, gain: 0.5), airhorn: true),
@@ -120,7 +124,7 @@ private let THEMES: [String: Theme] = [
         playerBody: hex("e24b3a"), playerSkin: hex("f4c9a0"),
         banana: hex("f4c020"), bananaTip: hex("b98a00"), fart: hex("8fca6a"), fartRing: hex("c3e6a6"),
         eye: "googly", text: hex("3a2a17"), accent: hex("e24b3a"), panel: hex("fbf7ea", 0.95), border: hex("3f6fd1"),
-        wood: hex("8a5a2b"), leaf: hex("4aa63e"), fontFamily: "ChalkboardSE-Bold",
+        wood: hex("8a5a2b"), leaf: hex("4aa63e"), paraKind: "clouds", paraCols: [hex("e4eef8"), hex("f1f6fb")], fontFamily: "ChalkboardSE-Bold",
         sThrow: FartSound(freq: 300, dur: 0.17, flutter: 34, cutoff: 2200, gain: 0.24),
         sJump: FartSound(freq: 430, dur: 0.12, flutter: 36, cutoff: 2600, gain: 0.22),
         sBlast: FartSound(freq: 210, dur: 0.3, flutter: 26, cutoff: 1800, gain: 0.34)),
@@ -132,6 +136,7 @@ private let THEMES: [String: Theme] = [
         banana: hex("d7a52c"), bananaTip: hex("8a6410"), fart: hex("fffef0"), fartRing: hex("ffffff"),
         eye: "pie", text: hex("efe4c6"), accent: hex("d7a52c"), panel: hex("181410", 0.92), border: hex("d7a52c"),
         wood: hex("20180f"), leaf: hex("2c2016"), smokeRings: true, vignette: true,
+        paraKind: "hills", paraCols: [hex("d9cba8"), hex("e5d9ba")],
         fontFamily: "Georgia", titleItalic: true,
         sThrow: FartSound(freq: 110, dur: 0.26, flutter: 14, cutoff: 820, gain: 0.34),
         sJump: FartSound(freq: 170, dur: 0.16, flutter: 16, cutoff: 1000, gain: 0.28),
@@ -145,7 +150,7 @@ private let THEMES: [String: Theme] = [
         playerBody: hex("3fa39a"), playerSkin: hex("e6b487"),
         banana: hex("f0c53d"), bananaTip: hex("c99a1e"), fart: hex("bfe6a0"), fartRing: hex("d8f0c4"),
         eye: "clay", text: hex("4a3320"), accent: hex("2c7d75"), panel: hex("eee2cc", 0.96), border: hex("c99a1e"),
-        wood: hex("7a5330"), leaf: hex("6a9a3a"), highlight: true, fontFamily: "", rounded: true,
+        wood: hex("7a5330"), leaf: hex("6a9a3a"), highlight: true, paraKind: "hills", paraCols: [hex("cdb994"), hex("dccdb0")], fontFamily: "", rounded: true,
         sThrow: FartSound(freq: 130, dur: 0.2, flutter: 18, cutoff: 900, gain: 0.3),
         sJump: FartSound(freq: 200, dur: 0.13, flutter: 20, cutoff: 1100, gain: 0.26),
         sBlast: FartSound(freq: 80, dur: 0.4, flutter: 13, cutoff: 800, gain: 0.46)),
@@ -507,6 +512,7 @@ final class GameView: UIView {
     private func setMonkeyCount(_ n: Int) {
         while monkeys.count < n {
             let m = Monkey(x: R(60, LW-60), y: R(94, 110)); m.kind = pickKind()
+            m.floatY = R(200, max(240, GROUND_Y-190))   // balloons live in the dead air
             m.throwT = m.kind == "boom" ? R(1.6, 2.6) : R(0.7, 1.8)
             monkeys.append(m)
         }
@@ -581,12 +587,32 @@ final class GameView: UIView {
     private func addShake(_ m: CGFloat, _ d: CGFloat) { shakeMag = max(shakeMag, m); shakeT = max(shakeT, d) }
     private func addPop(_ x: CGFloat, _ y: CGFloat, _ t: String, _ c: UIColor) { pops.append(Pop(x: x, y: y, text: t, color: c, rot: R(-0.18, 0.18))) }
     private func doFlash(_ c: UIColor, _ amt: CGFloat) { flashT = max(flashT, amt); flashCol = c }
+    /// Weighted pool rather than chained thresholds — with chained ifs the newest kind
+    /// silently eats everyone else's share the moment its level gate opens.
     private func pickKind() -> String {
-        if level < 5 { return "reg" }
-        let r = CGFloat.random(in: 0...1)
-        if level >= 7 && r < 0.14 { return "boom" }
-        if level >= 6 && r < 0.30 { return "sniper" }
-        return r < 0.72 ? "reg" : "gun"
+        var pool: [(String, CGFloat)] = [("reg", 30)]
+        if level >= 3 { pool.append(("baby", 14)) }
+        if level >= 4 { pool.append(("balloon", 14)) }
+        if level >= 5 { pool.append(("gun", 16)) }
+        if level >= 6 { pool.append(("sniper", 16)) }
+        if level >= 7 { pool.append(("boom", 10)) }
+        let tot = pool.reduce(0) { $0 + $1.1 }
+        var r = CGFloat.random(in: 0...tot)
+        for p in pool { r -= p.1; if r <= 0 { return p.0 } }
+        return "reg"
+    }
+    /// Balloons don't stun — one hit and they're gone, in a shower of coins.
+    private func popBalloon(_ m: Monkey) {
+        guard !m.dead else { return }
+        m.dead = true
+        combo += 1; comboBestRun = max(comboBestRun, combo)
+        let pts = 150 * combo * (P.x2T > 0 ? 2 : 1); score += CGFloat(pts)
+        addFloat(m.bx, m.by-38, "+\(pts)" + (combo > 1 ? "  x\(combo)" : ""), hex("ff7ad5"), combo > 2 ? 22 : 18)
+        addPop(m.bx, m.by, "POP!", hex("ff7ad5")); burstFx(m.bx, m.by, 16); spawnCoin(m.bx, m.by, 3)
+        doFlash(hex("ff7ad5"), 0.22); addShake(7, 0.18); hitstop = max(hitstop, 0.05)
+        audio.tone(f0: 950, f1: 180, dur: 0.2, gain: 0.32); haptic(.boss)
+        for _ in 0..<12 { particles.append(puff(m.bx, m.by, R(-140, 140), R(-140, 140))) }
+        if CGFloat.random(in: 0...1) < 0.4 { spawnPU(m.bx, m.by) }
     }
     private func groundSplat(_ b: Banana) {
         burstFx(b.x, GROUND_Y-2, 4)
@@ -625,7 +651,10 @@ final class GameView: UIView {
         doFlash(cFart, 0.6); addShake(16, 0.5); hitstop = max(hitstop, 0.06); audio.fart(freq: 80, dur: 0.4, flutter: 12, cutoff: 900, gain: 0.5); megaRingT = 0.6; haptic(.boss)
         addPop(P.x, P.y-52, "MEGA FART!!", cMega)
         bananas = bananas.filter { b in if !b.friendly { burstFx(b.x, b.y, 3); return false }; return true }
-        for m in monkeys where m.stun <= 0 { m.stun = 3; m.wob = 0; m.angryT = 0; burstFx(m.bx, m.by, 8) }
+        for m in monkeys {
+            if m.kind == "balloon" { popBalloon(m); continue }
+            if m.stun <= 0 { m.stun = 3; m.wob = 0; m.angryT = 0; burstFx(m.bx, m.by, 8) }
+        }
         if let b = boss, b.hp > 0, b.deathT <= 0 { let d: CGFloat = 25; b.hp = max(0, b.hp - d); b.hitFlash = 0.3; addFloat(b.bx, b.by-30, "-\(Int(d))", cMega, 20); if b.hp <= 0 { killBoss() } }
         for _ in 0..<44 { let a = R(0, 6.28); particles.append(puff(P.x, P.y, cos(a)*R(120, 340), sin(a)*R(120, 340))) }
     }
@@ -752,13 +781,19 @@ final class GameView: UIView {
 
         // monkeys
         for m in monkeys {
-            m.swingT += dt*2.6; if m.gust > 0 { m.gust -= dt }
+            m.swingT += dt*2.6; m.bobT += dt*2.4; if m.gust > 0 { m.gust -= dt }
             if m.stun > 0 { m.stun -= dt; m.wob += dt*20; m.bx = m.x + sin(m.wob)*4; m.by = m.y + 6
                 m.aimT = 0; m.locked = false   // bonking a sniper cancels its shot — that's the reward
                 continue }
-            m.retargetT -= dt; if m.retargetT <= 0 { m.retargetT = R(1.6, 3.6); m.vx = (Bool.random() ? -1 : 1) * R(30, 72) }
-            m.x += m.vx*dt; if m.x < 52 { m.x = 52; m.vx = abs(m.vx) } else if m.x > LW-52 { m.x = LW-52; m.vx = -abs(m.vx) }
-            m.bx = m.x + sin(m.swingT)*m.swayX; m.by = m.y + (1 - cos(m.swingT))*3
+            if m.kind == "balloon" {   // no branch — it lives in the dead air, drifting and bobbing
+                m.y += (m.floatY - m.y)*min(1, dt*1.3)
+                m.x += m.vx*dt*0.55; if m.x < 44 { m.x = 44; m.vx = abs(m.vx) } else if m.x > LW-44 { m.x = LW-44; m.vx = -abs(m.vx) }
+                m.bx = m.x; m.by = m.y + sin(m.bobT*0.75)*7
+            } else {
+                m.retargetT -= dt; if m.retargetT <= 0 { m.retargetT = R(1.6, 3.6); m.vx = (Bool.random() ? -1 : 1) * R(30, 72) }
+                m.x += m.vx*dt; if m.x < 52 { m.x = 52; m.vx = abs(m.vx) } else if m.x > LW-52 { m.x = LW-52; m.vx = -abs(m.vx) }
+                m.bx = m.x + sin(m.swingT)*m.swayX; m.by = m.y + (1 - cos(m.swingT))*3
+            }
             if m.angryT > 0 { m.angryT -= dt }
             m.throwT -= dt
             // difficulty driven by LEVEL (not cumulative time) + crowd-compensated per-monkey rate
@@ -789,6 +824,16 @@ final class GameView: UIView {
                 if m.kind == "sniper" {
                     // aimMul stretches the TRACKING half; the red lock stays 0.4s so "move NOW" reads the same
                     m.throwT = baseIv * R(1.35, 1.8); m.aimT = AIM_T*D.aimMul; m.locked = false; m.lockX = P.x; m.lockY = P.y - 14
+                } else if m.kind == "balloon" {
+                    // no aiming at all — it just drops them straight down from wherever it drifted to
+                    m.throwT = baseIv * R(1.0, 1.5); m.gust = 0.35
+                    bananas.append(Banana(x: m.bx, y: m.by+20, vx: R(-14, 14), vy: 70, rotV: R(-8, 8), friendly: false, type: "yellow"))
+                    sfxThrow()
+                } else if m.kind == "baby" {
+                    // a big comedic wind-up, then a slow lazy lob. Squeaky, gentle, worth double.
+                    m.throwT = baseIv * R(1.15, 1.6); m.angryT = 0.55; m.gust = 0.5
+                    throwBanana(m.bx, m.by+16, P.x, flight+0.42, 1, spread*1.4, "yellow")
+                    audio.fart(freq: Double(R(420, 520)), dur: 0.12, flutter: 38, cutoff: 2600, gain: 0.22, square: true)
                 } else if m.kind == "gun" {
                     m.throwT = baseIv * R(0.72, 1.0); m.angryT = 0.22; m.gust = 0.28
                     for _ in 0..<2 {
@@ -828,9 +873,10 @@ final class GameView: UIView {
             if b.friendly {
                 if b.y < -60 { return false }
                 if st == .boss, let bs = boss { let bdx = b.x - bs.bx, bdy = b.y - bs.by; if bdx*bdx + bdy*bdy < 46*46 { bossHit(b.x, b.y); return false } }
-                for m in monkeys where m.stun <= 0 {
+                for m in monkeys where m.stun <= 0 && !m.dead {
                     let dx = b.x - m.bx, dy = b.y - m.by
                     if dx*dx + dy*dy < 30*30 {
+                        if m.kind == "balloon" { popBalloon(m); return false }
                         m.stun = 3; m.wob = 0; m.angryT = 0; combo += 1; comboBestRun = max(comboBestRun, combo)
                         let pts = 100 * combo * (P.x2T > 0 ? 2 : 1); score += CGFloat(pts)
                         addFloat(m.bx, m.by-38, "+\(pts)" + (combo > 1 ? "  x\(combo)" : ""), cAccent, combo > 2 ? 22 : 17)
@@ -838,7 +884,7 @@ final class GameView: UIView {
                         addPop(m.bx, m.by-8, combo >= 6 ? "MEGA!" : (combo >= 3 ? "BONK!" : "POW!"), cAccent)
                         doFlash(cFart, combo >= 3 ? 0.3 : 0.15); hitstop = max(hitstop, 0.05)
                         audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24); haptic(combo >= 3 ? .boss : .bonk)
-                        spawnCoin(m.bx, m.by, CGFloat.random(in: 0...1) < 0.25 ? 2 : 1)
+                        spawnCoin(m.bx, m.by, m.kind == "baby" ? 2 : (CGFloat.random(in: 0...1) < 0.25 ? 2 : 1))   // babies always pay double
                         if CGFloat.random(in: 0...1) < 0.32 { spawnPU(m.bx, m.by) }
                         return false
                     }
@@ -861,10 +907,11 @@ final class GameView: UIView {
                 if dx*dx + dy*dy < (fc.r+10)*(fc.r+10) { burstFx(b.x, b.y, 3); score += 6 * (P.x2T > 0 ? 2 : 1); return false }
                 return true
             }
-            for m in monkeys where m.stun <= 0 && !fc.hit.contains(ObjectIdentifier(m)) {
+            for m in monkeys where m.stun <= 0 && !m.dead && !fc.hit.contains(ObjectIdentifier(m)) {
                 let dx = m.bx - fc.x, dy = m.by - fc.y
                 if dx*dx + dy*dy < (fc.r+26)*(fc.r+26) {
                     fc.hit.insert(ObjectIdentifier(m))
+                    if m.kind == "balloon" { popBalloon(m); continue }
                     m.stun = 3; m.wob = 0; m.angryT = 0; combo += 1; comboBestRun = max(comboBestRun, combo)
                     let pts = 60 * combo * (P.x2T > 0 ? 2 : 1); score += CGFloat(pts)
                     addFloat(m.bx, m.by-38, "+\(pts)" + (combo > 1 ? "  x\(combo)" : ""), cFart, combo > 2 ? 21 : 16)
@@ -914,6 +961,7 @@ final class GameView: UIView {
             }
             return g.life > 0
         }
+        if monkeys.contains(where: { $0.dead }) { monkeys = monkeys.filter { !$0.dead } }   // popped balloons leave the field
         // peels, slip, power-ups
         peels = peels.filter { p in p.life -= dt; return p.life > 0 }
         if P.onGround && P.slipT <= 0 && !P.inv { for p in peels where abs(p.x - P.x) < PEEL_R { slip(p); break } }
@@ -1107,11 +1155,58 @@ final class GameView: UIView {
         ctx.restoreGState()
     }
 
+    // The camera never moves here — only the player does, across a fixed screen — so depth
+    // has to come from how much each layer slides against YOU. Too shallow and it's invisible.
+    private let PARA_FAR: CGFloat = 0.10, PARA_NEAR: CGFloat = 0.24
+    private func drawParallax() {
+        let p = T
+        guard !p.paraKind.isEmpty, p.paraCols.count >= 2 else { return }
+        let ox = P.x - LW/2, gy = GROUND_Y
+        cg.saveGState(); cg.clip(to: CGRect(x: 0, y: 0, width: LW, height: gy))
+        switch p.paraKind {
+        case "rings":    // LOUD — big halftone bubbles drifting behind the dots
+            for (li, d) in [PARA_FAR, PARA_NEAR].enumerated() {
+                let r: CGFloat = li == 0 ? 120 : 72
+                cg.setFillColor(p.paraCols[li].cgColor)
+                for i in -1...4 { let cx = CGFloat(i)*200 + 70 - ox*d, cy = gy*(li == 1 ? 0.62 : 0.3)
+                    cg.fillEllipse(in: CGRect(x: cx-r, y: cy-r, width: r*2, height: r*2)) }
+            }
+        case "clouds":   // DOODLE — biro clouds on the page
+            for (li, d) in [PARA_FAR, PARA_NEAR].enumerated() {
+                let s: CGFloat = li == 0 ? 1 : 0.66
+                cg.setFillColor(p.paraCols[li].cgColor)
+                for i in -1...4 { let cx = CGFloat(i)*215 + 60 - ox*d, cy = gy*(li == 1 ? 0.5 : 0.2)
+                    for (dx, dy, r) in [(0.0, 0.0, 32.0), (28.0, 7.0, 24.0), (-28.0, 7.0, 22.0)] {
+                        let rr = CGFloat(r)*s
+                        cg.fillEllipse(in: CGRect(x: cx + CGFloat(dx)*s - rr, y: cy + CGFloat(dy)*s - rr, width: rr*2, height: rr*2))
+                    } }
+            }
+        case "hills":    // INKWELL / PLASTICINE — rolling distance
+            // TRANSLATE the silhouette; phase-shifting the sine only wobbles it vertically,
+            // because the wavelength (~700px) dwarfs the shift.
+            for (li, d) in [PARA_FAR, PARA_NEAR].enumerated() {
+                let h: CGFloat = li == 0 ? 150 : 86
+                cg.saveGState(); cg.translateBy(x: -ox*d, y: 0)
+                cg.setFillColor(p.paraCols[li].cgColor)
+                cg.move(to: CGPoint(x: -140, y: gy))
+                var x: CGFloat = -140
+                while x <= LW+140 { let t2 = x*0.009
+                    cg.addLine(to: CGPoint(x: x, y: gy - h*0.55 - sin(t2)*h*0.32 - sin(t2*2.3 + 1.7)*h*0.14)); x += 12 }
+                cg.addLine(to: CGPoint(x: LW+140, y: gy)); cg.closePath(); cg.fillPath()
+                cg.restoreGState()
+            }
+        default: break
+        }
+        cg.restoreGState()
+    }
     private func drawBg() {
         let t = T
+        // Order matters: base fill -> PARALLAX -> the surface texture (dots / rule lines), so
+        // the distance sits *behind* the paper it's drawn on rather than blotting it out.
         switch t.bg {
         case "halftone":
             t.bgBase.setFill(); cg.fill(CGRect(x: 0, y: 0, width: LW, height: GROUND_Y))
+            drawParallax()
             cg.setFillColor(t.bgDot.cgColor)
             var y: CGFloat = 8
             while y < GROUND_Y { var x: CGFloat = 8
@@ -1119,6 +1214,7 @@ final class GameView: UIView {
                 y += 16 }
         case "paper":   // ruled exercise-book paper with a red margin line
             t.bgBase.setFill(); cg.fill(CGRect(x: 0, y: 0, width: LW, height: GROUND_Y))
+            drawParallax()
             cg.setStrokeColor(t.rule.cgColor); cg.setLineWidth(1.4)
             var y: CGFloat = 30
             while y < GROUND_Y { cg.move(to: CGPoint(x: 0, y: y)); cg.addLine(to: CGPoint(x: LW, y: y)); y += 26 }
@@ -1131,8 +1227,10 @@ final class GameView: UIView {
             cg.saveGState(); cg.clip(to: CGRect(x: 0, y: 0, width: LW, height: GROUND_Y))
             cg.drawLinearGradient(g, start: CGPoint(x: 0, y: 0), end: CGPoint(x: 0, y: GROUND_Y), options: [])
             cg.restoreGState()
+            drawParallax()
         default:        // inkpaper — flat aged stock
             t.bgBase.setFill(); cg.fill(CGRect(x: 0, y: 0, width: LW, height: GROUND_Y))
+            drawParallax()
         }
         // ground
         cGround.setFill(); cg.fill(CGRect(x: 0, y: GROUND_Y, width: LW, height: CTRL_TOP - GROUND_Y))
@@ -1238,10 +1336,32 @@ final class GameView: UIView {
     }
     private func drawMonkey(_ m: Monkey) {
         let x = m.bx, y = m.by
-        let sc: CGFloat = m.kind == "boom" ? 1.26 : (m.kind == "gun" ? 0.82 : (m.kind == "sniper" ? 0.9 : 1))
-        cg.setStrokeColor(cMonkeyBody.cgColor); cg.setLineWidth(8*sc); cg.setLineCap(.round)
-        cg.move(to: CGPoint(x: m.x, y: BRANCH_Y+2)); cg.addLine(to: CGPoint(x: x-4*sc, y: y-15*sc)); cg.strokePath()
-        fillCircle(m.x, BRANCH_Y+1, 5, cMonkeyBody)
+        let sc: CGFloat = m.kind == "boom" ? 1.26 : (m.kind == "gun" ? 0.82 : (m.kind == "sniper" ? 0.9 : (m.kind == "baby" ? 0.6 : (m.kind == "balloon" ? 0.78 : 1))))
+        if m.kind == "balloon" {
+            // a balloon instead of an arm — nothing tethers it to the branch
+            let bx2 = x, by2 = y - 46*sc, sway = sin(m.bobT*0.75)*4
+            cg.setStrokeColor((T.outlineW > 0 ? T.outline : UIColor(white: 0, alpha: 0.5)).cgColor)
+            cg.setLineWidth(1.6); cg.setLineCap(.round)
+            cg.move(to: CGPoint(x: x, y: y-14*sc))
+            cg.addQuadCurve(to: CGPoint(x: bx2+sway, y: by2+10), control: CGPoint(x: bx2+sway*0.5, y: by2+16))
+            cg.strokePath()
+            cg.saveGState(); cg.translateBy(x: bx2+sway, y: by2); cg.rotate(by: sway*0.02)
+            cg.setFillColor(hex("ff5ea8").cgColor)
+            cg.addEllipse(in: CGRect(x: -17, y: -21, width: 34, height: 42)); cg.fillPath()
+            if T.outlineW > 0 { cg.setStrokeColor(T.outline.cgColor); cg.setLineWidth(T.outlineW*0.6)
+                cg.addEllipse(in: CGRect(x: -17, y: -21, width: 34, height: 42)); cg.strokePath() }
+            cg.saveGState(); cg.translateBy(x: -6, y: -8); cg.rotate(by: -0.4)
+            cg.setFillColor(UIColor(white: 1, alpha: 0.45).cgColor)
+            cg.addEllipse(in: CGRect(x: -4.5, y: -6, width: 9, height: 12)); cg.fillPath(); cg.restoreGState()
+            cg.setFillColor(hex("d63c85").cgColor)
+            cg.move(to: CGPoint(x: -4, y: 20)); cg.addLine(to: CGPoint(x: 4, y: 20)); cg.addLine(to: CGPoint(x: 0, y: 25)); cg.closePath()
+            cg.drawPath(using: T.outlineW > 0 ? .fillStroke : .fill)
+            cg.restoreGState()
+        } else {
+            cg.setStrokeColor(cMonkeyBody.cgColor); cg.setLineWidth(8*sc); cg.setLineCap(.round)
+            cg.move(to: CGPoint(x: m.x, y: BRANCH_Y+2)); cg.addLine(to: CGPoint(x: x-4*sc, y: y-15*sc)); cg.strokePath()
+            fillCircle(m.x, BRANCH_Y+1, 5, cMonkeyBody)
+        }
         cg.saveGState(); cg.translateBy(x: x, y: y)
         cg.rotate(by: sin(m.swingT)*0.10 + (m.stun > 0 ? sin(m.wob)*0.2 : 0)); cg.scaleBy(x: sc, y: sc)
         cg.setStrokeColor(cEar.cgColor); cg.setLineWidth(6); cg.setLineCap(.round)

@@ -276,8 +276,8 @@
         <div class="item"><span class="s">✅</span><span class="t">Machine-Gun Marmoset <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">Boomer Baboon (charge blast) <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">Sniper Chimp — laser tracks 0.75s, locks red 0.4s, straight shot <span class="k ship">shipped</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Balloon Monkey — floats, pops on deflect <span class="k later">later</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Baby monkey — tiny squeaky farts, comedic <span class="k maybe">maybe</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Balloon Monkey — floats in the dead air, pops in one hit <span class="k ship">shipped</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Baby monkey — squeaky, slow lob, double coins <span class="k ship">shipped</span></span></div>
       </div>
 
       <div class="cat"><h4>💨 Player moves</h4>
@@ -323,7 +323,7 @@
 
       <div class="cat"><h4>✨ Juice &amp; polish</h4>
         <div class="item"><span class="s">✅</span><span class="t">Sticker pops, screen-flash, hitstop <span class="k ship">shipped</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Parallax background layers <span class="k later">later</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Parallax background layers (per-theme) <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">Haptics (Swift only) <span class="k ship">shipped</span></span></div>
       </div>
 
@@ -363,6 +363,7 @@
     <div class="eyebrow"><span class="n">06</span> Changelog</div>
     <h2>What's shipped so far</h2>
     <div class="changelog">
+      <div class="cl"><span class="v">v20</span><span class="d"><b>Two new monkeys + parallax</b> — the mid-field was <i>dead air</i>, so the <b>Balloon Monkey</b> now lives there: it detaches from the branch, drifts, and drops bananas <b>straight down</b> (dodge by not standing under it). One hit <b>pops</b> it — no stun, a coin shower, +150×combo. The <b>Baby Monkey</b> is tiny and squeaky with a comedic wind-up and a lazy lob, and always pays double. <code>pickKind()</code> became a <b>weighted pool</b>: with chained thresholds each new kind silently ate everyone else's share the moment its gate opened (measured L10 mix: reg 30 / gun 17 / sniper 16 / balloon 15 / baby 13 / boom 10). Plus <b>per-theme parallax</b> — rings, biro clouds, rolling hills — drawn behind each world's surface texture, and kept far below the bananas in contrast (0.18 vs 0.85) so the distance never competes with something you must dodge.</span></div>
       <div class="cl"><span class="v">v19</span><span class="d"><b>Progression &amp; retention — the whole grab bag</b> — <b>🍌 Banana Coins</b> drop off bonked monkeys (walk over to collect; the new <b>Magnet</b> power-up drags them in). <b>7 ranks</b> Fart Cadet → Gas Guardian, driven by <i>lifetime</i> coins so spending can never demote you. A <b>Banana Shop</b> with 6 vector hats + 5 fart-skins that tint your own gas — cosmetic only, earned only, <b>no ads and no IAP, ever</b>. <b>Fart of the Day</b>: a date-seeded modifier + 25 coins for your first run each day, and every modifier is a <i>buff</i> — a kid shouldn't lose to the calendar. Plus <b>Easy mode</b>, which isn't just more hearts: measured <b>23% fewer bananas</b> at every level, 6 lives, and 1.67s of sniper warning vs 1.15s.</span></div>
       <div class="cl"><span class="v">v18</span><span class="d"><b>Fixed: "sometimes ◀/▶ doesn't move the sprite"</b> (reported by David) — two causes, both reproduced. <b>(1)</b> Holding ◀ and resting a second thumb on ▶ made them <i>cancel to a dead stop</i> (measured: −101.7px → <b>0.0px</b>). The newest press now wins, like a real d-pad. <b>(2)</b> The control strip is 120 tall but the ◀▶ circles only accepted the middle 100 — a thumb landing low or in the gap hit <b>nothing</b>. The whole lower-left is now a gap-free steering pad (<b>0 dead pixels</b>, measured); the circles are just the affordance. Also guarded a NaN coord that could conjure a phantom "R" and drift the sprite on its own.</span></div>
       <div class="cl"><span class="v">v17</span><span class="d"><b>The lanes ARE the picker</b> — splash, menu and game over are now <b>one screen</b>: the same four swim lanes. The picked world stays lit with an accent frame and its name pill glows; the other three dim. The little chip picker is gone — you just tap the world you want, and the title, PLAY button and controls all take that world's colours. Because a lane tap now means "pick this", a big <b>▶ PLAY</b> button is the only way to start (▶ AGAIN on game over).</span></div>
