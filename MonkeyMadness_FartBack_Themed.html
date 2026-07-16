@@ -61,6 +61,7 @@ const THEMES={
   loud:{
     name:'LOUD!', icon:'💥',
     bg:'halftone', bgBase:'#2a1857', bgDot:'#ff3d7f', bgDotSize:16,
+    para:{kind:'rings', cols:['#3a2270','#472a86']},
     ground:'#17d1e8', groundEdge:'#0fb0c6',
     outline:'#000000', outlineW:5,
     monkeyBody:'#8a4bd6', monkeyFace:'#ffe022', ear:'#7a3ec6',
@@ -79,6 +80,7 @@ const THEMES={
   doodle:{
     name:'Doodle', icon:'🖍️',
     bg:'paper', bgBase:'#fbf7ea', rule:'#cfe0ef', margin:'#e8907f',
+    para:{kind:'clouds', cols:['#e4eef8','#f1f6fb']},
     ground:'#8fca6a', groundEdge:'#5a9a3a',
     outline:'#5a3a17', outlineW:3,
     monkeyBody:'#a06a34', monkeyFace:'#d0a468', ear:'#8a5a2b',
@@ -97,6 +99,7 @@ const THEMES={
   ink:{
     name:'Inkwell', icon:'🎩',
     bg:'inkpaper', bgBase:'#efe4c6',
+    para:{kind:'hills', cols:['#d9cba8','#e5d9ba']},
     ground:'#181410', groundEdge:'#2a2016',
     outline:'#181410', outlineW:3,
     monkeyBody:'#181410', monkeyFace:'#efe4c6', ear:'#181410',
@@ -115,6 +118,7 @@ const THEMES={
   clay:{
     name:'Plasticine', icon:'🟤',
     bg:'clay', bgTop:'#f0e4cf', bgBot:'#c9b088',
+    para:{kind:'hills', cols:['#cdb994','#dccdb0']},
     ground:'#b98f5f', groundEdge:'#9a7145',
     outline:'#5a3e22', outlineW:0,
     monkeyBody:'#8a6038', monkeyFace:'#b98a5b', ear:'#7a5330',
@@ -432,11 +436,36 @@ function startBoss(){ st=ST.BOSS; levelT=0; clearField(); resetPlayer(1.6); monk
   boss={x:W/2,bx:W/2,by:98,hp:100,maxHp:100,atkT:1.4,chargeT:0,phase:1,lastPhase:1,bobT:0,swingT:0,hitFlash:0,vx:46,roarT:1.4,weakT:0,slamT:0,slamHit:0,deathT:0,minionsSpawned:false,wob:0,tell:null,angryT:0};
   addPop(W/2,168,'KING KONG-A-TOOT!','#ff5a5a'); doFlash('#ff5a5a',.4); addShake(14,.6); tone({f0:90,f1:50,dur:1.0,gain:.5,type:'sawtooth'}); }
 function winGame(){ st=ST.WIN; sfx.pick(); for(let i=0;i<40;i++)particles.push({x:R(0,W),y:R(-40,H*.4),vx:R(-30,30),vy:R(60,180),kind:'star',life:R(1.5,3),maxLife:3,size:R(6,13)}); awardCoins(60); dailyPaid=false; endRun(); }
-function pickKind(){ if(level<5)return 'reg'; const r=Math.random();
-  if(level>=7&&r<.14)return 'boom'; if(level>=6&&r<.30)return 'sniper'; return r<.72?'reg':'gun'; }
+// Weighted pool rather than chained thresholds — with chained ifs the newest kind
+// silently eats everyone else's share the moment its level gate opens.
+function pickKind(){
+  const pool=[['reg',30]];
+  if(level>=3)pool.push(['baby',14]);
+  if(level>=4)pool.push(['balloon',14]);
+  if(level>=5)pool.push(['gun',16]);
+  if(level>=6)pool.push(['sniper',16]);
+  if(level>=7)pool.push(['boom',10]);
+  let tot=0; for(const p of pool)tot+=p[1];
+  let r=Math.random()*tot;
+  for(const p of pool){ r-=p[1]; if(r<=0)return p[0]; }
+  return 'reg';
+}
 function setMonkeyCount(n){ while(monkeys.length<n){ const nx=R(60,W-60), ny=R(94,110), kind=pickKind();
-    monkeys.push({x:nx,y:ny,bx:nx,by:ny,kind,swingT:Math.random()*6.28,swayX:R(7,13),vx:(Math.random()<.5?-1:1)*R(30,68),retargetT:R(1.4,3.4),bobT:Math.random()*6.28,throwT:kind==='boom'?R(1.6,2.6):R(.7,1.8),angryT:0,charge:0,stun:0,wob:0,gust:0,aimT:0,lockX:0,lockY:0}); }
+    monkeys.push({x:nx,y:ny,bx:nx,by:ny,kind,swingT:Math.random()*6.28,swayX:R(7,13),vx:(Math.random()<.5?-1:1)*R(30,68),retargetT:R(1.4,3.4),bobT:Math.random()*6.28,throwT:kind==='boom'?R(1.6,2.6):R(.7,1.8),angryT:0,charge:0,stun:0,wob:0,gust:0,aimT:0,lockX:0,lockY:0,
+      floatY:R(200,Math.max(240,GROUND_Y-190)),dead:false,pop:0}); }   // floatY: balloons live in the dead air
   monkeys.length=Math.min(monkeys.length,n); }
+/// Balloons don't stun — one hit and they're gone, in a shower of coins.
+function popBalloon(m){
+  if(m.dead)return; m.dead=true;
+  combo++; comboBestRun=Math.max(comboBestRun,combo);
+  const pts=150*combo*(P.x2T>0?2:1); score+=pts;
+  addFloat(m.bx,m.by-38,'+'+pts+(combo>1?('  x'+combo):''),'#ff7ad5',combo>2?22:18);
+  addPop(m.bx,m.by,'POP!','#ff7ad5'); burstFx(m.bx,m.by,16); spawnCoin(m.bx,m.by,3);
+  doFlash('#ff7ad5',.22); addShake(7,.18); hitstop=Math.max(hitstop,.05);
+  tone({f0:950,f1:180,dur:.2,gain:.32,type:'square'});
+  for(let i=0;i<12;i++)particles.push(puff(m.bx,m.by,R(-140,140),R(-140,140)));
+  if(Math.random()<.4)spawnPU(m.bx,m.by);
+}
 function doJump(){ if((st!==ST.PLAY&&st!==ST.BOSS)||!P.onGround||P.slipT>0)return; P.vy=JUMP*(dailyOfDay().id==='floaty'?1.24:1); P.onGround=false; P.stretch=1; P.squashT=0; sfx.jump();
   for(let i=0;i<7;i++)particles.push(puff(P.x+R(-8,8),PLAYER_GY+20,R(-40,40),R(20,90))); clouds.push({x:P.x,y:PLAYER_GY+22,r:12,life:.7,maxLife:.7}); }
 // 💨 FART BACK — costs GAS. Blocks whatever is already above you, then sends a rising
@@ -504,9 +533,15 @@ function update(dt){
     if(m.stun>0){ m.stun-=dt; m.wob+=dt*20; m.bx=m.x+Math.sin(m.wob)*4; m.by=m.y+6;
       m.aimT=0; m.locked=false;   // bonking a sniper cancels its shot — that's the reward
       continue; }
-    m.retargetT-=dt; if(m.retargetT<=0){ m.retargetT=R(1.6,3.6); m.vx=(Math.random()<.5?-1:1)*R(30,72); }
-    m.x+=m.vx*dt; if(m.x<52){m.x=52;m.vx=Math.abs(m.vx);} else if(m.x>W-52){m.x=W-52;m.vx=-Math.abs(m.vx);}
-    m.bx=m.x+Math.sin(m.swingT)*m.swayX; m.by=m.y+(1-Math.cos(m.swingT))*3;
+    if(m.kind==='balloon'){   // no branch — it lives in the dead air, drifting and bobbing
+      m.y+=(m.floatY-m.y)*Math.min(1,dt*1.3);
+      m.x+=m.vx*dt*.55; if(m.x<44){m.x=44;m.vx=Math.abs(m.vx);} else if(m.x>W-44){m.x=W-44;m.vx=-Math.abs(m.vx);}
+      m.bx=m.x; m.by=m.y+Math.sin(m.bobT*.75)*7;
+    } else {
+      m.retargetT-=dt; if(m.retargetT<=0){ m.retargetT=R(1.6,3.6); m.vx=(Math.random()<.5?-1:1)*R(30,72); }
+      m.x+=m.vx*dt; if(m.x<52){m.x=52;m.vx=Math.abs(m.vx);} else if(m.x>W-52){m.x=W-52;m.vx=-Math.abs(m.vx);}
+      m.bx=m.x+Math.sin(m.swingT)*m.swayX; m.by=m.y+(1-Math.cos(m.swingT))*3;
+    }
     if(m.angryT>0)m.angryT-=dt; m.throwT-=dt;
     // difficulty is driven by LEVEL (not cumulative time), and each monkey throws
     // slower when the branch is crowded so 2+ monkeys don't multiply the barrage.
@@ -527,6 +562,14 @@ function update(dt){
     else if(m.throwT<=0){
       // aimMul stretches the TRACKING half; the red lock stays 0.4s so the "move NOW" beat reads the same
       if(m.kind==='sniper'){ m.throwT=baseIv*R(1.35,1.8); m.aimT=AIM_T*D.aimMul; m.locked=false; m.lockX=P.x; m.lockY=P.y-14; }
+      // BALLOON: no aiming at all — it just drops them straight down from wherever it drifted to
+      else if(m.kind==='balloon'){ m.throwT=baseIv*R(1.0,1.5); m.gust=.35;
+        bananas.push({x:m.bx,y:m.by+20,vx:R(-14,14),vy:70,rot:0,rotV:R(-8,8),friendly:false,type:'yellow'});
+        sfx.throw(); }
+      // BABY: a big comedic wind-up, then a slow lazy lob. Squeaky, gentle, worth double.
+      else if(m.kind==='baby'){ m.throwT=baseIv*R(1.15,1.6); m.angryT=.55; m.gust=.5;
+        throwBanana(m.bx,m.by+16,P.x,flight+.42,1,spread*1.4,'yellow');
+        if(!playSample(R(1.5,1.9),.4)) fart({freq:R(420,520),dur:.12,flutter:38,cutoff:2600,gain:.22,type:'square'}); }
       else if(m.kind==='gun'){ m.throwT=baseIv*R(.72,1.0); m.angryT=.22; m.gust=.28;
         for(let k=0;k<2;k++){ const tf=Math.max(.5,flight*.72),fx=m.bx+R(-4,4),fy=m.by+22,rx=P.x+R(-30,30); bananas.push({x:fx,y:fy,vx:(rx-fx)/tf,vy:(PLAYER_GY-fy-.5*GRAV*tf*tf)/tf,rot:0,rotV:R(-14,14),friendly:false,type:'yellow',small:true}); } sfx.throw(); }
       else if(m.kind==='boom'){ m.throwT=baseIv*R(1.5,2.1); m.charge=.9; m.angryT=.9; }
@@ -546,11 +589,13 @@ function update(dt){
     if(b.x<-60||b.x>W+60||b.y>H+80)return false;
     if(b.friendly){ if(b.y<-60)return false;
         if(st===ST.BOSS&&boss){ const bdx=b.x-boss.bx,bdy=b.y-boss.by; if(bdx*bdx+bdy*bdy<46*46){ bossHit(b.x,b.y); return false; } }
-        for(const m of monkeys){ if(m.stun>0)continue; const dx=b.x-m.bx,dy=b.y-m.by;
-        if(dx*dx+dy*dy<30*30){ m.stun=3;m.wob=0;m.angryT=0; combo++; comboBestRun=Math.max(comboBestRun,combo); const pts=100*combo*(P.x2T>0?2:1); score+=pts;
+        for(const m of monkeys){ if(m.stun>0||m.dead)continue; const dx=b.x-m.bx,dy=b.y-m.by;
+        if(dx*dx+dy*dy<30*30){ if(m.kind==='balloon'){ popBalloon(m); return false; }
+          m.stun=3;m.wob=0;m.angryT=0; combo++; comboBestRun=Math.max(comboBestRun,combo); const pts=100*combo*(P.x2T>0?2:1); score+=pts;
           addFloat(m.bx,m.by-38,'+'+pts+(combo>1?('  x'+combo):''),T.accent,combo>2?22:17); burstFx(m.bx,m.by,12);
           addPop(m.bx,m.by-8, combo>=6?'MEGA!':combo>=3?'BONK!':'POW!', T.accent); doFlash(T.fart,combo>=3?.3:.15); hitstop=Math.max(hitstop,.05);
-          addShake(combo>=3?9:6,.16); sfx.stun(); spawnCoin(m.bx,m.by,Math.random()<.25?2:1);
+          addShake(combo>=3?9:6,.16); sfx.stun();
+          spawnCoin(m.bx,m.by, m.kind==='baby'?2:(Math.random()<.25?2:1));   // babies always pay double
           if(Math.random()<.32)spawnPU(m.bx,m.by); return false; } } return true; }
     // hostile: barrier block window
     if(P.barrierT>0){ const dx=b.x-P.x,dy=b.y-P.y; if(Math.abs(dx)<64&&dy>-74&&dy<14){ burstFx(b.x,b.y,4); score+=8; return false; } }
@@ -564,8 +609,10 @@ function update(dt){
     if(Math.random()<.7)particles.push(puff(fc.x+R(-fc.r*.5,fc.r*.5),fc.y+R(-10,10),R(-26,26),R(-40,10)));
     bananas=bananas.filter(b=>{ if(b.friendly)return true; const dx=b.x-fc.x,dy=b.y-fc.y;
       if(dx*dx+dy*dy<(fc.r+10)*(fc.r+10)){ burstFx(b.x,b.y,3); score+=6*(P.x2T>0?2:1); return false; } return true; });
-    for(const m of monkeys){ if(m.stun>0||fc.hit.has(m))continue; const dx=m.bx-fc.x,dy=m.by-fc.y;
-      if(dx*dx+dy*dy<(fc.r+26)*(fc.r+26)){ fc.hit.add(m); m.stun=3; m.wob=0; m.angryT=0; combo++; comboBestRun=Math.max(comboBestRun,combo);
+    for(const m of monkeys){ if(m.stun>0||m.dead||fc.hit.has(m))continue; const dx=m.bx-fc.x,dy=m.by-fc.y;
+      if(dx*dx+dy*dy<(fc.r+26)*(fc.r+26)){ fc.hit.add(m);
+        if(m.kind==='balloon'){ popBalloon(m); continue; }
+        m.stun=3; m.wob=0; m.angryT=0; combo++; comboBestRun=Math.max(comboBestRun,combo);
         const pts=60*combo*(P.x2T>0?2:1); score+=pts; addFloat(m.bx,m.by-38,'+'+pts+(combo>1?('  x'+combo):''),T.fart,combo>2?21:16);
         burstFx(m.bx,m.by,10); addPop(m.bx,m.by-8,combo>=6?'GASSED!':'PHEW!',T.fart); doFlash(T.fart,.16); sfx.stun(); addShake(5,.12);
         spawnCoin(m.bx,m.by,1); if(Math.random()<.28)spawnPU(m.bx,m.by); } }
@@ -588,6 +635,7 @@ function update(dt){
     if(P.bananas<AMMO_MAX&&Math.abs(g.x-P.x)<26&&Math.abs(g.y-P.y)<44){ P.bananas++; sfx.pick(); addFloat(g.x,g.y-26,'+1 🍌','#ffd83d',15);
       for(let i=0;i<4;i++)particles.push(puff(g.x,g.y,R(-40,40),R(-70,-10))); return false; }
     return g.life>0; });
+  if(monkeys.some(m=>m.dead)) monkeys=monkeys.filter(m=>!m.dead);   // popped balloons leave the field
   peels=peels.filter(p=>{ p.life-=dt; return p.life>0; });
   if(P.onGround&&P.slipT<=0&&!P.inv){ for(const p of peels){ if(Math.abs(p.x-P.x)<PEEL_R){ slip(p); break; } } }
   powerups=powerups.filter(pu=>{ if(!pu.landed){ pu.vy+=GRAV*.5*dt; pu.y+=pu.vy*dt; if(pu.y>=GROUND_Y-12){pu.y=GROUND_Y-12;pu.landed=true;pu.vy=0;} } pu.life-=dt;
@@ -606,7 +654,8 @@ function collectPU(pu){ tone({f0:400,f1:1100,dur:.16,gain:.24,type:'square'}); a
 function megaFart(){ doFlash(T.fart,.6); addShake(16,.5); hitstop=Math.max(hitstop,.06); sfx.blast(); tone({f0:120,f1:520,dur:.4,gain:.4}); megaRingT=.6;
   addPop(P.x,P.y-52,'MEGA FART!!',PU_COLORS.mega);
   bananas=bananas.filter(b=>{ if(!b.friendly){ burstFx(b.x,b.y,3); return false; } return true; });
-  for(const m of monkeys){ if(m.stun<=0){ m.stun=3; m.wob=0; m.angryT=0; burstFx(m.bx,m.by,8); } }
+  for(const m of monkeys){ if(m.kind==='balloon'){ popBalloon(m); continue; }
+    if(m.stun<=0){ m.stun=3; m.wob=0; m.angryT=0; burstFx(m.bx,m.by,8); } }
   if(boss&&boss.hp>0&&!boss.deathT){ const d=25; boss.hp=Math.max(0,boss.hp-d); boss.hitFlash=.3; addFloat(boss.bx,boss.by-30,'-'+d,PU_COLORS.mega,20); if(boss.hp<=0)killBoss(); }
   for(let i=0;i<44;i++){ const a=R(0,6.28); particles.push(puff(P.x,P.y,Math.cos(a)*R(120,340),Math.sin(a)*R(120,340))); } }
 function groundSplat(b){ burstFx(b.x,GROUND_Y-2,4); for(let i=0;i<4;i++)particles.push(puff(b.x,GROUND_Y-2,R(-40,40),R(-30,-5)));
@@ -710,12 +759,27 @@ function drawLaser(m){
   ctx.restore(); ctx.globalAlpha=1;
 }
 function drawMonkey(m){
-  const x=m.bx, y=m.by, sc=m.kind==='boom'?1.26:m.kind==='gun'?.82:m.kind==='sniper'?.9:1;
-  // gripping arm + hand up to the branch (behind the body)
-  ctx.strokeStyle=T.monkeyBody; ctx.lineWidth=8*sc; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(m.x,BRANCH_Y+2); ctx.lineTo(x-4*sc,y-15*sc); ctx.stroke();
-  ctx.beginPath(); ctx.arc(m.x,BRANCH_Y+1,5,0,6.28); ctx.fillStyle=T.monkeyBody; ctx.fill();
-  if(T.outlineW>0){ctx.lineWidth=T.outlineW*.6;ctx.strokeStyle=T.outline;ctx.stroke();}
+  const x=m.bx, y=m.by;
+  const sc=m.kind==='boom'?1.26:m.kind==='gun'?.82:m.kind==='sniper'?.9:m.kind==='baby'?.6:m.kind==='balloon'?.78:1;
+  if(m.kind==='balloon'){
+    // a balloon instead of an arm — nothing tethers it to the branch
+    const bx2=x, by2=y-46*sc, sway=Math.sin(m.bobT*.75)*4;
+    ctx.strokeStyle=T.outlineW>0?T.outline:'rgba(0,0,0,.5)'; ctx.lineWidth=1.6; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x,y-14*sc); ctx.quadraticCurveTo(bx2+sway*.5,by2+16,bx2+sway,by2+10); ctx.stroke();
+    ctx.save(); ctx.translate(bx2+sway,by2); ctx.rotate(sway*.02);
+    ctx.beginPath(); ctx.ellipse(0,0,17,21,0,0,6.28); ctx.fillStyle='#ff5ea8'; ctx.fill();
+    if(T.outlineW>0){ ctx.lineWidth=T.outlineW*.6; ctx.strokeStyle=T.outline; ctx.stroke(); }
+    ctx.beginPath(); ctx.ellipse(-6,-8,4.5,6,-.4,0,6.28); ctx.fillStyle='rgba(255,255,255,.45)'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-4,20); ctx.lineTo(4,20); ctx.lineTo(0,25); ctx.closePath();
+    ctx.fillStyle='#d63c85'; ctx.fill(); if(T.outlineW>0)ctx.stroke();
+    ctx.restore();
+  } else {
+    // gripping arm + hand up to the branch (behind the body)
+    ctx.strokeStyle=T.monkeyBody; ctx.lineWidth=8*sc; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(m.x,BRANCH_Y+2); ctx.lineTo(x-4*sc,y-15*sc); ctx.stroke();
+    ctx.beginPath(); ctx.arc(m.x,BRANCH_Y+1,5,0,6.28); ctx.fillStyle=T.monkeyBody; ctx.fill();
+    if(T.outlineW>0){ctx.lineWidth=T.outlineW*.6;ctx.strokeStyle=T.outline;ctx.stroke();}
+  }
   ctx.save(); ctx.translate(x,y); ctx.rotate(Math.sin(m.swingT)*.10+(m.stun>0?Math.sin(m.wob)*.2:0)); ctx.scale(sc,sc);
   // tail
   ctx.strokeStyle=T.ear; ctx.lineWidth=6; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(15,7); ctx.quadraticCurveTo(33,11,29,-11); ctx.stroke();
@@ -889,13 +953,55 @@ function drawPops(){ ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.restore(); } ctx.globalAlpha=1; }
 
 // ---------- background ----------
+// Depth layers that slide against the player. Deliberately low-contrast — this is the
+// FAR distance, and it must never compete with a banana you have to see and dodge.
+// The camera never moves here — only the player does, across a fixed screen — so depth
+// has to come from how much each layer slides against YOU. Too shallow and it's invisible.
+const PARA_FAR=0.10, PARA_NEAR=0.24;
+function drawParallax(){
+  const p=T.para; if(!p)return;
+  const ox=P.x-W/2, gy=GROUND_Y;
+  ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,gy); ctx.clip();
+  if(p.kind==='rings'){          // LOUD — big halftone bubbles drifting behind the dots
+    [[PARA_FAR,120,0],[PARA_NEAR,72,1]].forEach(([d,r,li])=>{
+      ctx.fillStyle=p.cols[li];
+      for(let i=-1;i<=4;i++){ const cx=i*200+70-ox*d, cy=gy*(li?0.62:0.3);
+        ctx.beginPath(); ctx.arc(cx,cy,r,0,6.28); ctx.fill(); }
+    });
+  } else if(p.kind==='clouds'){  // DOODLE — biro clouds on the page
+    [[PARA_FAR,1,0],[PARA_NEAR,.66,1]].forEach(([d,s,li])=>{
+      ctx.fillStyle=p.cols[li];
+      for(let i=-1;i<=4;i++){ const cx=i*215+60-ox*d, cy=gy*(li?0.5:0.2);
+        [[0,0,32],[28,7,24],[-28,7,22]].forEach(([dx,dy,r])=>{
+          ctx.beginPath(); ctx.arc(cx+dx*s,cy+dy*s,r*s,0,6.28); ctx.fill(); });
+      }
+    });
+  } else if(p.kind==='hills'){   // INKWELL / PLASTICINE — rolling distance
+    // TRANSLATE the silhouette; phase-shifting the sine only wobbles it vertically,
+    // because the wavelength (~700px) dwarfs the shift.
+    [[PARA_FAR,150,0],[PARA_NEAR,86,1]].forEach(([d,h,li])=>{
+      ctx.save(); ctx.translate(-ox*d,0);
+      ctx.fillStyle=p.cols[li]; ctx.beginPath(); ctx.moveTo(-140,gy);
+      for(let x=-140;x<=W+140;x+=12){ const t2=x*0.009;
+        ctx.lineTo(x, gy - h*0.55 - Math.sin(t2)*h*0.32 - Math.sin(t2*2.3+1.7)*h*0.14); }
+      ctx.lineTo(W+140,gy); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    });
+  }
+  ctx.restore();
+}
 function drawBg(){
-  if(T.bg==='halftone'){ ctx.fillStyle=T.bgBase; ctx.fillRect(0,0,W,GROUND_Y); if(patHalftone){ctx.fillStyle=patHalftone;ctx.fillRect(0,0,W,GROUND_Y);} }
+  // Order matters: base fill -> PARALLAX -> the surface texture (dots / rule lines), so
+  // the distance sits *behind* the paper it's drawn on rather than blotting it out.
+  if(T.bg==='halftone'){ ctx.fillStyle=T.bgBase; ctx.fillRect(0,0,W,GROUND_Y);
+    drawParallax();
+    if(patHalftone){ctx.fillStyle=patHalftone;ctx.fillRect(0,0,W,GROUND_Y);} }
   else if(T.bg==='paper'){ ctx.fillStyle=T.bgBase; ctx.fillRect(0,0,W,GROUND_Y);
+    drawParallax();
     ctx.strokeStyle=T.rule; ctx.lineWidth=1.4; for(let y=30;y<GROUND_Y;y+=26){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
     ctx.strokeStyle=T.margin; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(34,0); ctx.lineTo(34,GROUND_Y); ctx.stroke(); }
-  else if(T.bg==='inkpaper'){ ctx.fillStyle=T.bgBase; ctx.fillRect(0,0,W,GROUND_Y); }
-  else if(T.bg==='clay'){ const g=ctx.createLinearGradient(0,0,0,GROUND_Y); g.addColorStop(0,T.bgTop); g.addColorStop(1,T.bgBot); ctx.fillStyle=g; ctx.fillRect(0,0,W,GROUND_Y); }
+  else if(T.bg==='inkpaper'){ ctx.fillStyle=T.bgBase; ctx.fillRect(0,0,W,GROUND_Y); drawParallax(); }
+  else if(T.bg==='clay'){ const g=ctx.createLinearGradient(0,0,0,GROUND_Y); g.addColorStop(0,T.bgTop); g.addColorStop(1,T.bgBot); ctx.fillStyle=g; ctx.fillRect(0,0,W,GROUND_Y); drawParallax(); }
   // ground
   ctx.fillStyle=T.ground; ctx.fillRect(0,GROUND_Y,W,CTRL_TOP-GROUND_Y);
   ctx.fillStyle=T.groundEdge; ctx.fillRect(0,GROUND_Y,W,6);
