@@ -57,6 +57,7 @@ farts are ~70% of the comedy.
 | Fart-jump | ⤒ button | Space / ↑ |
 | Fart back | 💨 button | F / ↓ |
 | Throw banana | 🍌 button | B / X |
+| Pause / main menu | ⏸ (top-left) | Esc / P |
 
 ---
 

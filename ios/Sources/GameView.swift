@@ -74,8 +74,26 @@ private final class Floater { var x, y, vy, life, maxLife, size: CGFloat; var te
 // MARK: - Game view
 final class GameView: UIView {
 
-    // logical canvas
-    private let LW: CGFloat = 480, LH: CGFloat = 760
+    // Logical canvas. LH follows the device's real aspect ratio instead of being fixed at
+    // 760 and letterboxed — on a modern iPhone that reclaims ~27% of the screen. Everything
+    // is anchored to the top (branch) or bottom (ground/controls), so the extra height is
+    // dodge room; monkey throws are timed to a flight duration, so difficulty is unchanged.
+    private let LW: CGFloat = 480
+    private var LH: CGFloat = 760
+    /// Height available once the Dynamic Island / home indicator are excluded — going
+    /// full-bleed without this puts the branch under the notch and the buttons under
+    /// the home indicator.
+    private var availH: CGFloat { max(1, bounds.height - safeAreaInsets.top - safeAreaInsets.bottom) }
+    private func updateLayout() {
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        let want = min(1100, max(760, (LW * availH / bounds.width).rounded()))
+        guard want != LH else { return }
+        LH = want
+        if P.onGround { P.y = PLAYER_GY }   // ground moved — re-anchor the player
+    }
+    override func layoutSubviews() { super.layoutSubviews(); updateLayout() }
+    override func safeAreaInsetsDidChange() { super.safeAreaInsetsDidChange(); updateLayout(); setNeedsDisplay() }
+    private var SY: CGFloat { (LH/2 - 380).rounded() }   // menus were laid out against LH=760
     private var CTRL_TOP: CGFloat { LH - 120 }
     private var GROUND_Y: CGFloat { CTRL_TOP - 42 }
     private var PLAYER_GY: CGFloat { GROUND_Y - 26 }
@@ -85,10 +103,12 @@ final class GameView: UIView {
     private let DEFLECT_R: CGFloat = 96, BARRIER_T: CGFloat = 0.5
     private let PEEL_LIFE: CGFloat = 5, PEEL_R: CGFloat = 20, SLIP_T: CGFloat = 1.2
     private let PU_SHIELD: CGFloat = 6, PU_X2: CGFloat = 8, PU_SLOW: CGFloat = 4, PU_FREE: CGFloat = 4.5
-    // FCLOUD_RISE/DRAG are tuned so a cloud reaches the branch (~470px up) at ~1.5s —
-    // slow enough that a monkey can swing clear, unlike the auto-aimed throw.
+    // The rise is DERIVED from the field height so the cloud always takes ~FCLOUD_T to
+    // reach the branch whatever the screen shape — slow enough that a monkey can swing
+    // clear, unlike the auto-aimed throw. (Hard-coded, it can't reach a tall field.)
     private let AMMO_MAX = 6, AMMO_START = 3
-    private let FCLOUD_LIFE: CGFloat = 2.6, FCLOUD_RISE: CGFloat = -255, FCLOUD_DRAG: CGFloat = 10, GBAN_LIFE: CGFloat = 6
+    private let FCLOUD_LIFE: CGFloat = 2.6, FCLOUD_DRAG: CGFloat = 10, GBAN_LIFE: CGFloat = 6, FCLOUD_T: CGFloat = 1.5
+    private var FCLOUD_RISE: CGFloat { -((PLAYER_GY - 110 - 60)/FCLOUD_T) }
     private let LIVES_MAX = 4
     private let cMask = hex("25d4e8"), cGold = hex("ffe234"), cPlug = hex("b06bff"), cBeano = hex("93e552"), cBean = hex("ffab2e"), cMega = hex("ff4db8")
 
@@ -100,8 +120,9 @@ final class GameView: UIView {
     private let cWood = hex("3a2557"), cLeaf = hex("17d1e8")
 
     // state
-    private enum St { case start, play, leveldone, boss, win, over }
+    private enum St { case start, play, leveldone, boss, win, over, pause }
     private var st: St = .start
+    private var pauseFrom: St = .play   // so RESUME returns to play or boss, whichever you paused from
     private let LEVELS: [(secs: CGFloat, monkeys: Int)] = [(9,1),(10,1),(11,1),(12,2),(12,2),(13,2),(13,3),(14,3),(15,3),(16,4)]
     private var level = 1, levelT: CGFloat = 0
     private var boss: Boss?
@@ -128,20 +149,40 @@ final class GameView: UIView {
 
     // input — MOVE on the left thumb, ACTIONS on the right (JUMP · THROW · FART)
     private struct Btn { let id: String; let cx: CGFloat; let cy: CGFloat; let r: CGFloat; let glyph: String }
-    private lazy var buttons: [Btn] = [
+    // computed, not lazy: LH is only known after layout, and a lazy array would freeze the old one
+    private var buttons: [Btn] { [
         Btn(id: "L", cx: 46, cy: LH - 62, r: 40, glyph: "\u{25C0}"),
         Btn(id: "R", cx: 132, cy: LH - 62, r: 40, glyph: "\u{25B6}"),
         Btn(id: "JUMP", cx: 232, cy: LH - 62, r: 38, glyph: "\u{2912}"),
         Btn(id: "THROW", cx: 330, cy: LH - 62, r: 40, glyph: "\u{1F34C}"),
         Btn(id: "FART", cx: 428, cy: LH - 64, r: 44, glyph: "\u{1F4A8}")
-    ]
+    ] }
     private struct TouchRec { var role: String; var sx: CGFloat = 0; var sy: CGFloat = 0; var st: TimeInterval = 0 }
     private var touchRecs: [ObjectIdentifier: TouchRec] = [:]
-    private let ZONE_TOP: CGFloat = 470
+    private var ZONE_TOP: CGFloat { CTRL_TOP - 170 }
     private var controlStyle: String = (UserDefaults.standard.string(forKey: "mm_ctrl") == "zones") ? "zones" : "buttons"
     private func setControlStyle(_ s: String) { controlStyle = s; UserDefaults.standard.set(s, forKey: "mm_ctrl") }
     private var zFart: (cx: CGFloat, cy: CGFloat, r: CGFloat) { (LW/2 + 64, LH-62, 50) }
     private var zThrow: (cx: CGFloat, cy: CGFloat, r: CGFloat) { (LW/2 - 64, LH-62, 46) }
+    private var pauseBtn: (cx: CGFloat, cy: CGFloat, r: CGFloat) { (26, 24, 16) }   // top-left, away from both thumbs
+    private func pauseChoices() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
+        let w: CGFloat = 232, h: CGFloat = 56, x0 = LW/2 - w/2, y = LH/2 - 4
+        return [("resume", "\u{25B6}  RESUME", x0, y, w, h), ("menu", "\u{1F3E0}  MAIN MENU", x0, y+70, w, h)]
+    }
+    private func pauseChoiceAt(_ x: CGFloat, _ y: CGFloat) -> String? {
+        for c in pauseChoices() where x >= c.x && x <= c.x+c.w && y >= c.y && y <= c.y+c.h { return c.id }
+        return nil
+    }
+    private func pauseGame() {
+        guard st == .play || st == .boss else { return }
+        pauseFrom = st; st = .pause; touchRecs.removeAll(); audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24)
+    }
+    private func toMenu() {
+        st = .start; monkeys.removeAll(); boss = nil
+        bananas.removeAll(); particles.removeAll(); clouds.removeAll(); floaters.removeAll()
+        pops.removeAll(); peels.removeAll(); powerups.removeAll(); fartClouds.removeAll(); groundBananas.removeAll()
+        audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24)
+    }
 
     // display link + transform
     private var link: CADisplayLink?
@@ -406,6 +447,7 @@ final class GameView: UIView {
 
     // MARK: - Update
     private func update(_ dt: CGFloat) {
+        if st == .pause { return }   // freeze everything, particles included
         particles = particles.filter { p in p.x += p.vx*dt; p.y += p.vy*dt; p.vy += (p.kind == "star" ? 520 : 40)*dt; p.life -= dt; return p.life > 0 }
         clouds = clouds.filter { c in c.r += dt*26; c.life -= dt; c.x += sin(c.life*6)*8*dt; return c.life > 0 }
         floaters = floaters.filter { f in f.y += f.vy*dt; f.vy += 60*dt; f.life -= dt; return f.life > 0 }
@@ -588,18 +630,25 @@ final class GameView: UIView {
         let dx = x-z.cx, dy = y-z.cy; return dx*dx + dy*dy <= (z.r+10)*(z.r+10)
     }
     private func ctrlChips() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
-        let w: CGFloat = 126, h: CGFloat = 32, gap: CGFloat = 12, y: CGFloat = 584, tot = 2*w + gap, x0 = LW/2 - tot/2
+        let w: CGFloat = 126, h: CGFloat = 32, gap: CGFloat = 12, y: CGFloat = LH - 176, tot = 2*w + gap, x0 = LW/2 - tot/2
         return [("buttons", "\u{1F446} Buttons", x0, y, w, h), ("zones", "\u{1F590} Zones", x0+w+gap, y, w, h)]
     }
     private func ctrlChipAt(_ x: CGFloat, _ y: CGFloat) -> String? { for c in ctrlChips() { if x >= c.x && x <= c.x+c.w && y >= c.y && y <= c.y+c.h { return c.id } }; return nil }
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
             let p = toLogical(t.location(in: self))
+            if st == .pause {
+                if let pc = pauseChoiceAt(p.x, p.y) {
+                    if pc == "resume" { st = pauseFrom; audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24) } else { toMenu() }
+                }
+                return
+            }
             if st == .leveldone { nextLevel(); return }
             if st != .play && st != .boss {
                 if let cc = ctrlChipAt(p.x, p.y) { setControlStyle(cc); return }
                 startGame(); return
             }
+            if inRound(pauseBtn, p.x, p.y) { pauseGame(); return }
             if controlStyle == "buttons" {
                 if let id = btnAt(p.x, p.y) {
                     touchRecs[ObjectIdentifier(t)] = TouchRec(role: id)
@@ -661,8 +710,9 @@ final class GameView: UIView {
         cg = ctx
         // edge-to-edge: fill the whole view so there are no black letterbox bars
         cBgBase.setFill(); ctx.fill(bounds)
-        s = min(bounds.width/LW, bounds.height/LH)
-        tx = (bounds.width - LW*s)/2; ty = (bounds.height - LH*s)/2
+        updateLayout()
+        s = min(bounds.width/LW, availH/LH)
+        tx = (bounds.width - LW*s)/2; ty = safeAreaInsets.top + (availH - LH*s)/2
         // extend the control-bar dark strip to the bottom edge
         UIColor(white: 0, alpha: 0.32).setFill()
         ctx.fill(CGRect(x: 0, y: ty + CTRL_TOP*s, width: bounds.width, height: bounds.height - (ty + CTRL_TOP*s)))
@@ -678,7 +728,7 @@ final class GameView: UIView {
         drawBg()
         for c in clouds { drawCloud(c) }
         for m in monkeys { drawMonkey(m) }
-        if st == .boss, let b = boss { drawBoss(b) }
+        if let b = boss { drawBoss(b) }   // not `st == .boss`: it must stay drawn while paused
         for pe in peels { drawPeel(pe) }
         for g in groundBananas { drawGroundBanana(g) }
         for pu in powerups { drawPowerup(pu) }
@@ -693,6 +743,7 @@ final class GameView: UIView {
         if P.slowT > 0 { cg.setAlpha(0.1); cPlug.setFill(); cg.fill(CGRect(x: 0, y: 0, width: LW, height: CTRL_TOP)); cg.setAlpha(1) }
         drawHUD(); drawEffectPips(); drawControls()
         if st == .leveldone { drawLevelDone() }
+        if st == .pause { drawPause() }
         if flashT > 0 { cg.setAlpha(min(0.28, flashT)); flashCol.setFill(); cg.fill(CGRect(x: 0, y: 0, width: LW, height: LH)); cg.setAlpha(1) }
         ctx.restoreGState()
     }
@@ -930,7 +981,8 @@ final class GameView: UIView {
     }
 
     private func drawHUD() {
-        for i in 0..<LIVES_MAX { cg.setAlpha(i < lives ? 1 : 0.22); drawHeart(24 + CGFloat(i)*26, 22, 9) }
+        for i in 0..<LIVES_MAX { cg.setAlpha(i < lives ? 1 : 0.22); drawHeart(56 + CGFloat(i)*26, 22, 9) }
+        cg.setAlpha(1); drawPauseBtn()
         cg.setAlpha(1)
         text("\(Int(score))", LW-12, 20, 22, cAccent, align: .right)
         cg.setAlpha(0.6); text("BEST \(best)", LW-12, 40, 11, cText, align: .right); cg.setAlpha(1)
@@ -962,6 +1014,28 @@ final class GameView: UIView {
             cg.setAlpha(min(1, tipT)*0.85)
             text("walk over landed \u{1F34C} to reload!", LW/2, GROUND_Y-40, 11, cText)
             cg.setAlpha(1)
+        }
+    }
+    private func drawPauseBtn() {
+        let b = pauseBtn
+        cg.setAlpha(0.5); fillCircle(b.cx, b.cy, b.r, UIColor(white: 0, alpha: 0.5))
+        cg.setAlpha(0.85); cg.setStrokeColor(cText.cgColor); cg.setLineWidth(2)
+        cg.strokeEllipse(in: CGRect(x: b.cx-b.r, y: b.cy-b.r, width: b.r*2, height: b.r*2))
+        cg.setAlpha(1); cg.setFillColor(cText.cgColor)
+        cg.fill(CGRect(x: b.cx-5, y: b.cy-6, width: 3.5, height: 12))
+        cg.fill(CGRect(x: b.cx+1.5, y: b.cy-6, width: 3.5, height: 12))
+    }
+    private func drawPause() {
+        UIColor(white: 0, alpha: 0.62).setFill(); cg.fill(CGRect(x: 0, y: 0, width: LW, height: LH))
+        panel(LW/2-150, LH/2-124, 300, 268)
+        text("PAUSED", LW/2, LH/2-64, 34, cFart)
+        cg.setAlpha(0.8); text("Score \(Int(score))  \u{00B7}  \u{2764} \(lives)", LW/2, LH/2-26, 13, cText); cg.setAlpha(1)
+        for c in pauseChoices() {
+            let menu = c.id == "menu"
+            roundRect(c.x, c.y, c.w, c.h, 12,
+                      menu ? UIColor(white: 1, alpha: 0.10) : cBorder,
+                      stroke: menu ? UIColor(white: 1, alpha: 0.4) : cAccent, lw: menu ? 1.5 : 2.5)
+            text(c.label, c.x + c.w/2, c.y + c.h/2, menu ? 16 : 18, cText)
         }
     }
     private func drawHeart(_ x: CGFloat, _ y: CGFloat, _ sz: CGFloat) {
@@ -1017,6 +1091,7 @@ final class GameView: UIView {
     }
     private func drawStart() {
         drawBg()
+        cg.saveGState(); cg.translateBy(x: 0, y: SY)
         panel(LW/2-205, 120, 410, 400)
         text("FART BACK!", LW/2, 190, 40, cAccent)
         text("Monkey Fart Madness", LW/2, 230, 15, cText)
@@ -1027,6 +1102,7 @@ final class GameView: UIView {
         cg.setAlpha(0.85); text("walk over landed bananas to reload \u{1F34C}", LW/2, 410, 12, cFart); cg.setAlpha(1)
         if Int(Date().timeIntervalSince1970*2) % 2 == 0 { text("TAP TO START", LW/2, 460, 22, cAccent) }
         if best > 0 { cg.setAlpha(0.6); text("Best: \(best)", LW/2, 496, 12, cText); cg.setAlpha(1) }
+        cg.restoreGState()
         drawCtrlToggle()
     }
     private func drawOver() {
@@ -1090,6 +1166,7 @@ final class GameView: UIView {
     }
     private func drawWin() {
         drawBg(); for p in particles { drawParticle(p) }
+        cg.saveGState(); cg.translateBy(x: 0, y: SY)
         panel(LW/2-200, 100, 400, 480)
         text("YOU WIN!", LW/2, 170, 40, cBanana)
         text("You defeated the", LW/2, 216, 18, cText)
@@ -1099,5 +1176,6 @@ final class GameView: UIView {
         text("Amazing job!", LW/2, 410, 18, cAccent)
         text("Final score \(Int(score))", LW/2, 446, 15, cText)
         if Int(Date().timeIntervalSince1970*2) % 2 == 0 { text("Tap to play again", LW/2, 556, 14, cText) }
+        cg.restoreGState()
     }
 }
