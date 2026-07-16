@@ -18,6 +18,7 @@ private final class Player {
     var face: Int = 0, faceT: CGFloat = 0, mushT: CGFloat = 0, slipT: CGFloat = 0
     var shieldT: CGFloat = 0, x2T: CGFloat = 0, slowT: CGFloat = 0, freeFartT: CGFloat = 0
     var bananas: Int = 3, throwT: CGFloat = 0
+    var magnetT: CGFloat = 0
 }
 private final class Monkey {
     var x: CGFloat, y: CGFloat, bx: CGFloat, by: CGFloat
@@ -150,6 +151,54 @@ private let THEMES: [String: Theme] = [
         sBlast: FartSound(freq: 80, dur: 0.4, flutter: 13, cutoff: 800, gain: 0.46)),
 ]
 
+// MARK: - Progression
+// Everything here is EARNED. No ads, no IAP, nothing to buy with money (project rule).
+private enum SK {   // UserDefaults keys
+    static let best = "fartback_best", coins = "mm_coins", life = "mm_lifetime"
+    static let owned = "mm_owned", hat = "mm_hat", skin = "mm_skin", diff = "mm_diff", daily = "mm_daily"
+}
+private struct Diff { let label: String, lives: Int; let ivMul, flightAdd, aimMul, blackMul, coinMul: CGFloat }
+// Easy isn't just more lives: the whole barrage relaxes. Mateo is 6.
+private let DIFFS: [String: Diff] = [
+    "easy":   Diff(label: "\u{1F60C} Easy",  lives: 6, ivMul: 1.34, flightAdd: 0.15, aimMul: 1.45, blackMul: 0.45, coinMul: 1),
+    "normal": Diff(label: "\u{1F525} Normal", lives: 4, ivMul: 1, flightAdd: 0, aimMul: 1, blackMul: 1, coinMul: 1.35),
+]
+private struct Rank { let at: Int, name: String, icon: String }
+private let RANKS = [
+    Rank(at: 0, name: "Fart Cadet", icon: "\u{1F95A}"), Rank(at: 60, name: "Parp Private", icon: "\u{1F331}"),
+    Rank(at: 180, name: "Gas Corporal", icon: "\u{1F4A8}"), Rank(at: 400, name: "Toot Sergeant", icon: "\u{1F396}"),
+    Rank(at: 800, name: "Blast Captain", icon: "\u{1F4A5}"), Rank(at: 1400, name: "Methane Major", icon: "\u{1F525}"),
+    Rank(at: 2400, name: "Gas Guardian", icon: "\u{1F451}"),
+]
+private func rankFor(_ n: Int) -> Rank { var r = RANKS[0]; for x in RANKS where n >= x.at { r = x }; return r }
+private func rankNext(_ n: Int) -> Rank? { RANKS.first { n < $0.at } }
+private struct Cosmetic { let id: String, name: String; let cost: Int; let icon: String; var col: UIColor? = nil }
+private let HATS = [
+    Cosmetic(id: "none", name: "Bare", cost: 0, icon: "\u{1F435}"), Cosmetic(id: "cap", name: "Cap", cost: 40, icon: "\u{1F9E2}"),
+    Cosmetic(id: "party", name: "Party", cost: 90, icon: "\u{1F973}"), Cosmetic(id: "crown", name: "Crown", cost: 180, icon: "\u{1F451}"),
+    Cosmetic(id: "top", name: "Top Hat", cost: 300, icon: "\u{1F3A9}"), Cosmetic(id: "horns", name: "Horns", cost: 450, icon: "\u{1F608}"),
+]
+private let SKINS = [
+    Cosmetic(id: "classic", name: "Classic", cost: 0, icon: "\u{1F4A8}", col: nil),
+    Cosmetic(id: "pink", name: "Bubblegum", cost: 70, icon: "\u{1FA77}", col: hex("ff7ad5")),
+    Cosmetic(id: "blue", name: "Deep Freeze", cost: 140, icon: "\u{1F9CA}", col: hex("5ad6ff")),
+    Cosmetic(id: "gold", name: "Golden Gas", cost: 260, icon: "\u{1F31F}", col: hex("ffd93d")),
+    Cosmetic(id: "purple", name: "Toxic", cost: 380, icon: "\u{2620}", col: hex("c07aff")),
+]
+private struct Daily { let id: String, name: String, blurb: String, icon: String }
+// Kept FUN, never punishing: a kid shouldn't lose to the calendar.
+private let DAILIES = [
+    Daily(id: "coins", name: "Double Coins", blurb: "every coin counts twice", icon: "\u{1FA99}"),
+    Daily(id: "floaty", name: "Floaty Farts", blurb: "you jump way higher", icon: "\u{1F388}"),
+    Daily(id: "beans", name: "Bean Feast", blurb: "start every level rapid-fire", icon: "\u{1FAD8}"),
+    Daily(id: "stock", name: "Well Stocked", blurb: "pockets full of bananas", icon: "\u{1F34C}"),
+    Daily(id: "slow", name: "Slow-Mo Start", blurb: "bananas crawl for a bit", icon: "\u{1F40C}"),
+]
+
+/// A 🍌 coin — drops off a bonked monkey, falls, and waits to be walked over.
+private final class Coin { var x, y, vx, vy, life, spin: CGFloat; var landed = false
+    init(x: CGFloat, y: CGFloat) { self.x = x; self.y = y; vx = R(-50, 50); vy = R(-120, -40); life = 9; spin = R(0, 6.28) } }
+
 // MARK: - Game view
 final class GameView: UIView {
 
@@ -181,7 +230,7 @@ final class GameView: UIView {
     private let GAS_MAX: CGFloat = 100, BLAST_COST: CGFloat = 34, GAS_RECHARGE: CGFloat = 30
     private let DEFLECT_R: CGFloat = 96, BARRIER_T: CGFloat = 0.5
     private let PEEL_LIFE: CGFloat = 5, PEEL_R: CGFloat = 20, SLIP_T: CGFloat = 1.2
-    private let PU_SHIELD: CGFloat = 6, PU_X2: CGFloat = 8, PU_SLOW: CGFloat = 4, PU_FREE: CGFloat = 4.5
+    private let PU_SHIELD: CGFloat = 6, PU_X2: CGFloat = 8, PU_SLOW: CGFloat = 4, PU_FREE: CGFloat = 4.5, PU_MAGNET: CGFloat = 7
     // The rise is DERIVED from the field height so the cloud always takes ~FCLOUD_T to
     // reach the branch whatever the screen shape — slow enough that a monkey can swing
     // clear, unlike the auto-aimed throw. (Hard-coded, it can't reach a tall field.)
@@ -190,8 +239,8 @@ final class GameView: UIView {
     private var FCLOUD_RISE: CGFloat { -((PLAYER_GY - 110 - 60)/FCLOUD_T) }
     // Sniper Chimp: laser tracks you for (AIM_T - LOCK_T), then LOCKS and turns red.
     private let AIM_T: CGFloat = 1.15, LOCK_T: CGFloat = 0.4, SNIPE_SPD: CGFloat = 640
-    private let LIVES_MAX = 4
-    private let cMask = hex("25d4e8"), cGold = hex("ffe234"), cPlug = hex("b06bff"), cBeano = hex("93e552"), cBean = hex("ffab2e"), cMega = hex("ff4db8")
+    // lives come from the difficulty (D.lives)
+    private let cMask = hex("25d4e8"), cGold = hex("ffe234"), cPlug = hex("b06bff"), cBeano = hex("93e552"), cBean = hex("ffab2e"), cMega = hex("ff4db8"), cMagnet = hex("ff5b4a")
 
     // Active theme. The palette names below stay, but now resolve through the theme —
     // so every existing draw call follows the swap without being rewritten.
@@ -226,7 +275,7 @@ final class GameView: UIView {
     private var cLeaf: UIColor { T.leaf }
 
     // state
-    private enum St { case start, play, leveldone, boss, win, over, pause, splash }
+    private enum St { case start, play, leveldone, boss, win, over, pause, splash, shop }
     private var st: St = .splash
     private var pauseFrom: St = .play   // so RESUME returns to play or boss, whichever you paused from
     private var splashT: CGFloat = 0
@@ -239,6 +288,66 @@ final class GameView: UIView {
     private var best = UserDefaults.standard.integer(forKey: "fartback_best")
     private var combo = 0
     private var comboBestRun = 0   // shown on game over
+
+    // ---------- progression state ----------
+    private let ud = UserDefaults.standard
+    private var coins = UserDefaults.standard.integer(forKey: SK.coins)      // spendable
+    private var lifetime = UserDefaults.standard.integer(forKey: SK.life)    // never spent — drives rank
+    private var runCoins = 0                                                 // earned this run
+    private var rankUpTo: Rank? = nil
+    private var dailyPaid = false
+    private var diffId: String = {
+        let s = UserDefaults.standard.string(forKey: SK.diff) ?? "normal"
+        return DIFFS[s] != nil ? s : "normal"
+    }()
+    private var D: Diff { DIFFS[diffId] ?? DIFFS["normal"]! }
+    private func setDiff(_ id: String) {
+        guard DIFFS[id] != nil else { return }
+        diffId = id; ud.set(id, forKey: SK.diff); audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24); haptic(.pick)
+    }
+    private lazy var owned: [String] = {
+        var a = ud.stringArray(forKey: SK.owned) ?? []
+        if !a.contains("none") { a.append("none") }        // you can always go back to bare/classic
+        if !a.contains("classic") { a.append("classic") }
+        return a
+    }()
+    private lazy var hatId: String = { let s = ud.string(forKey: SK.hat) ?? "none"; return owned.contains(s) ? s : "none" }()
+    private lazy var skinId: String = { let s = ud.string(forKey: SK.skin) ?? "classic"; return owned.contains(s) ? s : "classic" }()
+    /// Your gas colour — the equipped skin overrides the theme's fart colour.
+    private func fartCol() -> UIColor { SKINS.first { $0.id == skinId }?.col ?? T.fart }
+
+    // ---------- the daily ----------
+    private func todayKey() -> String {
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        return "\(c.year ?? 0)-\(c.month ?? 0)-\(c.day ?? 0)"
+    }
+    /// Deterministic from the date, so it's the same for everyone all day and can't be re-rolled.
+    private func dailyOfDay() -> Daily {
+        let k = todayKey(); var h = 0
+        for ch in k.unicodeScalars { h = (h &* 31 &+ Int(ch.value)) & 0x7fffffff }
+        return DAILIES[h % DAILIES.count]
+    }
+    private func dailyDone() -> Bool { ud.string(forKey: SK.daily) == todayKey() }
+    private func applyDaily() {
+        switch dailyOfDay().id {
+        case "beans": P.freeFartT = PU_FREE
+        case "stock": P.bananas = AMMO_MAX
+        case "slow": P.slowT = 3.5
+        default: break
+        }
+    }
+    private func coinMul() -> CGFloat { dailyOfDay().id == "coins" ? 2 : 1 }
+    /// Award straight to the purse (level/boss bonuses). Drops use spawnCoin instead.
+    private func awardCoins(_ n: CGFloat, _ x: CGFloat? = nil, _ y: CGFloat = 0) {
+        let amt = max(1, Int((n * coinMul() * D.coinMul).rounded()))
+        runCoins += amt; coins += amt; lifetime += amt
+        ud.set(coins, forKey: SK.coins); ud.set(lifetime, forKey: SK.life)
+        if let x { addFloat(x, y, "+\(amt) \u{1F34C}", hex("ffd93d"), 15) }
+        if rankFor(lifetime - amt).name != rankFor(lifetime).name { rankUpTo = rankFor(lifetime) }
+    }
+    private func spawnCoin(_ x: CGFloat, _ y: CGFloat, _ n: Int = 1) {
+        for _ in 0..<n { coinsOnGround.append(Coin(x: max(20, min(LW-20, x + R(-14, 14))), y: y)) }
+    }
     private var gameT: CGFloat = 0, tipT: CGFloat = 3.5
     private var shakeT: CGFloat = 0, shakeMag: CGFloat = 0
     private var hitstop: CGFloat = 0, flashT: CGFloat = 0, megaRingT: CGFloat = 0
@@ -255,6 +364,7 @@ final class GameView: UIView {
     private var powerups: [PowerUp] = []
     private var fartClouds: [FartCloud] = []
     private var groundBananas: [GroundBanana] = []
+    private var coinsOnGround: [Coin] = []
 
     // input — MOVE on the left thumb, ACTIONS on the right (JUMP · THROW · FART)
     private struct Btn { let id: String; let cx: CGFloat; let cy: CGFloat; let r: CGFloat; let glyph: String }
@@ -299,7 +409,7 @@ final class GameView: UIView {
     private func toMenu() {
         st = .start; monkeys.removeAll(); boss = nil
         bananas.removeAll(); particles.removeAll(); clouds.removeAll(); floaters.removeAll()
-        pops.removeAll(); peels.removeAll(); powerups.removeAll(); fartClouds.removeAll(); groundBananas.removeAll()
+        pops.removeAll(); peels.removeAll(); powerups.removeAll(); fartClouds.removeAll(); groundBananas.removeAll(); coinsOnGround.removeAll()
         audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24)
     }
 
@@ -339,6 +449,8 @@ final class GameView: UIView {
         l.add(to: .main, forMode: .common)
         link = l; lastTs = 0
         if let th = ProcessInfo.processInfo.environment["THEME"], THEMES[th] != nil { themeId = th }  // dev
+        if ProcessInfo.processInfo.environment["SCREEN"] == "shop" { st = .shop }                    // dev
+        if ProcessInfo.processInfo.environment["SCREEN"] == "menu" { st = .start }                   // dev
         switch ProcessInfo.processInfo.environment["AUTOPLAY"] {  // dev: for automated screenshots
         case "1": startGame()
         case "boss": startGame(); startBoss(); boss?.hp = 62; boss?.chargeT = 0.4
@@ -364,14 +476,16 @@ final class GameView: UIView {
         P.x = LW/2; P.y = PLAYER_GY; P.vy = 0; P.onGround = true; P.inv = true; P.invT = inv; P.blinkT = 0
         P.gas = GAS_MAX; P.squashT = 0; P.blastFlash = 0; P.barrierT = 0; P.face = 0; P.faceT = 0; P.mushT = 0
         P.slipT = 0; P.shieldT = 0; P.x2T = 0; P.slowT = 0; P.freeFartT = 0; megaRingT = 0
-        P.bananas = AMMO_START; P.throwT = 0
+        P.bananas = AMMO_START; P.throwT = 0; P.magnetT = 0
     }
     private func startGame() {
-        st = .play; lives = LIVES_MAX; score = 0; combo = 0; comboBestRun = 0; gameT = 0; tipT = 3.5; hitstop = 0; flashT = 0
+        st = .play; lives = D.lives; score = 0; combo = 0; comboBestRun = 0; gameT = 0; tipT = 3.5; hitstop = 0; flashT = 0
         level = 1; levelT = 0; boss = nil
-        resetForLevel(1.2); setMonkeyCount(LEVELS[0].monkeys)
+        runCoins = 0; rankUpTo = nil
+        resetForLevel(1.2); setMonkeyCount(LEVELS[0].monkeys); applyDaily()
     }
     private func completeLevel() {
+        awardCoins(5, P.x, P.y-40)
         if level >= 10 { startBoss() } else { st = .leveldone; levelT = 0; burstFx(P.x, P.y, 14); audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24) }
     }
     private func nextLevel() { level += 1; levelT = 0; resetForLevel(1.0); setMonkeyCount(LEVELS[level-1].monkeys); st = .play }
@@ -383,7 +497,12 @@ final class GameView: UIView {
     private func winGame() {
         st = .win; audio.tone(f0: 400, f1: 900, dur: 0.1, gain: 0.2)
         for _ in 0..<40 { particles.append(Particle(x: R(0, LW), y: R(-40, LH*0.4), vx: R(-30, 30), vy: R(60, 180), life: R(1.5, 3), size: R(6, 13), kind: "star")) }
-        let fs = Int(score); if fs > best { best = fs; UserDefaults.standard.set(best, forKey: "fartback_best") }
+        awardCoins(60); dailyPaid = false; endRun()
+    }
+    /// Shared by gameOver + winGame: bank the score and pay the daily (once per day).
+    private func endRun() {
+        let fs = Int(score); if fs > best { best = fs; ud.set(best, forKey: SK.best) }
+        if !dailyDone() { ud.set(todayKey(), forKey: SK.daily); awardCoins(25); dailyPaid = true }
     }
     private func setMonkeyCount(_ n: Int) {
         while monkeys.count < n {
@@ -399,7 +518,7 @@ final class GameView: UIView {
     private func sfxBlast() { let s = T.sBlast; audio.fart(freq: s.freq*Double(R(0.9, 1.1)), dur: s.dur, flutter: s.flutter, cutoff: s.cutoff, gain: s.gain) }
     private func doJump() {
         guard st == .play || st == .boss, P.onGround, P.slipT <= 0 else { return }
-        P.vy = JUMP; P.onGround = false
+        P.vy = JUMP * (dailyOfDay().id == "floaty" ? 1.24 : 1); P.onGround = false
         sfxJump()
         for _ in 0..<7 { particles.append(puff(P.x + R(-8, 8), PLAYER_GY + 20, R(-40, 40), R(20, 90))) }
         clouds.append(Cloud(x: P.x, y: PLAYER_GY + 22, r: 12, life: 0.7))
@@ -487,7 +606,7 @@ final class GameView: UIView {
     }
     private func spawnPU(_ x: CGFloat, _ y: CGFloat) {
         let r = CGFloat.random(in: 0...1)
-        let kind = r < 0.22 ? "mask" : (r < 0.42 ? "gold" : (r < 0.57 ? "plug" : (r < 0.70 ? "beano" : (r < 0.90 ? "bean" : "mega"))))
+        let kind = r < 0.20 ? "mask" : (r < 0.38 ? "gold" : (r < 0.51 ? "plug" : (r < 0.63 ? "beano" : (r < 0.80 ? "bean" : (r < 0.92 ? "magnet" : "mega")))))
         powerups.append(PowerUp(x: max(24, min(LW-24, x)), y: y, vy: R(10, 50), kind: kind))
     }
     private func collectPU(_ pu: PowerUp) {
@@ -498,6 +617,7 @@ final class GameView: UIView {
         case "plug": P.slowT = PU_SLOW; addPop(P.x, P.y-52, "SLO-MO!", cPlug)
         case "beano": clouds.removeAll(); peels.removeAll(); addPop(P.x, P.y-52, "FRESH AIR!", cBeano); doFlash(cFart, 0.2)
         case "bean": P.gas = GAS_MAX; P.freeFartT = PU_FREE; P.bananas = AMMO_MAX; addPop(P.x, P.y-52, "RAPID FIRE!", cBean); doFlash(cBean, 0.2)
+        case "magnet": P.magnetT = PU_MAGNET; addPop(P.x, P.y-52, "MAGNET!", cMagnet); doFlash(cMagnet, 0.2)
         default: megaFart()
         }
     }
@@ -509,7 +629,7 @@ final class GameView: UIView {
         if let b = boss, b.hp > 0, b.deathT <= 0 { let d: CGFloat = 25; b.hp = max(0, b.hp - d); b.hitFlash = 0.3; addFloat(b.bx, b.by-30, "-\(Int(d))", cMega, 20); if b.hp <= 0 { killBoss() } }
         for _ in 0..<44 { let a = R(0, 6.28); particles.append(puff(P.x, P.y, cos(a)*R(120, 340), sin(a)*R(120, 340))) }
     }
-    private func puColor(_ k: String) -> UIColor { k == "mask" ? cMask : (k == "gold" ? cGold : (k == "plug" ? cPlug : (k == "bean" ? cBean : (k == "mega" ? cMega : cBeano)))) }
+    private func puColor(_ k: String) -> UIColor { k == "mask" ? cMask : (k == "gold" ? cGold : (k == "plug" ? cPlug : (k == "bean" ? cBean : (k == "mega" ? cMega : (k == "magnet" ? cMagnet : cBeano))))) }
 
     private func hitPlayer(_ bx: CGFloat, _ by: CGFloat, _ type: String) {
         if P.shieldT > 0 { burstFx(bx, by, 5); addPop(P.x, P.y-46, "SAFE!", cMask); addShake(3, 0.08); return }
@@ -524,10 +644,11 @@ final class GameView: UIView {
     private func gameOver() {
         st = .over; burstFx(P.x, P.y, 16); addShake(14, 0.4)
         audio.fart(freq: 150, dur: 0.7, flutter: 10, cutoff: 900, gain: 0.5)
-        let fs = Int(score); if fs > best { best = fs; UserDefaults.standard.set(best, forKey: "fartback_best") }
+        dailyPaid = false; endRun()
     }
     private func killBoss() {
         guard let b = boss, b.deathT <= 0 else { return }
+        awardCoins(40, b.bx, b.by-40); spawnCoin(b.bx, b.by, 8)
         b.deathT = 1.3; b.weakT = 0; b.chargeT = 0; b.slamT = 0
         bananas = bananas.filter { $0.friendly }; addShake(16, 0.6); doFlash(.white, 0.4); audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24); haptic(.boss)
     }
@@ -595,6 +716,12 @@ final class GameView: UIView {
     private func update(_ dt: CGFloat) {
         if st == .pause { return }   // freeze everything, particles included
         if st == .splash { splashT += dt; if splashT >= SPLASH_LEN { st = .start }; return }
+        if st == .shop {   // only the shop's own feedback animates
+            pops = pops.filter { p in p.life -= dt; p.y -= 12*dt; return p.life > 0 }
+            floaters = floaters.filter { f in f.y += f.vy*dt; f.vy += 60*dt; f.life -= dt; return f.life > 0 }
+            if flashT > 0 { flashT -= dt*2.6 }
+            return
+        }
         particles = particles.filter { p in p.x += p.vx*dt; p.y += p.vy*dt; p.vy += (p.kind == "star" ? 520 : 40)*dt; p.life -= dt; return p.life > 0 }
         clouds = clouds.filter { c in c.r += dt*26; c.life -= dt; c.x += sin(c.life*6)*8*dt; return c.life > 0 }
         floaters = floaters.filter { f in f.y += f.vy*dt; f.vy += 60*dt; f.life -= dt; return f.life > 0 }
@@ -620,6 +747,7 @@ final class GameView: UIView {
         if P.blastFlash > 0 { P.blastFlash -= dt }; if P.barrierT > 0 { P.barrierT -= dt }; if P.mushT > 0 { P.mushT -= dt }
         if P.slipT > 0 { P.slipT -= dt }; if P.shieldT > 0 { P.shieldT -= dt }; if P.x2T > 0 { P.x2T -= dt }; if P.slowT > 0 { P.slowT -= dt }; if P.freeFartT > 0 { P.freeFartT -= dt }
         if P.throwT > 0 { P.throwT -= dt }
+        if P.magnetT > 0 { P.magnetT -= dt }
         P.gas = min(GAS_MAX, P.gas + GAS_RECHARGE*dt)
 
         // monkeys
@@ -635,7 +763,8 @@ final class GameView: UIView {
             m.throwT -= dt
             // difficulty driven by LEVEL (not cumulative time) + crowd-compensated per-monkey rate
             let L = CGFloat(level), nMon = CGFloat(max(1, monkeys.count)), crowd = 1 + 0.36*(nMon-1)
-            let flight = max(0.62, 1.05 - (L-1)*0.035), spread = min(0.42, 0.05 + (L-1)*0.038), baseIv = (2.9 - (L-1)*0.13)*crowd
+            // difficulty scales the whole barrage, not just the life count
+            let flight = max(0.62, 1.05 - (L-1)*0.035) + D.flightAdd, spread = min(0.42, 0.05 + (L-1)*0.038), baseIv = (2.9 - (L-1)*0.13)*crowd*D.ivMul
             if m.charge > 0 {
                 m.charge -= dt; m.gust = max(m.gust, 0.32)
                 if m.charge <= 0 {
@@ -658,7 +787,8 @@ final class GameView: UIView {
                 }
             } else if m.throwT <= 0 {
                 if m.kind == "sniper" {
-                    m.throwT = baseIv * R(1.35, 1.8); m.aimT = AIM_T; m.locked = false; m.lockX = P.x; m.lockY = P.y - 14
+                    // aimMul stretches the TRACKING half; the red lock stays 0.4s so "move NOW" reads the same
+                    m.throwT = baseIv * R(1.35, 1.8); m.aimT = AIM_T*D.aimMul; m.locked = false; m.lockX = P.x; m.lockY = P.y - 14
                 } else if m.kind == "gun" {
                     m.throwT = baseIv * R(0.72, 1.0); m.angryT = 0.22; m.gust = 0.28
                     for _ in 0..<2 {
@@ -672,7 +802,7 @@ final class GameView: UIView {
                 } else {
                     m.throwT = baseIv * R(0.8, 1.25); m.angryT = 0.4; m.gust = 0.4
                     let count = level >= 7 ? 2 : 1
-                    let roll = CGFloat.random(in: 0...1); let bt = roll < 0.22 ? "black" : (roll < 0.46 ? "brown" : "yellow")
+                    let roll = CGFloat.random(in: 0...1); let bt = roll < 0.22*D.blackMul ? "black" : (roll < 0.46 ? "brown" : "yellow")
                     throwBanana(m.bx, m.by+24, P.x, flight, count, spread, bt)
                     sfxThrow()
                     if bt == "black" { for _ in 0..<8 { let a = R(1.5, 3.0); particles.append(puff(m.bx + R(-6, 6), m.by+26, cos(a)*R(30, 90), sin(a)*R(30, 90)+30)) } }
@@ -708,6 +838,7 @@ final class GameView: UIView {
                         addPop(m.bx, m.by-8, combo >= 6 ? "MEGA!" : (combo >= 3 ? "BONK!" : "POW!"), cAccent)
                         doFlash(cFart, combo >= 3 ? 0.3 : 0.15); hitstop = max(hitstop, 0.05)
                         audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24); haptic(combo >= 3 ? .boss : .bonk)
+                        spawnCoin(m.bx, m.by, CGFloat.random(in: 0...1) < 0.25 ? 2 : 1)
                         if CGFloat.random(in: 0...1) < 0.32 { spawnPU(m.bx, m.by) }
                         return false
                     }
@@ -739,6 +870,7 @@ final class GameView: UIView {
                     addFloat(m.bx, m.by-38, "+\(pts)" + (combo > 1 ? "  x\(combo)" : ""), cFart, combo > 2 ? 21 : 16)
                     burstFx(m.bx, m.by, 10); addPop(m.bx, m.by-8, combo >= 6 ? "GASSED!" : "PHEW!", cFart)
                     doFlash(cFart, 0.16); addShake(5, 0.12); audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24); haptic(.bonk)
+                    spawnCoin(m.bx, m.by, 1)
                     if CGFloat.random(in: 0...1) < 0.28 { spawnPU(m.bx, m.by) }
                 }
             }
@@ -753,6 +885,23 @@ final class GameView: UIView {
                 }
             }
             return fc.life > 0 && fc.y > -50
+        }
+        // 🍌 coins — fall, land, get collected. The Magnet drags them in from across the screen.
+        let magR: CGFloat = P.magnetT > 0 ? 170 : 30
+        coinsOnGround = coinsOnGround.filter { c in
+            c.life -= dt; c.spin += dt*5
+            let dx = P.x - c.x, dy = (P.y - 14) - c.y, d = hypot(dx, dy)
+            if P.magnetT > 0 && d < magR { let pull = 520*dt/max(24, d); c.x += dx*pull; c.y += dy*pull; c.landed = false }
+            else if !c.landed {
+                c.vy += GRAV*0.55*dt; c.x += c.vx*dt; c.y += c.vy*dt
+                if c.y >= GROUND_Y-10 { c.y = GROUND_Y-10; c.landed = true; c.vy = 0; c.vx = 0 }
+            }
+            if d < 26 || (P.magnetT > 0 && d < 20) {
+                awardCoins(1); audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24); haptic(.pick)
+                for _ in 0..<3 { particles.append(puff(c.x, c.y, R(-30, 30), R(-60, -10))) }
+                return false
+            }
+            return c.life > 0
         }
         // bananas that landed intact — walk over them to reload
         groundBananas = groundBananas.filter { g in
@@ -805,7 +954,7 @@ final class GameView: UIView {
         let dx = x-z.cx, dy = y-z.cy; return dx*dx + dy*dy <= (z.r+10)*(z.r+10)
     }
     private func ctrlChips() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
-        let w: CGFloat = 126, h: CGFloat = 32, gap: CGFloat = 12, y: CGFloat = LH - 176, tot = 2*w + gap, x0 = LW/2 - tot/2
+        let w: CGFloat = 126, h: CGFloat = 32, gap: CGFloat = 12, y: CGFloat = LH - 186, tot = 2*w + gap, x0 = LW/2 - tot/2
         return [("buttons", "\u{1F446} Buttons", x0, y, w, h), ("zones", "\u{1F590} Zones", x0+w+gap, y, w, h)]
     }
     private func ctrlChipAt(_ x: CGFloat, _ y: CGFloat) -> String? { for c in ctrlChips() { if x >= c.x && x <= c.x+c.w && y >= c.y && y <= c.y+c.h { return c.id } }; return nil }
@@ -813,6 +962,11 @@ final class GameView: UIView {
         for t in touches {
             let p = toLogical(t.location(in: self))
             if st == .splash { st = .start; return }   // skip — NOT straight into a game
+            if st == .shop {
+                if let c = shopCellAt(p.x, p.y) { shopTap(c); return }
+                if shopBack.contains(CGPoint(x: p.x, y: p.y)) { st = .start; haptic(.pick) }
+                return
+            }
             if st == .pause {
                 if let pc = pauseChoiceAt(p.x, p.y) {
                     if pc == "resume" { st = pauseFrom; audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24) } else { toMenu() }
@@ -824,6 +978,8 @@ final class GameView: UIView {
             // "start" — only PLAY starts. Otherwise choosing a world would launch a run.
             if st != .play && st != .boss {
                 if let cc = ctrlChipAt(p.x, p.y) { setControlStyle(cc); return }
+                if let dc = diffChipAt(p.x, p.y) { setDiff(dc); return }
+                if shopBtn.contains(CGPoint(x: p.x, y: p.y)) { st = .shop; haptic(.pick); return }
                 if playBtn.contains(CGPoint(x: p.x, y: p.y)) { startGame(); return }
                 let lane = laneAt(p.x); if lane != themeId { setTheme(lane); haptic(.pick) }
                 return
@@ -920,6 +1076,7 @@ final class GameView: UIView {
         ctx.translateBy(x: tx, y: ty); ctx.scaleBy(x: s, y: s)
 
         if st == .splash { drawSplash(); ctx.restoreGState(); return }
+        if st == .shop { drawShop(); ctx.restoreGState(); return }
         if st == .start { drawStart(); ctx.restoreGState(); return }
         if st == .over { drawOver(); ctx.restoreGState(); return }
         if st == .win { drawWin(); ctx.restoreGState(); return }
@@ -1121,16 +1278,23 @@ final class GameView: UIView {
         if P.squashT > 0 { let k = P.squashT/0.18; sx = 1 + 0.32*k; sy = 1 - 0.32*k } else if !P.onGround { sy = 1.1; sx = 0.92 }
         cg.saveGState(); cg.translateBy(x: P.x, y: P.y)
         if slipping { cg.rotate(by: 1.35) } else { cg.scaleBy(x: sx, y: sy) }
-        if P.blastFlash > 0 { cg.setAlpha(0.7); for k in 0..<4 { fillCircle(-3 + CGFloat(k)*2, 26 + CGFloat(k)*4, 10 - CGFloat(k)*1.5, cFart) }; cg.setAlpha(1) }
+        if P.blastFlash > 0 { cg.setAlpha(0.7); for k in 0..<4 { fillCircle(-3 + CGFloat(k)*2, 26 + CGFloat(k)*4, 10 - CGFloat(k)*1.5, fartCol()) }; cg.setAlpha(1) }
         roundRect(-15, 4, 30, 26, 9, cPlayerBody, stroke: cOutline, lw: 5)
         fillEllipse(0, -8, 14, 14, cPlayerSkin)
         drawEyes(-5, -8, 5, -8, dead: slipping)
+        drawHat(hatId)      // whatever you bought, sitting on your head
         cg.restoreGState()
         if P.shieldT > 0 && !(P.shieldT < 1.2 && Int(P.shieldT*8) % 2 == 0) {
             cg.setAlpha(0.14); cMask.setFill(); cg.fillEllipse(in: CGRect(x: P.x-27, y: P.y-27, width: 54, height: 54))
             cg.setAlpha(0.5); cg.setStrokeColor(cMask.cgColor); cg.setLineWidth(2.5); cg.strokeEllipse(in: CGRect(x: P.x-27, y: P.y-27, width: 54, height: 54)); cg.setAlpha(1)
         }
         if P.x2T > 0 { text("x2", P.x+22, P.y-22, 13, cGold) }
+        if P.magnetT > 0 {
+            cg.setAlpha(0.28 + 0.22*sin(P.magnetT*9)); cg.setStrokeColor(cMagnet.cgColor); cg.setLineWidth(2.5)
+            cg.setLineDash(phase: 0, lengths: [6, 7])
+            cg.strokeEllipse(in: CGRect(x: P.x-42, y: P.y-50, width: 84, height: 84))
+            cg.setLineDash(phase: 0, lengths: []); cg.setAlpha(1)
+        }
         if P.freeFartT > 0 {
             cg.setAlpha(0.5 + 0.3*sin(P.freeFartT*22)); cg.setStrokeColor(cBean.cgColor); cg.setLineWidth(3); cg.strokeEllipse(in: CGRect(x: P.x-28, y: P.y-22, width: 56, height: 56))
             cg.setAlpha(0.5); for k in 0..<3 { let a = P.freeFartT*10 + CGFloat(k)*2.1; fillCircle(P.x + cos(a)*26, P.y+6 + sin(a)*26, 4, cBean) }; cg.setAlpha(1)
@@ -1140,7 +1304,7 @@ final class GameView: UIView {
             cg.setAlpha(a*0.7); cg.setStrokeColor(cFart.cgColor); cg.setLineWidth(10*a + 2); cg.strokeEllipse(in: CGRect(x: P.x-rr, y: P.y-rr, width: rr*2, height: rr*2)); cg.setAlpha(1)
         }
         if P.barrierT > 0 {
-            let a = P.barrierT/BARRIER_T; cg.setAlpha(a*0.6); cg.setStrokeColor(cFart.cgColor); cg.setLineWidth(6); cg.setLineCap(.round)
+            let a = P.barrierT/BARRIER_T; cg.setAlpha(a*0.6); cg.setStrokeColor(fartCol().cgColor); cg.setLineWidth(6); cg.setLineCap(.round)
             cg.addArc(center: CGPoint(x: P.x, y: P.y-6), radius: 58, startAngle: .pi*1.12, endAngle: .pi*1.88, clockwise: false); cg.strokePath()
             cg.setAlpha(1)
         }
@@ -1155,11 +1319,78 @@ final class GameView: UIView {
         cg.setAlpha(a*0.72)
         for k in 0..<6 {
             let ang = CGFloat(k)*1.05 + fc.wob*0.5
-            fillCircle(fc.x + cos(ang)*fc.r*0.55, fc.y + sin(ang*1.3)*fc.r*0.42, max(2, fc.r*0.62 - CGFloat(k)*3), cFart)
+            fillCircle(fc.x + cos(ang)*fc.r*0.55, fc.y + sin(ang*1.3)*fc.r*0.42, max(2, fc.r*0.62 - CGFloat(k)*3), fartCol())
         }
-        cg.setAlpha(a*0.55); cg.setStrokeColor(cFart.cgColor); cg.setLineWidth(3)
+        cg.setAlpha(a*0.55); cg.setStrokeColor(fartCol().cgColor); cg.setLineWidth(3)
         cg.strokeEllipse(in: CGRect(x: fc.x - fc.r*0.9, y: fc.y - fc.r*0.9, width: fc.r*1.8, height: fc.r*1.8))
         cg.setAlpha(1)
+    }
+    /// A 🍌 coin: a banana medallion, spinning. Reads as loot at 12px.
+    private func drawCoin(_ c: Coin) {
+        let a: CGFloat = c.life < 1.4 ? abs(sin(c.life*12)) : 1
+        let sq = abs(cos(c.spin))   // spin = squash on X
+        cg.saveGState(); cg.setAlpha(a); cg.translateBy(x: c.x, y: c.y)
+        if c.landed { cg.setAlpha(a*0.22); cg.setFillColor(UIColor.black.cgColor)
+            cg.fillEllipse(in: CGRect(x: -9, y: 8, width: 18, height: 6)); cg.setAlpha(a) }
+        cg.scaleBy(x: max(0.12, sq), y: 1)
+        cg.setShadow(offset: .zero, blur: 10, color: hex("ffd93d").cgColor)
+        fillCircle(0, 0, 9, hex("ffd93d"))
+        cg.setShadow(offset: .zero, blur: 0, color: nil)
+        cg.setStrokeColor(hex("b8860b").cgColor); cg.setLineWidth(1.8)
+        cg.strokeEllipse(in: CGRect(x: -9, y: -9, width: 18, height: 18))
+        cg.setStrokeColor(UIColor(white: 1, alpha: 0.5).cgColor); cg.setLineWidth(1)
+        cg.strokeEllipse(in: CGRect(x: -5.6, y: -5.6, width: 11.2, height: 11.2))
+        if sq > 0.45 {   // tiny banana glyph
+            cg.setStrokeColor(hex("8a6410").cgColor); cg.setLineWidth(1.8); cg.setLineCap(.round)
+            cg.addArc(center: CGPoint(x: 1.5, y: -1), radius: 4.2, startAngle: .pi*0.15, endAngle: .pi*0.95, clockwise: false)
+            cg.strokePath()
+        }
+        cg.restoreGState(); cg.setAlpha(1)
+    }
+    // Hats are vector, not emoji — they sit on the head and take an outline in whichever
+    // world you're wearing them. Drawn in the player's local space, head at (0,-8) r14.
+    private func drawHat(_ id: String) {
+        guard id != "none" else { return }
+        let oc = T.outlineW > 0 ? T.outline : UIColor(white: 0, alpha: 0.55), ow = max(1.5, T.outlineW*0.5)
+        cg.setLineJoin(.round); cg.setLineCap(.round); cg.setStrokeColor(oc.cgColor); cg.setLineWidth(ow)
+        switch id {
+        case "cap":
+            // brim rides ON the dome's base line — any lower and it slices across the eyes
+            cg.setFillColor(hex("e0453a").cgColor)
+            cg.move(to: CGPoint(x: -12, y: -17)); cg.addArc(center: CGPoint(x: 0, y: -17), radius: 12, startAngle: .pi, endAngle: 0, clockwise: false)
+            cg.closePath(); cg.drawPath(using: .fillStroke)
+            let brim = UIBezierPath(roundedRect: CGRect(x: -1, y: -19.5, width: 17, height: 4.5), cornerRadius: 2.2)
+            hex("e0453a").setFill(); brim.fill(); oc.setStroke(); brim.lineWidth = ow; brim.stroke()
+            fillCircle(0, -25, 2.2, .white)
+        case "party":
+            cg.setFillColor(hex("ff4fa3").cgColor)
+            cg.move(to: CGPoint(x: 0, y: -34)); cg.addLine(to: CGPoint(x: 9, y: -15)); cg.addLine(to: CGPoint(x: -9, y: -15))
+            cg.closePath(); cg.drawPath(using: .fillStroke)
+            for (x, y) in [(-4.0, -20.0), (3.0, -24.0), (-1.0, -28.0)] { fillCircle(CGFloat(x), CGFloat(y), 1.8, hex("ffe022")) }
+            cg.setFillColor(hex("5ad6ff").cgColor); cg.addArc(center: CGPoint(x: 0, y: -35), radius: 3, startAngle: 0, endAngle: 6.28, clockwise: false)
+            cg.drawPath(using: .fillStroke)
+        case "crown":
+            cg.setFillColor(hex("ffd93d").cgColor)
+            cg.move(to: CGPoint(x: -11, y: -15)); cg.addLine(to: CGPoint(x: -11, y: -26)); cg.addLine(to: CGPoint(x: -5, y: -20))
+            cg.addLine(to: CGPoint(x: 0, y: -29)); cg.addLine(to: CGPoint(x: 5, y: -20)); cg.addLine(to: CGPoint(x: 11, y: -26))
+            cg.addLine(to: CGPoint(x: 11, y: -15)); cg.closePath(); cg.drawPath(using: .fillStroke)
+            fillCircle(0, -18, 2, hex("ff4fa3"))
+        case "top":
+            let brim = UIBezierPath(roundedRect: CGRect(x: -13, y: -18, width: 26, height: 4), cornerRadius: 2)
+            hex("1d1a24").setFill(); brim.fill(); oc.setStroke(); brim.lineWidth = ow; brim.stroke()
+            let crown = UIBezierPath(roundedRect: CGRect(x: -8, y: -33, width: 16, height: 16), cornerRadius: 2)
+            hex("1d1a24").setFill(); crown.fill(); crown.lineWidth = ow; crown.stroke()
+            hex("d7333f").setFill(); UIBezierPath(rect: CGRect(x: -8, y: -23, width: 16, height: 4)).fill()
+        case "horns":
+            cg.setFillColor(hex("e0453a").cgColor)
+            for s in [CGFloat(-1), 1] {
+                cg.move(to: CGPoint(x: s*7, y: -17))
+                cg.addQuadCurve(to: CGPoint(x: s*11, y: -32), control: CGPoint(x: s*15, y: -24))
+                cg.addQuadCurve(to: CGPoint(x: s*3, y: -18), control: CGPoint(x: s*8, y: -25))
+                cg.closePath(); cg.drawPath(using: .fillStroke)
+            }
+        default: break
+        }
     }
     private func drawGroundBanana(_ g: GroundBanana) {
         let a: CGFloat = g.life < 1.2 ? abs(sin(g.life*14)) : 1
@@ -1232,6 +1463,11 @@ final class GameView: UIView {
         let rr: CGFloat = big ? 17 : 15
         cg.setShadow(offset: .zero, blur: big ? 18 : 12, color: col.cgColor); fillCircle(0, 0, rr, col); cg.setShadow(offset: .zero, blur: 0, color: nil)
         switch pu.kind {
+        case "magnet":
+            cg.setStrokeColor(hex("5a0f08").cgColor); cg.setLineWidth(4.5); cg.setLineCap(.butt)
+            cg.addArc(center: CGPoint(x: 0, y: 1), radius: 6, startAngle: .pi, endAngle: 0, clockwise: false); cg.strokePath()
+            cg.move(to: CGPoint(x: -6, y: 1)); cg.addLine(to: CGPoint(x: -6, y: 6))
+            cg.move(to: CGPoint(x: 6, y: 1)); cg.addLine(to: CGPoint(x: 6, y: 6)); cg.strokePath()
         case "gold": cg.setFillColor(hex("7a5a10").cgColor); star(0, 0, 8, 5)
         case "mask":
             cg.setFillColor(hex("0a3a44").cgColor); let p = CGMutablePath()
@@ -1259,6 +1495,7 @@ final class GameView: UIView {
         if P.x2T > 0 { list.append((P.x2T/PU_X2, cGold, "x2")) }
         if P.slowT > 0 { list.append((P.slowT/PU_SLOW, cPlug, "SLO-MO")) }
         if P.freeFartT > 0 { list.append((P.freeFartT/PU_FREE, cBean, "RAPID")) }
+        if P.magnetT > 0 { list.append((P.magnetT/PU_MAGNET, cMagnet, "MAGNET")) }
         if list.isEmpty { return }
         let pw: CGFloat = 66, ph: CGFloat = 13, gap: CGFloat = 6
         let tot = CGFloat(list.count)*pw + CGFloat(list.count-1)*gap; let x0 = LW/2 - tot/2; let y: CGFloat = 52
@@ -1271,7 +1508,7 @@ final class GameView: UIView {
     }
 
     private func drawHUD() {
-        for i in 0..<LIVES_MAX { cg.setAlpha(i < lives ? 1 : 0.22); drawHeart(56 + CGFloat(i)*26, 22, 9) }
+        for i in 0..<D.lives { cg.setAlpha(i < lives ? 1 : 0.22); drawHeart(56 + CGFloat(i)*22, 22, 8) }
         cg.setAlpha(1); drawPauseBtn()
         cg.setAlpha(1)
         text("\(Int(score))", LW-12, 20, 22, cAccent, align: .right)
@@ -1399,8 +1636,8 @@ final class GameView: UIView {
     private func laneAt(_ x: CGFloat) -> String {
         let i = Int(x/LANE_W); return THEME_ORDER[max(0, min(THEME_ORDER.count-1, i))]
     }
-    private var laneNameY: CGFloat { (LH*0.60).rounded() }
-    private func drawLanes(_ t: CGFloat, wipe: CGFloat?, dim: Bool) {
+    private var laneNameY: CGFloat { (LH*0.665).rounded() }
+    private func drawLanes(_ t: CGFloat, wipe: CGFloat?, dim: Bool, pills: Bool = true) {
         let cw = LANE_W
         for (i, id) in THEME_ORDER.enumerated() {
             let fi = CGFloat(i), sel = (id == themeId)
@@ -1442,7 +1679,7 @@ final class GameView: UIView {
             }
             // World name in a pill, NOT bare T.text — Inkwell's text is cream on a cream
             // background and vanishes. The pill reads in every palette.
-            guard let th = THEMES[id] else { continue }
+            guard pills, let th = THEMES[id] else { continue }   // shop: lanes are backdrop, not a picker
             let nx = fi*cw + cw/2, ny = dim ? laneNameY : GROUND_Y - 22
             let label = th.icon + "  " + th.name
             let pw = max(58, (label as NSString).size(withAttributes: [.font: themeFont(dim ? 12 : 11, .heavy)]).width + 16)
@@ -1451,9 +1688,77 @@ final class GameView: UIView {
             text(label, nx, ny, dim ? 12 : 11, (dim && !sel) ? UIColor(white: 1, alpha: 0.72) : .white)
         }
     }
+    // ---------- shop ----------
+    // Cosmetic only, and every price is paid in coins you EARNED. Nothing costs money,
+    // nothing is gated behind an ad, and nothing affects difficulty.
+    private struct ShopCell { let row: Int; let it: Cosmetic; let x, y, w, h: CGFloat; let eq: String }
+    private func shopCells() -> [ShopCell] {
+        var cells: [ShopCell] = []
+        let cw = min(88, (LW-40)/6), ch: CGFloat = 76, y0 = (LH*0.30).rounded()
+        for (ri, row) in [(HATS, hatId), (SKINS, skinId)].enumerated() {
+            let items = row.0, eq = row.1
+            let n = CGFloat(items.count), tot = n*cw + (n-1)*6, x0 = (LW-tot)/2
+            for (i, it) in items.enumerated() {
+                cells.append(ShopCell(row: ri, it: it, x: x0 + CGFloat(i)*(cw+6), y: y0 + CGFloat(ri)*(ch+58), w: cw, h: ch, eq: eq))
+            }
+        }
+        return cells
+    }
+    private func shopCellAt(_ x: CGFloat, _ y: CGFloat) -> ShopCell? {
+        shopCells().first { x >= $0.x && x <= $0.x+$0.w && y >= $0.y && y <= $0.y+$0.h }
+    }
+    private var shopBack: CGRect { CGRect(x: LW/2-90, y: (LH*0.80).rounded(), width: 180, height: 54) }
+    /// Buy if you can afford it, equip if you own it. One tap does the obvious thing.
+    private func shopTap(_ c: ShopCell) {
+        let id = c.it.id
+        if owned.contains(id) {
+            if c.row == 0 { hatId = id; ud.set(id, forKey: SK.hat) } else { skinId = id; ud.set(id, forKey: SK.skin) }
+            audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24); haptic(.pick); return
+        }
+        if coins >= c.it.cost {
+            coins -= c.it.cost; ud.set(coins, forKey: SK.coins); owned.append(id); ud.set(owned, forKey: SK.owned)
+            if c.row == 0 { hatId = id; ud.set(id, forKey: SK.hat) } else { skinId = id; ud.set(id, forKey: SK.skin) }
+            audio.tone(f0: 520, f1: 1200, dur: 0.22, gain: 0.3); haptic(.boss)
+            addPop(LW/2, LH*0.24, "UNLOCKED!", hex("ffd93d")); doFlash(hex("ffd93d"), 0.22)
+        } else {
+            audio.tone(f0: 300, f1: 150, dur: 0.12, gain: 0.14)
+            addFloat(LW/2, LH*0.72, "not enough \u{1F34C}", hex("ff5a5a"), 15)
+        }
+    }
+    private func drawShop() {
+        drawLanes(menuT, wipe: nil, dim: true, pills: false)
+        UIColor(white: 0, alpha: 0.55).setFill(); cg.fill(CGRect(x: 0, y: 0, width: LW, height: LH))
+        cg.saveGState(); cg.translateBy(x: LW/2, y: (LH*0.15).rounded())
+        roundRect(-180, -42, 360, 84, 16, UIColor(white: 0, alpha: 0.78), stroke: hex("ffd93d"), lw: 4)
+        text("BANANA SHOP", 0, -14, 28, hex("ffd93d"))
+        text("\u{1F34C} \(coins)", 0, 20, 18, .white, system: true)
+        cg.restoreGState()
+        let cells = shopCells()
+        for (ri, title) in ["HATS", "FART COLOUR"].enumerated() {
+            guard let y = cells.first(where: { $0.row == ri })?.y else { continue }
+            roundRect(LW/2-70, y-30, 140, 22, 11, UIColor(white: 0, alpha: 0.6), stroke: nil, lw: 0)
+            text(title, LW/2, y-19, 11, .white, system: true)
+        }
+        for c in cells {
+            let own = owned.contains(c.it.id), eq = (c.it.id == c.eq), afford = coins >= c.it.cost
+            roundRect(c.x, c.y, c.w, c.h, 10, eq ? UIColor(red: 1, green: 0.85, blue: 0.24, alpha: 0.22) : UIColor(white: 0, alpha: 0.5),
+                      stroke: eq ? hex("ffd93d") : (own ? UIColor(white: 1, alpha: 0.45) : UIColor(white: 1, alpha: 0.18)), lw: eq ? 3 : 1.5)
+            cg.setAlpha(own ? 1 : (afford ? 0.85 : 0.4))
+            text(c.it.icon, c.x + c.w/2, c.y + 24, 24, .white, system: true)
+            text(c.it.name, c.x + c.w/2, c.y + 46, 10, .white, system: true)
+            let lbl = eq ? "EQUIPPED" : (own ? "tap to wear" : "\u{1F34C} \(c.it.cost)")
+            text(lbl, c.x + c.w/2, c.y + 63, 11, eq ? hex("ffd93d") : (own ? hex("7CFF5A") : (afford ? hex("ffd93d") : hex("ff8a8a"))), system: true)
+            cg.setAlpha(1)
+        }
+        text("earn \u{1F34C} by bonking monkeys — never with real money", LW/2, (LH*0.74).rounded(), 11, UIColor(white: 1, alpha: 0.75), system: true)
+        let b = shopBack
+        roundRect(b.minX, b.minY, b.width, b.height, 14, T.border, stroke: T.accent, lw: 3)
+        text("\u{25C0} BACK", b.midX, b.midY, 20, .white)
+        drawPops(); for f in floaters { drawFloater(f) }
+    }
     /// The big PLAY button. Needed now that a tap on a lane MEANS "pick this world" —
     /// without it there'd be no way to say "go" that isn't also a theme change.
-    private var playBtn: CGRect { CGRect(x: LW/2 - 107, y: (LH*0.435).rounded(), width: 214, height: 66) }
+    private var playBtn: CGRect { CGRect(x: LW/2 - 107, y: (LH*0.44).rounded(), width: 214, height: 66) }
     private func drawPlayBtn(_ label: String) {
         let b = playBtn
         roundRect(b.minX, b.minY, b.width, b.height, 16, T.border, stroke: T.accent, lw: 4)
@@ -1484,21 +1789,81 @@ final class GameView: UIView {
     // The menu IS the splash, still on its lanes — you just get to touch it now.
     private func drawStart() {
         drawLanes(menuT, wipe: nil, dim: true)
-        cg.saveGState(); cg.translateBy(x: LW/2, y: (LH*0.22).rounded())
-        roundRect(-198, -62, 396, 124, 18, UIColor(white: 0, alpha: 0.72), stroke: cAccent, lw: 4)
-        text("FART BACK!", 0, -14, 42, hex("ffe022"))
-        text("MONKEY FART MADNESS", 0, 20, 15, .white)
-        text("dodge \u{00B7} fart back \u{00B7} throw bananas", 0, 44, 12, hex("7CFF5A"), system: true)
+        cg.saveGState(); cg.translateBy(x: LW/2, y: (LH*0.20).rounded())
+        roundRect(-198, -58, 396, 116, 18, UIColor(white: 0, alpha: 0.72), stroke: cAccent, lw: 4)
+        text("FART BACK!", 0, -16, 42, hex("ffe022"))
+        text("MONKEY FART MADNESS", 0, 18, 15, .white)
+        text("dodge \u{00B7} fart back \u{00B7} throw bananas", 0, 42, 12, hex("7CFF5A"), system: true)
         cg.restoreGState()
+        drawRankStrip((LH*0.316).rounded())
+        drawDailyBanner((LH*0.374).rounded())
         drawPlayBtn("\u{25B6} PLAY")
+        drawShopBtn()
         // tells you the lanes are the picker
         roundRect(LW/2-118, laneNameY-46, 236, 24, 12, UIColor(white: 0, alpha: 0.6), stroke: nil, lw: 0)
         text("\u{1F446} tap a lane to change the look", LW/2, laneNameY-34, 12, .white, system: true)
         if best > 0 {
-            roundRect(LW/2-52, LH-40, 104, 22, 11, UIColor(white: 0, alpha: 0.6), stroke: nil, lw: 0)
-            text("Best: \(best)", LW/2, LH-29, 11, .white, system: true)
+            roundRect(LW/2-52, LH-42, 104, 20, 10, UIColor(white: 0, alpha: 0.6), stroke: nil, lw: 0)
+            text("best \(best)", LW/2, LH-32, 10, UIColor(white: 1, alpha: 0.8), system: true)
         }
-        drawCtrlToggle()
+        drawCtrlToggle(); drawDiffToggle()
+    }
+    // Rank + purse, one strip. Rank is LIFETIME coins, so it only ever goes up —
+    // nothing you buy can demote you.
+    private func drawRankStrip(_ y: CGFloat) {
+        let rk = rankFor(lifetime), nx = rankNext(lifetime)
+        roundRect(LW/2-186, y-23, 372, 46, 21, UIColor(white: 0, alpha: 0.68), stroke: UIColor(red: 1, green: 0.85, blue: 0.24, alpha: 0.5), lw: 1.5)
+        text(rk.icon + "  " + rk.name, LW/2-174, y-10, 13, hex("ffd93d"), align: .left, system: true)
+        text("\u{1F34C} \(coins)", LW/2+174, y-10, 14, .white, align: .right, system: true)
+        let bw: CGFloat = 340, bx = LW/2 - bw/2, by = y+5
+        roundRect(bx, by, bw, 7, 3.5, UIColor(white: 1, alpha: 0.16), stroke: nil, lw: 0)
+        if let nx {
+            let a = CGFloat(lifetime - rk.at)/CGFloat(nx.at - rk.at)
+            roundRect(bx, by, bw*max(0.02, min(1, a)), 7, 3.5, hex("ffd93d"), stroke: nil, lw: 0)
+            text("\(nx.at - lifetime) \u{1F34C} to \(nx.icon) \(nx.name)", LW/2, y+17, 8, UIColor(white: 1, alpha: 0.72), system: true)
+        } else {
+            roundRect(bx, by, bw, 7, 3.5, hex("ffd93d"), stroke: nil, lw: 0)
+            text("MAX RANK — you are the Gas Guardian", LW/2, y+17, 8, hex("ffd93d"), system: true)
+        }
+    }
+    private func drawDailyBanner(_ y: CGFloat) {
+        let d = dailyOfDay(), done = dailyDone()
+        roundRect(LW/2-160, y-14, 320, 28, 14,
+                  done ? UIColor(white: 0, alpha: 0.5) : UIColor(red: 0.49, green: 1, blue: 0.35, alpha: 0.16),
+                  stroke: done ? UIColor(white: 1, alpha: 0.2) : hex("7CFF5A"), lw: 1.5)
+        text("\(d.icon)  TODAY: \(d.name) — \(d.blurb)" + (done ? "" : "  (+25 \u{1F34C})"),
+             LW/2, y, 11, done ? UIColor(white: 1, alpha: 0.55) : .white, system: true)
+    }
+    private var shopBtn: CGRect { CGRect(x: LW/2-75, y: (LH*0.545).rounded(), width: 150, height: 44) }
+    private func drawShopBtn() {
+        let b = shopBtn, canBuy = (HATS + SKINS).contains { !owned.contains($0.id) && coins >= $0.cost }
+        roundRect(b.minX, b.minY, b.width, b.height, 13, UIColor(white: 0, alpha: 0.62),
+                  stroke: canBuy ? hex("ffd93d") : UIColor(white: 1, alpha: 0.35), lw: canBuy ? 3 : 1.5)
+        text("\u{1F6CD}  SHOP", b.midX, b.midY, 15, .white, system: true)
+        if canBuy {   // there's something you can actually afford
+            fillCircle(b.maxX-7, b.minY+7, 6, hex("ffd93d"))
+            text("!", b.maxX-7, b.minY+7, 9, .black, system: true)
+        }
+    }
+    private func diffChips() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
+        let w: CGFloat = 118, h: CGFloat = 30, gap: CGFloat = 10, y = LH - 110, tot = 2*w + gap, x0 = LW/2 - tot/2
+        return [("easy", DIFFS["easy"]!.label, x0, y, w, h), ("normal", DIFFS["normal"]!.label, x0+w+gap, y, w, h)]
+    }
+    private func diffChipAt(_ x: CGFloat, _ y: CGFloat) -> String? {
+        diffChips().first { x >= $0.x && x <= $0.x+$0.w && y >= $0.y && y <= $0.y+$0.h }?.id
+    }
+    private func drawDiffToggle() {
+        let cs = diffChips(), x0 = cs[0].x-12, x1 = cs[1].x+cs[1].w+12
+        roundRect(x0, cs[0].y-22, x1-x0, cs[0].h+32, 14, UIColor(white: 0, alpha: 0.55), stroke: nil, lw: 0)
+        for c in cs {
+            let on = c.id == diffId
+            roundRect(c.x, c.y, c.w, c.h, 9, on ? cBorder : UIColor(white: 1, alpha: 0.10),
+                      stroke: on ? cAccent : UIColor(white: 1, alpha: 0.3), lw: on ? 2.5 : 1.5)
+            text(c.label, c.x + c.w/2, c.y + c.h/2, 12, on ? .white : UIColor(white: 1, alpha: 0.75), system: true)
+        }
+        cg.setAlpha(0.7)
+        text("DIFFICULTY  \u{00B7}  \(D.lives) lives", LW/2, cs[0].y-11, 10, .white, system: true)
+        cg.setAlpha(1)
     }
     // Same lanes, same PLAY button — game over is the menu with your score on it.
     private func drawOver() {
@@ -1510,10 +1875,21 @@ final class GameView: UIView {
         text("Score \(Int(score))", 0, 18, 22, hex("ffe022"))
         text("best combo x\(comboBestRun)  \u{00B7}  best score \(best)", 0, 44, 12, .white, system: true)
         cg.restoreGState()
+        // what the run actually earned you — the reason to go again
+        let ty = (LH*0.316).rounded()
+        roundRect(LW/2-150, ty-19, 300, 38, 19, UIColor(white: 0, alpha: 0.7), stroke: hex("ffd93d"), lw: 2)
+        text("+\(runCoins) \u{1F34C} earned" + (dailyPaid ? "  (incl. +25 daily)" : ""), LW/2, ty-4, 15, hex("ffd93d"))
+        text("purse: \(coins) \u{1F34C}", LW/2, ty+12, 10, UIColor(white: 1, alpha: 0.75), system: true)
+        if let ru = rankUpTo {   // crossing a rank is the milestone worth celebrating
+            let py = (LH*0.40).rounded()
+            roundRect(LW/2-140, py-20, 280, 40, 20, UIColor(red: 1, green: 0.85, blue: 0.24, alpha: 0.2), stroke: hex("ffd93d"), lw: 2.5)
+            text("\u{2B06} NEW RANK: \(ru.icon) \(ru.name)", LW/2, py, 15, hex("ffd93d"))
+        }
         drawPlayBtn("\u{25B6} AGAIN")
+        drawShopBtn()
         roundRect(LW/2-118, laneNameY-46, 236, 24, 12, UIColor(white: 0, alpha: 0.6), stroke: nil, lw: 0)
         text("\u{1F446} tap a lane to change the look", LW/2, laneNameY-34, 12, .white, system: true)
-        drawCtrlToggle()
+        drawCtrlToggle(); drawDiffToggle()
     }
     private func drawBoss(_ b: Boss) {
         let x = b.bx, y = b.by; let col = b.hitFlash > 0 ? UIColor.white : cMonkeyBody

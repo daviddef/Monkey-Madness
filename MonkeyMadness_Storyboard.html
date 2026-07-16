@@ -290,7 +290,7 @@
       <div class="cat"><h4>🎁 Power-ups</h4>
         <div class="item"><span class="s">✅</span><span class="t">Gas Mask · Golden Banana · Nose Plug · Beano <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">Bean Can — rapid fire, full gas + ammo <span class="k ship">shipped</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Magnet — pulls coins in <span class="k maybe">maybe</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Magnet — pulls coins in <span class="k ship">shipped</span></span></div>
       </div>
 
       <div class="cat"><h4>🍌 Hazards &amp; items</h4>
@@ -308,10 +308,10 @@
       </div>
 
       <div class="cat"><h4>📈 Meta &amp; retention</h4>
-        <div class="item"><span class="s">💡</span><span class="t">Banana Coins + cosmetic shop <span class="k next">queued</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Unlockable characters &amp; fart-skins <span class="k later">later</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Fart of the Day (daily) <span class="k later">later</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Ranks: Fart Cadet → Gas Guardian <span class="k maybe">maybe</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Banana Coins + cosmetic shop <span class="k ship">shipped</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Hats &amp; fart-skins (11 cosmetics, earned) <span class="k ship">shipped</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Fart of the Day (daily buff + bonus) <span class="k ship">shipped</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Ranks: Fart Cadet → Gas Guardian (7 tiers) <span class="k ship">shipped</span></span></div>
       </div>
 
       <div class="cat"><h4>🔊 Audio</h4>
@@ -329,7 +329,7 @@
       <div class="cat"><h4>♿ Accessibility / kid-safe</h4>
         <div class="item"><span class="s">💡</span><span class="t">Big tap targets, colour-blind-safe tells <span class="k next">ongoing</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">No ads / no IAP; unlocks earned <span class="k next">principle</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Optional "easy" (more lives) toggle <span class="k later">later</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Easy mode — 6 lives <b>and</b> a 23% gentler barrage <span class="k ship">shipped</span></span></div>
       </div>
 
     </div>
@@ -362,6 +362,7 @@
     <div class="eyebrow"><span class="n">06</span> Changelog</div>
     <h2>What's shipped so far</h2>
     <div class="changelog">
+      <div class="cl"><span class="v">v19</span><span class="d"><b>Progression &amp; retention — the whole grab bag</b> — <b>🍌 Banana Coins</b> drop off bonked monkeys (walk over to collect; the new <b>Magnet</b> power-up drags them in). <b>7 ranks</b> Fart Cadet → Gas Guardian, driven by <i>lifetime</i> coins so spending can never demote you. A <b>Banana Shop</b> with 6 vector hats + 5 fart-skins that tint your own gas — cosmetic only, earned only, <b>no ads and no IAP, ever</b>. <b>Fart of the Day</b>: a date-seeded modifier + 25 coins for your first run each day, and every modifier is a <i>buff</i> — a kid shouldn't lose to the calendar. Plus <b>Easy mode</b>, which isn't just more hearts: measured <b>23% fewer bananas</b> at every level, 6 lives, and 1.67s of sniper warning vs 1.15s.</span></div>
       <div class="cl"><span class="v">v18</span><span class="d"><b>Fixed: "sometimes ◀/▶ doesn't move the sprite"</b> (reported by David) — two causes, both reproduced. <b>(1)</b> Holding ◀ and resting a second thumb on ▶ made them <i>cancel to a dead stop</i> (measured: −101.7px → <b>0.0px</b>). The newest press now wins, like a real d-pad. <b>(2)</b> The control strip is 120 tall but the ◀▶ circles only accepted the middle 100 — a thumb landing low or in the gap hit <b>nothing</b>. The whole lower-left is now a gap-free steering pad (<b>0 dead pixels</b>, measured); the circles are just the affordance. Also guarded a NaN coord that could conjure a phantom "R" and drift the sprite on its own.</span></div>
       <div class="cl"><span class="v">v17</span><span class="d"><b>The lanes ARE the picker</b> — splash, menu and game over are now <b>one screen</b>: the same four swim lanes. The picked world stays lit with an accent frame and its name pill glows; the other three dim. The little chip picker is gone — you just tap the world you want, and the title, PLAY button and controls all take that world's colours. Because a lane tap now means "pick this", a big <b>▶ PLAY</b> button is the only way to start (▶ AGAIN on game over).</span></div>
       <div class="cl"><span class="v">v16</span><span class="d"><b>Splash screen — all four worlds at once</b> — the game now opens on a splash that paints each theme in its <b>own vertical slice</b>: own background, own monkey, own palette, own banana, wiping in one after another before the title lands. It shows off the art system before you touch anything and points at the picker on the next screen. Auto-advances in 3.4s; tap skips. HTML + Swift.</span></div>
