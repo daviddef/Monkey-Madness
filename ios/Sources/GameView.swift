@@ -17,6 +17,7 @@ private final class Player {
     var squashT: CGFloat = 0, blastFlash: CGFloat = 0, barrierT: CGFloat = 0
     var face: Int = 0, faceT: CGFloat = 0, mushT: CGFloat = 0, slipT: CGFloat = 0
     var shieldT: CGFloat = 0, x2T: CGFloat = 0, slowT: CGFloat = 0, freeFartT: CGFloat = 0
+    var bananas: Int = 3, throwT: CGFloat = 0
 }
 private final class Monkey {
     var x: CGFloat, y: CGFloat, bx: CGFloat, by: CGFloat
@@ -58,6 +59,14 @@ private final class Particle {
 }
 private final class Cloud { var x, y, r, life, maxLife: CGFloat
     init(x: CGFloat, y: CGFloat, r: CGFloat, life: CGFloat) { self.x = x; self.y = y; self.r = r; self.life = life; maxLife = life } }
+/// The 💨 attack: a wall of gas that rises up the screen, eating bananas and gassing monkeys.
+private final class FartCloud { var x, y, vy, r, life, maxLife, wob: CGFloat
+    var hit = Set<ObjectIdentifier>()   // one victim can only be gassed once per cloud
+    init(x: CGFloat, y: CGFloat, vy: CGFloat, life: CGFloat) {
+        self.x = x; self.y = y; self.vy = vy; r = 32; self.life = life; maxLife = life; wob = R(0, 6.28) } }
+/// A banana that landed intact — walk over it to reload 🍌 ammo.
+private final class GroundBanana { var x, y, life, bob: CGFloat; var type: String
+    init(x: CGFloat, y: CGFloat, life: CGFloat, type: String) { self.x = x; self.y = y; self.life = life; self.type = type; bob = R(0, 6.28) } }
 private final class Floater { var x, y, vy, life, maxLife, size: CGFloat; var text: String; var color: UIColor
     init(x: CGFloat, y: CGFloat, text: String, color: UIColor, size: CGFloat) {
         self.x = x; self.y = y; vy = -46; life = 1.1; maxLife = 1.1; self.text = text; self.color = color; self.size = size } }
@@ -76,6 +85,10 @@ final class GameView: UIView {
     private let DEFLECT_R: CGFloat = 96, BARRIER_T: CGFloat = 0.5
     private let PEEL_LIFE: CGFloat = 5, PEEL_R: CGFloat = 20, SLIP_T: CGFloat = 1.2
     private let PU_SHIELD: CGFloat = 6, PU_X2: CGFloat = 8, PU_SLOW: CGFloat = 4, PU_FREE: CGFloat = 4.5
+    // FCLOUD_RISE/DRAG are tuned so a cloud reaches the branch (~470px up) at ~1.5s —
+    // slow enough that a monkey can swing clear, unlike the auto-aimed throw.
+    private let AMMO_MAX = 6, AMMO_START = 3
+    private let FCLOUD_LIFE: CGFloat = 2.6, FCLOUD_RISE: CGFloat = -255, FCLOUD_DRAG: CGFloat = 10, GBAN_LIFE: CGFloat = 6
     private let LIVES_MAX = 4
     private let cMask = hex("25d4e8"), cGold = hex("ffe234"), cPlug = hex("b06bff"), cBeano = hex("93e552"), cBean = hex("ffab2e"), cMega = hex("ff4db8")
 
@@ -110,21 +123,25 @@ final class GameView: UIView {
     private var pops: [Pop] = []
     private var peels: [Peel] = []
     private var powerups: [PowerUp] = []
+    private var fartClouds: [FartCloud] = []
+    private var groundBananas: [GroundBanana] = []
 
-    // input
+    // input — MOVE on the left thumb, ACTIONS on the right (JUMP · THROW · FART)
     private struct Btn { let id: String; let cx: CGFloat; let cy: CGFloat; let r: CGFloat; let glyph: String }
     private lazy var buttons: [Btn] = [
-        Btn(id: "L", cx: 54, cy: LH - 62, r: 42, glyph: "\u{25C0}"),
-        Btn(id: "R", cx: 150, cy: LH - 62, r: 42, glyph: "\u{25B6}"),
-        Btn(id: "JUMP", cx: 316, cy: LH - 62, r: 42, glyph: "\u{2912}"),
-        Btn(id: "FART", cx: 426, cy: LH - 64, r: 50, glyph: "\u{1F4A8}")
+        Btn(id: "L", cx: 46, cy: LH - 62, r: 40, glyph: "\u{25C0}"),
+        Btn(id: "R", cx: 132, cy: LH - 62, r: 40, glyph: "\u{25B6}"),
+        Btn(id: "JUMP", cx: 232, cy: LH - 62, r: 38, glyph: "\u{2912}"),
+        Btn(id: "THROW", cx: 330, cy: LH - 62, r: 40, glyph: "\u{1F34C}"),
+        Btn(id: "FART", cx: 428, cy: LH - 64, r: 44, glyph: "\u{1F4A8}")
     ]
     private struct TouchRec { var role: String; var sx: CGFloat = 0; var sy: CGFloat = 0; var st: TimeInterval = 0 }
     private var touchRecs: [ObjectIdentifier: TouchRec] = [:]
     private let ZONE_TOP: CGFloat = 470
     private var controlStyle: String = (UserDefaults.standard.string(forKey: "mm_ctrl") == "zones") ? "zones" : "buttons"
     private func setControlStyle(_ s: String) { controlStyle = s; UserDefaults.standard.set(s, forKey: "mm_ctrl") }
-    private var zFart: (cx: CGFloat, cy: CGFloat, r: CGFloat) { (LW/2, LH-62, 54) }
+    private var zFart: (cx: CGFloat, cy: CGFloat, r: CGFloat) { (LW/2 + 64, LH-62, 50) }
+    private var zThrow: (cx: CGFloat, cy: CGFloat, r: CGFloat) { (LW/2 - 64, LH-62, 46) }
 
     // display link + transform
     private var link: CADisplayLink?
@@ -162,9 +179,11 @@ final class GameView: UIView {
     private func resetForLevel(_ inv: CGFloat) {
         bananas.removeAll(); particles.removeAll(); clouds.removeAll(); floaters.removeAll()
         pops.removeAll(); peels.removeAll(); powerups.removeAll(); monkeys.removeAll()
+        fartClouds.removeAll(); groundBananas.removeAll()
         P.x = LW/2; P.y = PLAYER_GY; P.vy = 0; P.onGround = true; P.inv = true; P.invT = inv; P.blinkT = 0
         P.gas = GAS_MAX; P.squashT = 0; P.blastFlash = 0; P.barrierT = 0; P.face = 0; P.faceT = 0; P.mushT = 0
         P.slipT = 0; P.shieldT = 0; P.x2T = 0; P.slowT = 0; P.freeFartT = 0; megaRingT = 0
+        P.bananas = AMMO_START; P.throwT = 0
     }
     private func startGame() {
         st = .play; lives = LIVES_MAX; score = 0; combo = 0; gameT = 0; tipT = 3.5; hitstop = 0; flashT = 0
@@ -199,7 +218,8 @@ final class GameView: UIView {
         for _ in 0..<7 { particles.append(puff(P.x + R(-8, 8), PLAYER_GY + 20, R(-40, 40), R(20, 90))) }
         clouds.append(Cloud(x: P.x, y: PLAYER_GY + 22, r: 12, life: 0.7))
     }
-    private func doBlast() {
+    /// 💨 FART BACK — costs GAS. Blocks what's already above you, then sends up a rising cloud.
+    private func doFart() {
         guard st == .play || st == .boss, P.slipT <= 0 else { return }
         let free = P.freeFartT > 0
         if !free && P.gas < BLAST_COST { return }
@@ -208,11 +228,7 @@ final class GameView: UIView {
         audio.fart(freq: Double(R(70, 92)), dur: 0.42, flutter: 14, cutoff: 1200, gain: 0.5)
         clouds.append(Cloud(x: P.x, y: P.y + 22, r: 20, life: 0.9))
         for _ in 0..<14 { let a = R(2.3, 4.0); particles.append(puff(P.x, P.y + 18, cos(a)*R(60, 150), sin(a)*R(30, 120)+40)) }
-        // shoot a banana up at nearest monkey
-        let tg = nearestMonkey(P.x, P.y - 40)
-        let tf: CGFloat = 0.6; var vx = R(-30, 30), vy: CGFloat = -720
-        if let m = tg { vx = (m.bx - P.x)/tf; vy = (m.by - (P.y - 28) - 0.5*GRAV*tf*tf)/tf }
-        bananas.append(Banana(x: P.x, y: P.y - 22, vx: vx, vy: vy, rotV: R(-16, 16), friendly: true, type: "shot"))
+        fartClouds.append(FartCloud(x: P.x, y: P.y - 16, vy: FCLOUD_RISE, life: FCLOUD_LIFE))
         // instant barrier
         var blocked = 0
         bananas = bananas.filter { b in
@@ -222,6 +238,20 @@ final class GameView: UIView {
             return true
         }
         if blocked > 0 { addFloat(P.x, P.y - 56, "BLOCK!", cFart, 15); score += CGFloat(blocked) * 10; audio.tone(f0: 320, f1: 760, dur: 0.14, gain: 0.22) }
+    }
+    /// 🍌 THROW BANANA — costs 1 ammo. Fast, auto-aimed, reliable stun.
+    private func doThrow() {
+        guard st == .play || st == .boss, P.slipT <= 0, P.throwT <= 0 else { return }
+        if P.bananas <= 0 { audio.tone(f0: 300, f1: 150, dur: 0.09, gain: 0.1); addFloat(P.x, P.y - 46, "NO BANANAS!", cAccent, 14); return }
+        P.bananas -= 1; P.throwT = 0.24; P.face = 2; P.faceT = 0.3; addShake(3, 0.08)
+        audio.fart(freq: Double(R(140, 175)), dur: 0.2, flutter: 20, cutoff: 1500, gain: 0.34)
+        let tf: CGFloat = 0.6; var vx = R(-30, 30), vy: CGFloat = -720
+        var aim: (x: CGFloat, y: CGFloat)? = nil
+        if let m = nearestMonkey(P.x, P.y - 40) { aim = (m.bx, m.by) }
+        else if st == .boss, let b = boss, b.hp > 0, b.deathT <= 0 { aim = (b.bx, b.by) }
+        if let a = aim { vx = (a.x - P.x)/tf; vy = (a.y - (P.y - 28) - 0.5*GRAV*tf*tf)/tf }
+        bananas.append(Banana(x: P.x, y: P.y - 22, vx: vx, vy: vy, rotV: R(-16, 16), friendly: true, type: "shot"))
+        for _ in 0..<5 { particles.append(puff(P.x, P.y - 18, R(-50, 50), R(-50, 10))) }
     }
     private func nearestMonkey(_ x: CGFloat, _ y: CGFloat) -> Monkey? {
         var best: Monkey? = nil; var bd: CGFloat = 1e9
@@ -255,9 +285,12 @@ final class GameView: UIView {
     private func groundSplat(_ b: Banana) {
         burstFx(b.x, GROUND_Y-2, 4)
         for _ in 0..<4 { particles.append(puff(b.x, GROUND_Y-2, R(-40, 40), R(-30, -5))) }
-        if b.type != "black" && !b.small && peels.count < 7 && CGFloat.random(in: 0...1) < 0.5 {
-            peels.append(Peel(x: max(24, min(LW-24, b.x)), life: PEEL_LIFE, kind: b.type))
+        let gx = max(24, min(LW-24, b.x))
+        if b.type == "black" { return }                       // farted-out ones just splat
+        if !b.small && peels.count < 7 && CGFloat.random(in: 0...1) < 0.34 {
+            peels.append(Peel(x: gx, life: PEEL_LIFE, kind: b.type)); return
         }
+        if groundBananas.count < 8 { groundBananas.append(GroundBanana(x: gx, y: GROUND_Y-9, life: GBAN_LIFE, type: b.type)) }
     }
     private func slip(_ p: Peel) {
         P.slipT = SLIP_T; P.onGround = true; P.vy = 0; combo = 0; p.life = 0
@@ -277,7 +310,7 @@ final class GameView: UIView {
         case "gold": P.x2T = PU_X2; addPop(P.x, P.y-52, "SCORE x2!", cGold)
         case "plug": P.slowT = PU_SLOW; addPop(P.x, P.y-52, "SLO-MO!", cPlug)
         case "beano": clouds.removeAll(); peels.removeAll(); addPop(P.x, P.y-52, "FRESH AIR!", cBeano); doFlash(cFart, 0.2)
-        case "bean": P.gas = GAS_MAX; P.freeFartT = PU_FREE; addPop(P.x, P.y-52, "RAPID FIRE!", cBean); doFlash(cBean, 0.2)
+        case "bean": P.gas = GAS_MAX; P.freeFartT = PU_FREE; P.bananas = AMMO_MAX; addPop(P.x, P.y-52, "RAPID FIRE!", cBean); doFlash(cBean, 0.2)
         default: megaFart()
         }
     }
@@ -398,6 +431,7 @@ final class GameView: UIView {
         if P.faceT > 0 { P.faceT -= dt; if P.faceT <= 0 { P.face = 0 } }
         if P.blastFlash > 0 { P.blastFlash -= dt }; if P.barrierT > 0 { P.barrierT -= dt }; if P.mushT > 0 { P.mushT -= dt }
         if P.slipT > 0 { P.slipT -= dt }; if P.shieldT > 0 { P.shieldT -= dt }; if P.x2T > 0 { P.x2T -= dt }; if P.slowT > 0 { P.slowT -= dt }; if P.freeFartT > 0 { P.freeFartT -= dt }
+        if P.throwT > 0 { P.throwT -= dt }
         P.gas = min(GAS_MAX, P.gas + GAS_RECHARGE*dt)
 
         // monkeys
@@ -479,6 +513,52 @@ final class GameView: UIView {
             if !P.inv && P.slipT <= 0 { let dx = abs(b.x - P.x), dy = abs(b.y - P.y); if dx < 22 && dy < 26 { hitPlayer(b.x, b.y, b.type); return false } }
             return true
         }
+        // rising fart clouds — the 💨 attack
+        fartClouds = fartClouds.filter { fc in
+            fc.life -= dt; fc.y += fc.vy*wdt; fc.vy += FCLOUD_DRAG*dt; fc.wob += dt*7
+            fc.x += sin(fc.wob)*24*wdt; fc.r = min(56, fc.r + dt*22)
+            if CGFloat.random(in: 0...1) < 0.7 { particles.append(puff(fc.x + R(-fc.r*0.5, fc.r*0.5), fc.y + R(-10, 10), R(-26, 26), R(-40, 10))) }
+            bananas = bananas.filter { b in
+                if b.friendly { return true }
+                let dx = b.x - fc.x, dy = b.y - fc.y
+                if dx*dx + dy*dy < (fc.r+10)*(fc.r+10) { burstFx(b.x, b.y, 3); score += 6 * (P.x2T > 0 ? 2 : 1); return false }
+                return true
+            }
+            for m in monkeys where m.stun <= 0 && !fc.hit.contains(ObjectIdentifier(m)) {
+                let dx = m.bx - fc.x, dy = m.by - fc.y
+                if dx*dx + dy*dy < (fc.r+26)*(fc.r+26) {
+                    fc.hit.insert(ObjectIdentifier(m))
+                    m.stun = 3; m.wob = 0; m.angryT = 0; combo += 1
+                    let pts = 60 * combo * (P.x2T > 0 ? 2 : 1); score += CGFloat(pts)
+                    addFloat(m.bx, m.by-38, "+\(pts)" + (combo > 1 ? "  x\(combo)" : ""), cFart, combo > 2 ? 21 : 16)
+                    burstFx(m.bx, m.by, 10); addPop(m.bx, m.by-8, combo >= 6 ? "GASSED!" : "PHEW!", cFart)
+                    doFlash(cFart, 0.16); addShake(5, 0.12); audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24)
+                    if CGFloat.random(in: 0...1) < 0.28 { spawnPU(m.bx, m.by) }
+                }
+            }
+            if st == .boss, let b = boss, b.hp > 0, b.deathT <= 0, !fc.hit.contains(ObjectIdentifier(b)) {
+                let dx = b.bx - fc.x, dy = b.by - fc.y
+                if dx*dx + dy*dy < (fc.r+42)*(fc.r+42) {
+                    fc.hit.insert(ObjectIdentifier(b))
+                    let d: CGFloat = b.weakT > 0 ? 10 : 5
+                    b.hp = max(0, b.hp - d); b.hitFlash = 0.25
+                    addFloat(b.bx, b.by-30, "-\(Int(d))", cFart, 17)
+                    if b.hp <= 0 { killBoss() }
+                }
+            }
+            return fc.life > 0 && fc.y > -50
+        }
+        // bananas that landed intact — walk over them to reload
+        groundBananas = groundBananas.filter { g in
+            g.life -= dt; g.bob += dt*4
+            if P.bananas < AMMO_MAX && abs(g.x - P.x) < 26 && abs(g.y - P.y) < 44 {
+                P.bananas += 1; audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24)
+                addFloat(g.x, g.y-26, "+1", cBanana, 15)
+                for _ in 0..<4 { particles.append(puff(g.x, g.y, R(-40, 40), R(-70, -10))) }
+                return false
+            }
+            return g.life > 0
+        }
         // peels, slip, power-ups
         peels = peels.filter { p in p.life -= dt; return p.life > 0 }
         if P.onGround && P.slipT <= 0 && !P.inv { for p in peels where abs(p.x - P.x) < PEEL_R { slip(p); break } }
@@ -495,11 +575,18 @@ final class GameView: UIView {
 
     // MARK: - Touch
     private func toLogical(_ p: CGPoint) -> CGPoint { CGPoint(x: (p.x - tx)/s, y: (p.y - ty)/s) }
+    /// nearest-wins, so the tighter 5-button spacing can't misroute a tap to a neighbour
     private func btnAt(_ x: CGFloat, _ y: CGFloat) -> String? {
-        for b in buttons { let dx = x - b.cx, dy = y - b.cy; if dx*dx + dy*dy <= (b.r+10)*(b.r+10) { return b.id } }
-        return nil
+        var best: String? = nil; var bd: CGFloat = 1e9
+        for b in buttons {
+            let dx = x - b.cx, dy = y - b.cy, d = dx*dx + dy*dy
+            if d <= (b.r+10)*(b.r+10) && d < bd { bd = d; best = b.id }
+        }
+        return best
     }
-    private func inZFart(_ x: CGFloat, _ y: CGFloat) -> Bool { let z = zFart; let dx = x-z.cx, dy = y-z.cy; return dx*dx + dy*dy <= (z.r+10)*(z.r+10) }
+    private func inRound(_ z: (cx: CGFloat, cy: CGFloat, r: CGFloat), _ x: CGFloat, _ y: CGFloat) -> Bool {
+        let dx = x-z.cx, dy = y-z.cy; return dx*dx + dy*dy <= (z.r+10)*(z.r+10)
+    }
     private func ctrlChips() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
         let w: CGFloat = 126, h: CGFloat = 32, gap: CGFloat = 12, y: CGFloat = 584, tot = 2*w + gap, x0 = LW/2 - tot/2
         return [("buttons", "\u{1F446} Buttons", x0, y, w, h), ("zones", "\u{1F590} Zones", x0+w+gap, y, w, h)]
@@ -514,9 +601,13 @@ final class GameView: UIView {
                 startGame(); return
             }
             if controlStyle == "buttons" {
-                if let id = btnAt(p.x, p.y) { touchRecs[ObjectIdentifier(t)] = TouchRec(role: id); if id == "JUMP" { doJump() } else if id == "FART" { doBlast() } }
+                if let id = btnAt(p.x, p.y) {
+                    touchRecs[ObjectIdentifier(t)] = TouchRec(role: id)
+                    if id == "JUMP" { doJump() } else if id == "FART" { doFart() } else if id == "THROW" { doThrow() }
+                }
             } else {
-                if inZFart(p.x, p.y) { touchRecs[ObjectIdentifier(t)] = TouchRec(role: "FART"); doBlast() }
+                if inRound(zFart, p.x, p.y) { touchRecs[ObjectIdentifier(t)] = TouchRec(role: "FART"); doFart() }
+                else if inRound(zThrow, p.x, p.y) { touchRecs[ObjectIdentifier(t)] = TouchRec(role: "THROW"); doThrow() }
                 else if p.y > ZONE_TOP { touchRecs[ObjectIdentifier(t)] = TouchRec(role: p.x < LW/2 ? "zoneL" : "zoneR", sx: p.x, sy: p.y, st: t.timestamp) }
             }
         }
@@ -589,9 +680,11 @@ final class GameView: UIView {
         for m in monkeys { drawMonkey(m) }
         if st == .boss, let b = boss { drawBoss(b) }
         for pe in peels { drawPeel(pe) }
+        for g in groundBananas { drawGroundBanana(g) }
         for pu in powerups { drawPowerup(pu) }
         for b in bananas { drawBanana(b) }
         drawPlayer()
+        for fc in fartClouds { drawFartCloud(fc) }
         for p in particles { drawParticle(p) }
         for f in floaters { drawFloater(f) }
         drawPops()
@@ -716,6 +809,35 @@ final class GameView: UIView {
         for k in 0..<4 { fillCircle(c.x + sin(CGFloat(k)*1.7)*c.r*0.5, c.y + cos(CGFloat(k)*1.3)*c.r*0.4, max(1, c.r*0.7 - CGFloat(k)*4), cFart) }
         cg.setAlpha(1)
     }
+    private func drawFartCloud(_ fc: FartCloud) {
+        let a = max(0, min(1, fc.life/(fc.maxLife*0.55)))
+        cg.setAlpha(a*0.72)
+        for k in 0..<6 {
+            let ang = CGFloat(k)*1.05 + fc.wob*0.5
+            fillCircle(fc.x + cos(ang)*fc.r*0.55, fc.y + sin(ang*1.3)*fc.r*0.42, max(2, fc.r*0.62 - CGFloat(k)*3), cFart)
+        }
+        cg.setAlpha(a*0.55); cg.setStrokeColor(cFart.cgColor); cg.setLineWidth(3)
+        cg.strokeEllipse(in: CGRect(x: fc.x - fc.r*0.9, y: fc.y - fc.r*0.9, width: fc.r*1.8, height: fc.r*1.8))
+        cg.setAlpha(1)
+    }
+    private func drawGroundBanana(_ g: GroundBanana) {
+        let a: CGFloat = g.life < 1.2 ? abs(sin(g.life*14)) : 1
+        cg.saveGState()
+        cg.setAlpha(a*0.25); fillCircle(g.x, g.y + 11, 12, .black)
+        cg.setAlpha(a)
+        cg.translateBy(x: g.x, y: g.y + sin(g.bob)*2.5)
+        cg.setShadow(offset: .zero, blur: 12, color: cBanana.cgColor)
+        cg.rotate(by: -0.35); cg.scaleBy(x: 0.8, y: 0.8); cg.translateBy(x: -10, y: -17)
+        cg.addPath(bananaPath()); cg.setFillColor((g.type == "brown" ? hex("9a6a34") : cBanana).cgColor); cg.fillPath()
+        cg.setShadow(offset: .zero, blur: 0, color: nil)
+        cg.addPath(bananaPath()); cg.setStrokeColor(cOutline.cgColor); cg.setLineWidth(2); cg.setLineJoin(.round); cg.strokePath()
+        cg.restoreGState(); cg.setAlpha(1)
+    }
+    /// tiny ammo pips under the 🍌 button
+    private func drawAmmoPips(_ cx: CGFloat, _ cy: CGFloat) {
+        let gap: CGFloat = 8, x0 = cx - CGFloat(AMMO_MAX-1)*gap/2
+        for i in 0..<AMMO_MAX { fillCircle(x0 + CGFloat(i)*gap, cy, 2.6, i < P.bananas ? cBanana : UIColor(white: 1, alpha: 0.22)) }
+    }
     private func drawParticle(_ p: Particle) {
         let a = max(0, p.life/p.maxLife); cg.setAlpha(a * (p.kind == "puff" ? 0.55 : 1))
         if p.kind == "puff" { fillCircle(p.x, p.y, p.size, cFart) }
@@ -834,7 +956,13 @@ final class GameView: UIView {
         roundRect(gx, gy, gw*(P.gas/GAS_MAX), gh, 4, ready ? cFart : UIColor(white: 0.5, alpha: 0.6))
         roundRect(gx, gy, gw, gh, 4, .clear, fill: false, stroke: UIColor(white: 1, alpha: 0.4), lw: 1)
         text("GAS", LW/2, gy + gh/2, 9, .white)
-        if tipT > 0 { cg.setAlpha(min(1, tipT)); text("\u{1F4A8} fart a banana BACK + shield!", LW/2, GROUND_Y-44, 14, cText); cg.setAlpha(1) }
+        if tipT > 0 {
+            cg.setAlpha(min(1, tipT))
+            text("\u{1F4A8} = FART BACK  \u{00B7}  \u{1F34C} = THROW A BANANA", LW/2, GROUND_Y-58, 14, cText)
+            cg.setAlpha(min(1, tipT)*0.85)
+            text("walk over landed \u{1F34C} to reload!", LW/2, GROUND_Y-40, 11, cText)
+            cg.setAlpha(1)
+        }
     }
     private func drawHeart(_ x: CGFloat, _ y: CGFloat, _ sz: CGFloat) {
         cg.setFillColor(hex("ff4d6d").cgColor)
@@ -854,17 +982,23 @@ final class GameView: UIView {
     }
     private func drawControls() {
         UIColor(white: 0, alpha: 0.32).setFill(); cg.fill(CGRect(x: 0, y: CTRL_TOP, width: LW, height: LH - CTRL_TOP))
-        let fartReady = P.gas >= BLAST_COST || P.freeFartT > 0
+        let fartReady = P.gas >= BLAST_COST || P.freeFartT > 0, throwReady = P.bananas > 0
         let held = touchRecs.values.map { $0.role }
         if controlStyle == "buttons" {
-            for b in buttons { let isFart = b.id == "FART"; drawBtn(b.cx, b.cy, b.r, b.glyph, isFart ? 30 : 24, held.contains(b.id), isFart ? fartReady : true, isFart) }
+            for b in buttons {
+                let act = b.id == "FART" || b.id == "THROW"
+                let ready = b.id == "FART" ? fartReady : (b.id == "THROW" ? throwReady : true)
+                drawBtn(b.cx, b.cy, b.r, b.glyph, act ? 28 : 24, held.contains(b.id), ready, act)
+                if b.id == "THROW" { drawAmmoPips(b.cx, b.cy + b.r + 9) }
+            }
         } else {
             cg.setStrokeColor(UIColor(white: 1, alpha: 0.14).cgColor); cg.setLineWidth(2)
             cg.move(to: CGPoint(x: LW/2, y: CTRL_TOP+4)); cg.addLine(to: CGPoint(x: LW/2, y: LH-6)); cg.strokePath()
             cg.setAlpha(held.contains("zoneL") ? 0.55 : 0.24); text("\u{25C0}", LW*0.22, LH-62, 34, .white, weight: .regular)
             cg.setAlpha(held.contains("zoneR") ? 0.55 : 0.24); text("\u{25B6}", LW*0.78, LH-62, 34, .white, weight: .regular); cg.setAlpha(1)
             text("hold to move \u{00B7} tap = jump", LW/2, CTRL_TOP+14, 10, UIColor(white: 1, alpha: 0.5))
-            let z = zFart; drawBtn(z.cx, z.cy, z.r, "\u{1F4A8}", 34, held.contains("FART"), fartReady, true)
+            let zt = zThrow; drawBtn(zt.cx, zt.cy, zt.r, "\u{1F34C}", 30, held.contains("THROW"), throwReady, true); drawAmmoPips(zt.cx, zt.cy + zt.r + 9)
+            let z = zFart; drawBtn(z.cx, z.cy, z.r, "\u{1F4A8}", 32, held.contains("FART"), fartReady, true)
         }
     }
     private func drawCtrlToggle() {
@@ -887,9 +1021,10 @@ final class GameView: UIView {
         text("FART BACK!", LW/2, 190, 40, cAccent)
         text("Monkey Fart Madness", LW/2, 230, 15, cText)
         text("Monkeys fart bananas at you.", LW/2, 290, 16, cText, weight: .semibold)
-        text("Dodge them, then fart them RIGHT BACK", LW/2, 316, 15, cText, weight: .semibold)
-        text("to stun the monkeys!", LW/2, 340, 15, cText, weight: .semibold)
-        text("\u{25C0} \u{25B6} move    \u{2912} jump    \u{1F4A8} FART", LW/2, 392, 15, cAccent)
+        text("Dodge them, then FART them back", LW/2, 316, 15, cText, weight: .semibold)
+        text("or THROW their own bananas at them!", LW/2, 340, 15, cText, weight: .semibold)
+        text("\u{25C0} \u{25B6} move   \u{2912} jump   \u{1F4A8} fart   \u{1F34C} throw", LW/2, 384, 14, cAccent)
+        cg.setAlpha(0.85); text("walk over landed bananas to reload \u{1F34C}", LW/2, 410, 12, cFart); cg.setAlpha(1)
         if Int(Date().timeIntervalSince1970*2) % 2 == 0 { text("TAP TO START", LW/2, 460, 22, cAccent) }
         if best > 0 { cg.setAlpha(0.6); text("Best: \(best)", LW/2, 496, 12, cText); cg.setAlpha(1) }
         drawCtrlToggle()
