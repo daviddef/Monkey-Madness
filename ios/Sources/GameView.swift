@@ -266,8 +266,18 @@ final class GameView: UIView {
         Btn(id: "THROW", cx: 330, cy: LH - 62, r: 40, glyph: "\u{1F34C}"),
         Btn(id: "FART", cx: 428, cy: LH - 64, r: 44, glyph: "\u{1F4A8}")
     ] }
-    private struct TouchRec { var role: String; var sx: CGFloat = 0; var sy: CGFloat = 0; var st: TimeInterval = 0 }
+    private struct TouchRec { var role: String; var seq: Int = 0; var sx: CGFloat = 0; var sy: CGFloat = 0; var st: TimeInterval = 0 }
     private var touchRecs: [ObjectIdentifier: TouchRec] = [:]
+    private var pressSeq = 0   // press order, so the NEWEST direction wins
+    // The drawn ◀▶ circles are the affordance, not the target: everything in the control
+    // strip left of JUMP steers. A thumb landing low or between the buttons used to hit
+    // nothing at all — the strip is 120 tall but the circles only accepted the middle 100.
+    private let MOVE_ZONE_R: CGFloat = 190, MOVE_SPLIT: CGFloat = 89
+    /// Positive tests so NaN falls out as nil rather than sliding into the `else`.
+    private func moveZoneAt(_ x: CGFloat, _ y: CGFloat) -> String? {
+        guard y >= CTRL_TOP, x < MOVE_ZONE_R else { return nil }
+        return x < MOVE_SPLIT ? "L" : "R"
+    }
     private var ZONE_TOP: CGFloat { CTRL_TOP - 170 }
     private var controlStyle: String = (UserDefaults.standard.string(forKey: "mm_ctrl") == "zones") ? "zones" : "buttons"
     private func setControlStyle(_ s: String) { controlStyle = s; UserDefaults.standard.set(s, forKey: "mm_ctrl") }
@@ -598,8 +608,7 @@ final class GameView: UIView {
 
         // player
         if P.slipT <= 0 {
-            if leftHeld() { P.x -= PSPEED*(P.mushT > 0 ? 0.45 : 1)*dt }
-            if rightHeld() { P.x += PSPEED*(P.mushT > 0 ? 0.45 : 1)*dt }
+            P.x += moveDir() * PSPEED*(P.mushT > 0 ? 0.45 : 1)*dt
         }
         P.x = max(24, min(LW-24, P.x))
         if !P.onGround { P.vy += GRAV*dt; P.y += P.vy*dt
@@ -767,8 +776,19 @@ final class GameView: UIView {
         }
     }
 
+    // Held-state, for lighting the buttons up.
     private func leftHeld() -> Bool { touchRecs.values.contains { $0.role == "L" || $0.role == "zoneL" } }
     private func rightHeld() -> Bool { touchRecs.values.contains { $0.role == "R" || $0.role == "zoneR" } }
+    /// Which way you actually go. The NEWEST press wins: holding ◀ and then resting a
+    /// second thumb on ▶ used to cancel to a dead stop, which read as "it won't move".
+    private func moveDir() -> CGFloat {
+        var dir: CGFloat = 0, bestSeq = -1
+        for r in touchRecs.values {
+            let d: CGFloat = (r.role == "L" || r.role == "zoneL") ? -1 : ((r.role == "R" || r.role == "zoneR") ? 1 : 0)
+            if d != 0 && r.seq > bestSeq { bestSeq = r.seq; dir = d }
+        }
+        return dir
+    }
 
     // MARK: - Touch
     private func toLogical(_ p: CGPoint) -> CGPoint { CGPoint(x: (p.x - tx)/s, y: (p.y - ty)/s) }
@@ -810,21 +830,29 @@ final class GameView: UIView {
             }
             if inRound(pauseBtn, p.x, p.y) { pauseGame(); return }
             if controlStyle == "buttons" {
-                if let id = btnAt(p.x, p.y) {
-                    touchRecs[ObjectIdentifier(t)] = TouchRec(role: id)
+                if let id = btnAt(p.x, p.y) ?? moveZoneAt(p.x, p.y) {   // fall back to the wide steering zone
+                    touchRecs[ObjectIdentifier(t)] = TouchRec(role: id, seq: pressSeq); pressSeq += 1
                     if id == "JUMP" { doJump() } else if id == "FART" { doFart() } else if id == "THROW" { doThrow() }
                 }
             } else {
-                if inRound(zFart, p.x, p.y) { touchRecs[ObjectIdentifier(t)] = TouchRec(role: "FART"); doFart() }
-                else if inRound(zThrow, p.x, p.y) { touchRecs[ObjectIdentifier(t)] = TouchRec(role: "THROW"); doThrow() }
-                else if p.y > ZONE_TOP { touchRecs[ObjectIdentifier(t)] = TouchRec(role: p.x < LW/2 ? "zoneL" : "zoneR", sx: p.x, sy: p.y, st: t.timestamp) }
+                if inRound(zFart, p.x, p.y) { touchRecs[ObjectIdentifier(t)] = TouchRec(role: "FART", seq: pressSeq); pressSeq += 1; doFart() }
+                else if inRound(zThrow, p.x, p.y) { touchRecs[ObjectIdentifier(t)] = TouchRec(role: "THROW", seq: pressSeq); pressSeq += 1; doThrow() }
+                else if p.y > ZONE_TOP { touchRecs[ObjectIdentifier(t)] = TouchRec(role: p.x < LW/2 ? "zoneL" : "zoneR", seq: pressSeq, sx: p.x, sy: p.y, st: t.timestamp); pressSeq += 1 }
             }
         }
     }
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
-            let key = ObjectIdentifier(t); guard var rec = touchRecs[key], rec.role == "L" || rec.role == "R" else { continue }
-            let p = toLogical(t.location(in: self)); if let id = btnAt(p.x, p.y), id == "L" || id == "R" { rec.role = id; touchRecs[key] = rec }
+            guard controlStyle == "buttons" else { continue }
+            let key = ObjectIdentifier(t), p = toLogical(t.location(in: self))
+            if var rec = touchRecs[key] {
+                guard rec.role == "L" || rec.role == "R" else { continue }
+                let hit = btnAt(p.x, p.y)
+                let nd = (hit == "L" || hit == "R") ? hit : moveZoneAt(p.x, p.y)
+                if let nd, nd != rec.role { rec.role = nd; rec.seq = pressSeq; pressSeq += 1; touchRecs[key] = rec }  // slide ◀↔▶
+            } else if let mz = moveZoneAt(p.x, p.y) {   // drag onto the pad after missing it
+                touchRecs[key] = TouchRec(role: mz, seq: pressSeq); pressSeq += 1
+            }
         }
     }
     private func endTouch(_ touches: Set<UITouch>) {

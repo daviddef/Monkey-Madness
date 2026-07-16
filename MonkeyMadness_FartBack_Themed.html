@@ -253,7 +253,15 @@ function pauseChoices(){ const w=232,h=56,x0=W/2-w/2,y=H/2-4;
 function pauseChoiceAt(x,y){ for(const c of pauseChoices()){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h)return c.id; } return null; }
 function pauseGame(){ if(st!==ST.PLAY&&st!==ST.BOSS)return; pauseFrom=st; st=ST.PAUSE; pointers.clear(); keys.clear(); sfx.pick(); }
 function toMenu(){ st=ST.START; clearField(); monkeys=[]; boss=null; sfx.pick(); }
-const pointers=new Map();            // pointerId -> {role, sx, sy, st}
+const pointers=new Map();            // pointerId -> {role, seq, sx, sy, st}
+let pressSeq=0;                      // press order, so the NEWEST direction wins
+// The drawn ◀▶ circles are the affordance, not the target: everything in the control
+// strip left of JUMP steers. A thumb landing low or between the buttons used to hit
+// nothing at all — the strip is 120 tall but the circles only accepted the middle 100.
+const MOVE_ZONE_R=190, MOVE_SPLIT=89;
+// Written as positive tests so NaN falls out as null. `y<CTRL_TOP||x>=MOVE_ZONE_R` is
+// false for NaN, which let a garbage coord through and returned a phantom 'R'.
+function moveZoneAt(x,y){ if(!(y>=CTRL_TOP)||!(x<MOVE_ZONE_R))return null; return x<MOVE_SPLIT?'L':'R'; }
 function toCanvas(e){const r=canvas.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};}
 // nearest-wins, so the tighter 5-button spacing can't hand a tap to the wrong neighbour
 function btnAt(x,y){let best=null,bd=1e9;for(const b of BTN){const dx=x-b.cx,dy=y-b.cy,d=dx*dx+dy*dy;if(d<=(b.r+10)*(b.r+10)&&d<bd){bd=d;best=b.id;}}return best;}
@@ -278,15 +286,21 @@ canvas.addEventListener('pointerdown',e=>{
   }
   if(inRound(PAUSE_BTN,x,y)){ pauseGame(); return; }
   if(controlStyle==='buttons'){
-    const id=btnAt(x,y); if(id){ pointers.set(e.pointerId,{role:id}); if(id==='JUMP')doJump(); else if(id==='FART')doFart(); else if(id==='THROW')doThrow(); }
+    const id=btnAt(x,y)||moveZoneAt(x,y);   // fall back to the wide steering zone
+    if(id){ pointers.set(e.pointerId,{role:id,seq:pressSeq++}); if(id==='JUMP')doJump(); else if(id==='FART')doFart(); else if(id==='THROW')doThrow(); }
   } else {
-    if(inRound(ZFART,x,y)){ pointers.set(e.pointerId,{role:'FART'}); doFart(); }
-    else if(inRound(ZTHROW,x,y)){ pointers.set(e.pointerId,{role:'THROW'}); doThrow(); }
-    else if(y>ZONE_TOP){ pointers.set(e.pointerId,{role:x<W/2?'zoneL':'zoneR',sx:x,sy:y,st:e.timeStamp}); }
+    if(inRound(ZFART,x,y)){ pointers.set(e.pointerId,{role:'FART',seq:pressSeq++}); doFart(); }
+    else if(inRound(ZTHROW,x,y)){ pointers.set(e.pointerId,{role:'THROW',seq:pressSeq++}); doThrow(); }
+    else if(y>ZONE_TOP){ pointers.set(e.pointerId,{role:x<W/2?'zoneL':'zoneR',seq:pressSeq++,sx:x,sy:y,st:e.timeStamp}); }
   }
 },{passive:false});
-canvas.addEventListener('pointermove',e=>{ const rec=pointers.get(e.pointerId); if(!rec)return;
-  if(controlStyle==='buttons'&&(rec.role==='L'||rec.role==='R')){ const {x,y}=toCanvas(e); const id=btnAt(x,y); if(id==='L'||id==='R')rec.role=id; } },{passive:false});
+canvas.addEventListener('pointermove',e=>{
+  if(controlStyle!=='buttons')return;
+  const rec=pointers.get(e.pointerId), {x,y}=toCanvas(e);
+  if(rec){ if(rec.role==='L'||rec.role==='R'){ const id=btnAt(x,y), nd=(id==='L'||id==='R')?id:moveZoneAt(x,y);
+      if(nd&&nd!==rec.role){ rec.role=nd; rec.seq=pressSeq++; } } }   // slide between ◀ and ▶
+  else { const mz=moveZoneAt(x,y); if(mz) pointers.set(e.pointerId,{role:mz,seq:pressSeq++}); }  // drag onto the pad
+},{passive:false});
 function endP(e){ const rec=pointers.get(e.pointerId); if(rec){ if(rec.role==='zoneL'||rec.role==='zoneR'){ const {x,y}=toCanvas(e); const dt=e.timeStamp-rec.st, dist=Math.hypot(x-rec.sx,y-rec.sy); if(dt<250&&dist<28)doJump(); } pointers.delete(e.pointerId); } }
 canvas.addEventListener('pointerup',endP); canvas.addEventListener('pointercancel',endP); canvas.addEventListener('pointerleave',endP);
 window.addEventListener('keydown',e=>{ if([' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))e.preventDefault(); initAudio();
@@ -299,8 +313,21 @@ window.addEventListener('keydown',e=>{ if([' ','ArrowUp','ArrowDown','ArrowLeft'
   if(e.key==='f'||e.key==='F'||e.key==='ArrowDown'||e.key==='Shift')doFart();
   if(e.key==='b'||e.key==='B'||e.key==='x'||e.key==='X'||e.key==='Enter')doThrow(); keys.add(e.key); });
 window.addEventListener('keyup',e=>keys.delete(e.key));
+// Held-state, for lighting the buttons up.
 const leftHeld=()=>{ if(keys.has('ArrowLeft')||keys.has('a'))return true; const r=roles(); return r.includes('L')||r.includes('zoneL'); };
 const rightHeld=()=>{ if(keys.has('ArrowRight')||keys.has('d'))return true; const r=roles(); return r.includes('R')||r.includes('zoneR'); };
+// Which way you actually go. The NEWEST press wins: holding ◀ and then resting a second
+// thumb on ▶ used to cancel to a dead stop, which read as "the sprite just won't move".
+function moveDir(){
+  let dir=0, bestSeq=-1;
+  for(const r of pointers.values()){
+    const d=(r.role==='L'||r.role==='zoneL')?-1:((r.role==='R'||r.role==='zoneR')?1:0);
+    if(d&&(r.seq??0)>bestSeq){ bestSeq=r.seq??0; dir=d; }
+  }
+  if(dir)return dir;
+  const kl=keys.has('ArrowLeft')||keys.has('a'), kr=keys.has('ArrowRight')||keys.has('d');
+  return (kl&&!kr)?-1:((kr&&!kl)?1:0);
+}
 
 // ============================================================
 // GAME FLOW / LOGIC  (unchanged across themes)
@@ -371,7 +398,7 @@ function update(dt){
   gameT+=dt; if(tipT>0)tipT-=dt; score+=dt*8*(P.x2T>0?2:1);
   if(st===ST.PLAY){ levelT+=dt; const cfg=LEVELS[level-1]; if(monkeys.length<cfg.monkeys)setMonkeyCount(cfg.monkeys); if(levelT>=cfg.secs){ completeLevel(); return; } }
   // movement (blocked while slipping; slowed while mushy)
-  if(P.slipT<=0){ const spd=PSPEED*(P.mushT>0?.45:1); if(leftHeld())P.x-=spd*dt; if(rightHeld())P.x+=spd*dt; }
+  if(P.slipT<=0){ const spd=PSPEED*(P.mushT>0?.45:1); P.x+=moveDir()*spd*dt; }
   P.x=Math.max(24,Math.min(W-24,P.x));
   if(!P.onGround){P.vy+=GRAV*dt;P.y+=P.vy*dt;if(P.y>=PLAYER_GY){P.y=PLAYER_GY;P.vy=0;P.onGround=true;P.squashT=.18;for(let i=0;i<5;i++)particles.push(puff(P.x+R(-10,10),PLAYER_GY+20,R(-60,60),R(-10,30)));}}
   if(P.squashT>0)P.squashT-=dt; if(P.stretch>0)P.stretch=Math.max(0,P.stretch-dt*3);
