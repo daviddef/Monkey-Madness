@@ -47,7 +47,10 @@ farts are ~70% of the comedy.
 - **Monkey types**: regular · **Machine-Gun Marmoset** (small, rapid bursts of tiny
   fast bananas) · **Boomer Baboon** (big, telegraphs a **!!** charge then fires a wide
   3-banana black blast) · **Sniper Chimp** (monocle; its laser **tracks** you, then
-  **locks red** — step off the line before it fires, or bonk it to cancel the shot).
+  **locks red** — step off the line before it fires, or bonk it to cancel the shot) ·
+  **Balloon Monkey** (floats out in the middle of the screen and drops bananas straight
+  down — one hit **pops** it for a shower of coins) · **Baby Monkey** (tiny, squeaky, a
+  big wind-up then a lazy lob — always worth double coins).
   Variety ramps up as you survive longer.
 - **Gas meter**: farting costs gas that recharges, so you can't just spam it.
 - Chain stuns to build your combo. Getting hit resets it.

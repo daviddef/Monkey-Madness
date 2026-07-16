@@ -40,6 +40,8 @@ paste what you like into App Store Connect. Everything below is a suggestion, no
 > • Machine-Gun Marmoset — rapid bursts of tiny bananas
 > • Boomer Baboon — charges up, then a wide black blast
 > • Sniper Chimp — a laser that tracks you, then locks red. Move!
+> • Balloon Monkey — floats out in the open. One hit and it POPS.
+> • Baby Monkey — tiny, squeaky, and worth double bananas
 > • King Kong-a-Toot — the boss, in three telegraphed phases
 >
 > **Four worlds, one tap apart.** Loud!, Doodle, Inkwell and Plasticine each have
@@ -62,7 +64,13 @@ paste what you like into App Store Connect. Everything below is a suggestion, no
 
 `fart,monkey,banana,funny,kids,dodge,silly,arcade,jump,family,cartoon,comedy,gross,pixel`
 
-## What's New (for 1.7)
+## What's New (for 1.8)
+
+> • NEW: Balloon Monkey — floats out in the open and drops bananas. Pop it!
+> • NEW: Baby Monkey — tiny, squeaky, and worth double bananas
+> • NEW: rolling scenery behind every world
+
+## Earlier: 1.7
 
 > • NEW: 🍌 Banana Coins — bonk monkeys, collect coins, spend them in the Banana Shop
 > • NEW: Banana Shop — 6 hats and 5 fart colours. All earned. No ads, no purchases.
