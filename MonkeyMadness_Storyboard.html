@@ -261,21 +261,22 @@
         <div class="item"><span class="s">✅</span><span class="t">Regular monkey <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">Machine-Gun Marmoset <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">Boomer Baboon (charge blast) <span class="k ship">shipped</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Sniper Chimp — aimed straight shot, laser tell <span class="k next">next-ish</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Sniper Chimp — laser tracks 0.75s, locks red 0.4s, straight shot <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">Balloon Monkey — floats, pops on deflect <span class="k later">later</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">Baby monkey — tiny squeaky farts, comedic <span class="k maybe">maybe</span></span></div>
       </div>
 
       <div class="cat"><h4>💨 Player moves</h4>
         <div class="item"><span class="s">✅</span><span class="t">Fart-jump + double context <span class="k ship">shipped</span></span></div>
-        <div class="item"><span class="s">✅</span><span class="t">Fart-back: shoot + barrier <span class="k ship">shipped</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Fart back (gas, rising cloud + barrier) <span class="k ship">shipped</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Throw banana (ammo, auto-aimed) + banana pickups <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">Mega-Hover — hold to charge &amp; float <span class="k later">later</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">Panic Parp — screen-clear bomb on cooldown <span class="k maybe">maybe</span></span></div>
       </div>
 
       <div class="cat"><h4>🎁 Power-ups</h4>
         <div class="item"><span class="s">🔨</span><span class="t">Gas Mask · Golden Banana · Nose Plug · Beano <span class="k next">building</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Bean Can — instant full gas <span class="k later">later</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Bean Can — rapid fire, full gas + ammo <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">Magnet — pulls coins in <span class="k maybe">maybe</span></span></div>
       </div>
 
@@ -287,7 +288,7 @@
 
       <div class="cat"><h4>🗺️ Modes &amp; arenas</h4>
         <div class="item"><span class="s">✅</span><span class="t">4 art-direction themes <span class="k ship">shipped</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">10 levels + boss (main mode) <span class="k next">queued</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">10 levels + boss (main mode) <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">Jetpack Climber (vertical) <span class="k later">later</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">Arena / 2-player couch <span class="k maybe">maybe</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">Arenas: Volcano, Swamp, Space, Kitchen <span class="k later">later</span></span></div>
@@ -309,7 +310,7 @@
       <div class="cat"><h4>✨ Juice &amp; polish</h4>
         <div class="item"><span class="s">✅</span><span class="t">Sticker pops, screen-flash, hitstop <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">Parallax background layers <span class="k later">later</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Haptics (Swift only) <span class="k later">later</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Haptics (Swift only) <span class="k ship">shipped</span></span></div>
       </div>
 
       <div class="cat"><h4>♿ Accessibility / kid-safe</h4>
@@ -348,6 +349,7 @@
     <div class="eyebrow"><span class="n">06</span> Changelog</div>
     <h2>What's shipped so far</h2>
     <div class="changelog">
+      <div class="cl"><span class="v">v14</span><span class="d"><b>Sniper Chimp + haptics</b> — a monocled monkey whose laser <b>tracks you for 0.75s</b>, then <b>locks red for 0.4s</b> and fires a fast, straight, gravity-free shot down the exact line it drew (~1.9s of total warning). Step off the line and you're safe; stand on it and you're not; <b>bonking it mid-aim cancels the shot</b>. From level 6 — the first enemy that punishes <i>standing still</i> rather than being in the wrong place. Plus <b>iOS haptics</b> (bonk / hurt / pickup / lock-warning / boss), generators pre-warmed so the buzz lands on the beat.</span></div>
       <div class="cl"><span class="v">build</span><span class="d"><b>Versioning fixed</b> — <code>project.yml</code>'s <code>MARKETING_VERSION</code>/<code>CURRENT_PROJECT_VERSION</code> were being <i>silently ignored</i>: xcodegen writes literal <code>1.0</code>/<code>1</code> into Info.plist unless the keys reference <code>$(MARKETING_VERSION)</code>/<code>$(CURRENT_PROJECT_VERSION)</code>. Every archive would have shipped as build 1 and been rejected as a duplicate. Now wired through — TestFlight builds are <b>1.1 (2)</b> onward.</span></div>
       <div class="cl"><span class="v">v13</span><span class="d"><b>Pause / main menu + full-bleed screen</b> — added a <b>⏸ button</b> (top-left, away from both thumbs) opening <b>RESUME</b> / <b>MAIN MENU</b>; there was previously no way out of a run. The canvas now takes the device's <b>real aspect ratio</b> instead of being letterboxed at 480×760, reclaiming <b>~27% of the screen</b>, inset for the Dynamic Island and home indicator. Difficulty is unaffected — monkey throws are timed to a flight <i>duration</i>, not a speed — and the fart cloud's rise is now <i>derived</i> from the field height so it still reaches the branch in ~1.5s on any screen. HTML + Swift.</span></div>
       <div class="cl"><span class="v">v12</span><span class="d"><b>Two attacks, not one</b> — 💨 <b>FART BACK</b> (costs gas) now sends a <i>rising cloud</i> up the screen that eats bananas and gasses monkeys — ~1.5s to reach the branch, so they can swing clear; you aim it by standing under them. 🍌 <b>THROW BANANA</b> (costs ammo) is the fast, auto-aimed, reliable stun. Ammo comes from the monkeys themselves: bananas that land intact become pickups you walk over. Slow-area vs. fast-precise — two real choices instead of one button. Controls go to five buttons. HTML + Swift.</span></div>
