@@ -24,6 +24,7 @@ private final class Monkey {
     var swingT: CGFloat, swayX: CGFloat, vx: CGFloat, retargetT: CGFloat
     var throwT: CGFloat, angryT: CGFloat = 0, stun: CGFloat = 0, wob: CGFloat = 0, gust: CGFloat = 0
     var kind = "reg", charge: CGFloat = 0
+    var aimT: CGFloat = 0, lockX: CGFloat = 0, lockY: CGFloat = 0, locked = false   // Sniper Chimp
     init(x: CGFloat, y: CGFloat) {
         self.x = x; self.y = y; bx = x; by = y
         swingT = R(0, 6.28); swayX = R(7, 13)
@@ -33,6 +34,7 @@ private final class Monkey {
 private final class Banana {
     var x: CGFloat, y: CGFloat, vx: CGFloat, vy: CGFloat, rot: CGFloat, rotV: CGFloat
     var friendly: Bool; var type: String; var small = false
+    var straight = false   // sniper shots ignore gravity so they fly the line they telegraphed
     init(x: CGFloat, y: CGFloat, vx: CGFloat, vy: CGFloat, rotV: CGFloat, friendly: Bool, type: String) {
         self.x = x; self.y = y; self.vx = vx; self.vy = vy; rot = 0; self.rotV = rotV; self.friendly = friendly; self.type = type
     }
@@ -109,6 +111,8 @@ final class GameView: UIView {
     private let AMMO_MAX = 6, AMMO_START = 3
     private let FCLOUD_LIFE: CGFloat = 2.6, FCLOUD_DRAG: CGFloat = 10, GBAN_LIFE: CGFloat = 6, FCLOUD_T: CGFloat = 1.5
     private var FCLOUD_RISE: CGFloat { -((PLAYER_GY - 110 - 60)/FCLOUD_T) }
+    // Sniper Chimp: laser tracks you for (AIM_T - LOCK_T), then LOCKS and turns red.
+    private let AIM_T: CGFloat = 1.15, LOCK_T: CGFloat = 0.4, SNIPE_SPD: CGFloat = 640
     private let LIVES_MAX = 4
     private let cMask = hex("25d4e8"), cGold = hex("ffe234"), cPlug = hex("b06bff"), cBeano = hex("93e552"), cBean = hex("ffab2e"), cMega = hex("ff4db8")
 
@@ -191,11 +195,31 @@ final class GameView: UIView {
     private var cg: CGContext!
     private let audio = FartAudio()
 
+    // MARK: - Haptics
+    // Generators are kept alive and pre-warmed; creating one per hit adds latency and the
+    // buzz lands after the thing it's meant to punctuate.
+    private enum Haptic { case bonk, hurt, pick, warning, boss }
+    private let hLight = UIImpactFeedbackGenerator(style: .light)
+    private let hMed = UIImpactFeedbackGenerator(style: .medium)
+    private let hHeavy = UIImpactFeedbackGenerator(style: .heavy)
+    private let hNotify = UINotificationFeedbackGenerator()
+    private func prepareHaptics() { hLight.prepare(); hMed.prepare(); hHeavy.prepare(); hNotify.prepare() }
+    private func haptic(_ k: Haptic) {
+        switch k {
+        case .bonk: hMed.impactOccurred(); hMed.prepare()
+        case .hurt: hNotify.notificationOccurred(.error); hNotify.prepare()
+        case .pick: hLight.impactOccurred(intensity: 0.7); hLight.prepare()
+        case .warning: hLight.impactOccurred(intensity: 0.5); hLight.prepare()
+        case .boss: hHeavy.impactOccurred(); hHeavy.prepare()
+        }
+    }
+
     override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .black; isMultipleTouchEnabled = true; P.y = PLAYER_GY }
     required init?(coder: NSCoder) { fatalError() }
 
     func start() {
         stop()
+        prepareHaptics()
         let l = CADisplayLink(target: self, selector: #selector(tick))
         l.add(to: .main, forMode: .common)
         link = l; lastTs = 0
@@ -320,8 +344,9 @@ final class GameView: UIView {
     private func pickKind() -> String {
         if level < 5 { return "reg" }
         let r = CGFloat.random(in: 0...1)
-        if level >= 7 && r < 0.16 { return "boom" }
-        return r < 0.70 ? "reg" : "gun"
+        if level >= 7 && r < 0.14 { return "boom" }
+        if level >= 6 && r < 0.30 { return "sniper" }
+        return r < 0.72 ? "reg" : "gun"
     }
     private func groundSplat(_ b: Banana) {
         burstFx(b.x, GROUND_Y-2, 4)
@@ -335,7 +360,7 @@ final class GameView: UIView {
     }
     private func slip(_ p: Peel) {
         P.slipT = SLIP_T; P.onGround = true; P.vy = 0; combo = 0; p.life = 0
-        audio.fart(freq: 270, dur: 0.5, flutter: 22, cutoff: 1300, gain: 0.35); addShake(8, 0.2)
+        audio.fart(freq: 270, dur: 0.5, flutter: 22, cutoff: 1300, gain: 0.35); addShake(8, 0.2); haptic(.hurt)
         addFloat(P.x, P.y-40, "WHOOPS!", cAccent, 17)
         for _ in 0..<8 { particles.append(puff(P.x + R(-14, 14), PLAYER_GY+18, R(-80, 80), R(-20, 20))) }
     }
@@ -345,7 +370,7 @@ final class GameView: UIView {
         powerups.append(PowerUp(x: max(24, min(LW-24, x)), y: y, vy: R(10, 50), kind: kind))
     }
     private func collectPU(_ pu: PowerUp) {
-        audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24); addShake(5, 0.12); burstFx(P.x, P.y-16, 9)
+        audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24); addShake(5, 0.12); burstFx(P.x, P.y-16, 9); haptic(.pick)
         switch pu.kind {
         case "mask": P.shieldT = PU_SHIELD; addPop(P.x, P.y-52, "SHIELD!", cMask)
         case "gold": P.x2T = PU_X2; addPop(P.x, P.y-52, "SCORE x2!", cGold)
@@ -356,7 +381,7 @@ final class GameView: UIView {
         }
     }
     private func megaFart() {
-        doFlash(cFart, 0.6); addShake(16, 0.5); hitstop = max(hitstop, 0.06); audio.fart(freq: 80, dur: 0.4, flutter: 12, cutoff: 900, gain: 0.5); megaRingT = 0.6
+        doFlash(cFart, 0.6); addShake(16, 0.5); hitstop = max(hitstop, 0.06); audio.fart(freq: 80, dur: 0.4, flutter: 12, cutoff: 900, gain: 0.5); megaRingT = 0.6; haptic(.boss)
         addPop(P.x, P.y-52, "MEGA FART!!", cMega)
         bananas = bananas.filter { b in if !b.friendly { burstFx(b.x, b.y, 3); return false }; return true }
         for m in monkeys where m.stun <= 0 { m.stun = 3; m.wob = 0; m.angryT = 0; burstFx(m.bx, m.by, 8) }
@@ -370,7 +395,7 @@ final class GameView: UIView {
         if type == "brown" { P.mushT = 1.2; combo = 0; P.face = 1; P.faceT = 1; P.inv = true; P.invT = 0.7; P.blinkT = 0
             burstFx(bx, by, 6); addShake(6, 0.18); doFlash(hex("b07a44"), 0.14); addFloat(P.x, P.y-44, "SPLAT!", hex("b07a44"), 18); return }
         lives -= 1; combo = 0; P.inv = true; P.invT = 1.8; P.blinkT = 0; P.face = 1; P.faceT = 1
-        burstFx(bx, by, 10); addShake(type == "black" ? 14 : 12, 0.3); doFlash(hex("ff5a5a"), 0.32); hitstop = max(hitstop, 0.08)
+        burstFx(bx, by, 10); addShake(type == "black" ? 14 : 12, 0.3); doFlash(hex("ff5a5a"), 0.32); hitstop = max(hitstop, 0.08); haptic(.hurt)
         audio.fart(freq: 270, dur: 0.5, flutter: 22, cutoff: 1300, gain: 0.4)
         addPop(P.x, P.y-46, type == "black" ? "BLECH!" : "OUCH!", hex("ff5a5a"))
         if lives <= 0 { gameOver() }
@@ -383,7 +408,7 @@ final class GameView: UIView {
     private func killBoss() {
         guard let b = boss, b.deathT <= 0 else { return }
         b.deathT = 1.3; b.weakT = 0; b.chargeT = 0; b.slamT = 0
-        bananas = bananas.filter { $0.friendly }; addShake(16, 0.6); doFlash(.white, 0.4); audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24)
+        bananas = bananas.filter { $0.friendly }; addShake(16, 0.6); doFlash(.white, 0.4); audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24); haptic(.boss)
     }
     private func spawnMinions(_ n: Int) {
         for i in 0..<n {
@@ -479,7 +504,9 @@ final class GameView: UIView {
         // monkeys
         for m in monkeys {
             m.swingT += dt*2.6; if m.gust > 0 { m.gust -= dt }
-            if m.stun > 0 { m.stun -= dt; m.wob += dt*20; m.bx = m.x + sin(m.wob)*4; m.by = m.y + 6; continue }
+            if m.stun > 0 { m.stun -= dt; m.wob += dt*20; m.bx = m.x + sin(m.wob)*4; m.by = m.y + 6
+                m.aimT = 0; m.locked = false   // bonking a sniper cancels its shot — that's the reward
+                continue }
             m.retargetT -= dt; if m.retargetT <= 0 { m.retargetT = R(1.6, 3.6); m.vx = (Bool.random() ? -1 : 1) * R(30, 72) }
             m.x += m.vx*dt; if m.x < 52 { m.x = 52; m.vx = abs(m.vx) } else if m.x > LW-52 { m.x = LW-52; m.vx = -abs(m.vx) }
             m.bx = m.x + sin(m.swingT)*m.swayX; m.by = m.y + (1 - cos(m.swingT))*3
@@ -495,8 +522,23 @@ final class GameView: UIView {
                     audio.fart(freq: Double(R(70, 92)), dur: 0.4, flutter: 13, cutoff: 900, gain: 0.46)
                     for _ in 0..<12 { let a = R(1.3, 3.1); particles.append(puff(m.bx + R(-8, 8), m.by+28, cos(a)*R(40, 110), sin(a)*R(40, 110)+30)) }
                 }
+            } else if m.aimT > 0 {
+                // SNIPER: laser tracks you, then locks (red) — step off the line before it fires.
+                m.aimT -= dt; m.angryT = max(m.angryT, 0.2)
+                if m.aimT > LOCK_T { m.lockX = P.x; m.lockY = P.y - 14 }
+                else if !m.locked { m.locked = true; audio.tone(f0: 1100, f1: 1500, dur: 0.09, gain: 0.14); haptic(.warning) }
+                if m.aimT <= 0 {
+                    m.locked = false; m.gust = 0.5; addShake(3, 0.08)
+                    audio.fart(freq: Double(R(115, 155)), dur: 0.18, flutter: 22, cutoff: 1500, gain: 0.32)
+                    let dx = m.lockX - m.bx, dy = m.lockY - (m.by+24), d = max(1, hypot(dx, dy))
+                    let b = Banana(x: m.bx, y: m.by+24, vx: dx/d*SNIPE_SPD, vy: dy/d*SNIPE_SPD, rotV: 0, friendly: false, type: "black")
+                    b.straight = true; b.rot = atan2(dy, dx); bananas.append(b)
+                    for _ in 0..<10 { let a = atan2(dy, dx) + R(-0.5, 0.5); particles.append(puff(m.bx, m.by+26, cos(a)*R(60, 130), sin(a)*R(60, 130))) }
+                }
             } else if m.throwT <= 0 {
-                if m.kind == "gun" {
+                if m.kind == "sniper" {
+                    m.throwT = baseIv * R(1.35, 1.8); m.aimT = AIM_T; m.locked = false; m.lockX = P.x; m.lockY = P.y - 14
+                } else if m.kind == "gun" {
                     m.throwT = baseIv * R(0.72, 1.0); m.angryT = 0.22; m.gust = 0.28
                     for _ in 0..<2 {
                         let tf: CGFloat = max(0.5, flight*0.72), fx = m.bx + R(-4, 4), fy = m.by+22, rx = P.x + R(-30, 30)
@@ -528,7 +570,8 @@ final class GameView: UIView {
         // bananas
         let wdt = dt * (P.slowT > 0 ? 0.45 : 1)
         bananas = bananas.filter { b in
-            b.vy += GRAV*wdt; b.x += b.vx*wdt; b.y += b.vy*wdt; b.rot += b.rotV*wdt
+            if !b.straight { b.vy += GRAV*wdt }   // sniper shots fly the line they telegraphed
+            b.x += b.vx*wdt; b.y += b.vy*wdt; b.rot += b.rotV*wdt
             if b.type == "black" && !b.friendly && CGFloat.random(in: 0...1) < 0.35 { particles.append(puff(b.x, b.y, R(-20, 20), R(-10, 20))) }
             if b.x < -60 || b.x > LW+60 || b.y > LH+80 { return false }
             if b.friendly {
@@ -543,7 +586,7 @@ final class GameView: UIView {
                         burstFx(m.bx, m.by, 12); addShake(combo >= 3 ? 9 : 6, 0.16)
                         addPop(m.bx, m.by-8, combo >= 6 ? "MEGA!" : (combo >= 3 ? "BONK!" : "POW!"), cAccent)
                         doFlash(cFart, combo >= 3 ? 0.3 : 0.15); hitstop = max(hitstop, 0.05)
-                        audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24)
+                        audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24); haptic(combo >= 3 ? .boss : .bonk)
                         if CGFloat.random(in: 0...1) < 0.32 { spawnPU(m.bx, m.by) }
                         return false
                     }
@@ -574,7 +617,7 @@ final class GameView: UIView {
                     let pts = 60 * combo * (P.x2T > 0 ? 2 : 1); score += CGFloat(pts)
                     addFloat(m.bx, m.by-38, "+\(pts)" + (combo > 1 ? "  x\(combo)" : ""), cFart, combo > 2 ? 21 : 16)
                     burstFx(m.bx, m.by, 10); addPop(m.bx, m.by-8, combo >= 6 ? "GASSED!" : "PHEW!", cFart)
-                    doFlash(cFart, 0.16); addShake(5, 0.12); audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24)
+                    doFlash(cFart, 0.16); addShake(5, 0.12); audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24); haptic(.bonk)
                     if CGFloat.random(in: 0...1) < 0.28 { spawnPU(m.bx, m.by) }
                 }
             }
@@ -594,7 +637,7 @@ final class GameView: UIView {
         groundBananas = groundBananas.filter { g in
             g.life -= dt; g.bob += dt*4
             if P.bananas < AMMO_MAX && abs(g.x - P.x) < 26 && abs(g.y - P.y) < 44 {
-                P.bananas += 1; audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24)
+                P.bananas += 1; audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24); haptic(.pick)
                 addFloat(g.x, g.y-26, "+1", cBanana, 15)
                 for _ in 0..<4 { particles.append(puff(g.x, g.y, R(-40, 40), R(-70, -10))) }
                 return false
@@ -727,6 +770,7 @@ final class GameView: UIView {
         if shakeT > 0 { ctx.translateBy(x: R(-1, 1)*shakeMag*shakeT, y: R(-1, 1)*shakeMag*shakeT) }
         drawBg()
         for c in clouds { drawCloud(c) }
+        for m in monkeys { drawLaser(m) }
         for m in monkeys { drawMonkey(m) }
         if let b = boss { drawBoss(b) }   // not `st == .boss`: it must stay drawn while paused
         for pe in peels { drawPeel(pe) }
@@ -797,8 +841,33 @@ final class GameView: UIView {
         }
         for (x, y) in [(lx, ly), (rx, ry)] { fillCircle(x, y, 3.6, .black) }
     }
+    private func drawLaser(_ m: Monkey) {
+        guard m.aimT > 0, m.stun <= 0 else { return }
+        let fx = m.bx, fy = m.by + 24, locked = m.aimT <= LOCK_T
+        let tx = locked ? m.lockX : P.x, ty = locked ? m.lockY : P.y - 14
+        let dx = tx - fx, dy = ty - fy, d = max(1, hypot(dx, dy)), ux = dx/d, uy = dy/d
+        cg.saveGState()
+        if locked {   // LOCKED — solid, red, pulsing: move NOW
+            let pulse = 0.55 + 0.45*sin(m.aimT*40)
+            cg.setAlpha(pulse); cg.setStrokeColor(hex("ff3b3b").cgColor); cg.setLineWidth(3); cg.setLineDash(phase: 0, lengths: [])
+            cg.move(to: CGPoint(x: fx, y: fy)); cg.addLine(to: CGPoint(x: fx + ux*1400, y: fy + uy*1400)); cg.strokePath()
+            cg.setAlpha(pulse*0.9); cg.setLineWidth(2.5)
+            cg.strokeEllipse(in: CGRect(x: tx-15, y: ty-15, width: 30, height: 30))
+            cg.move(to: CGPoint(x: tx-21, y: ty)); cg.addLine(to: CGPoint(x: tx-8, y: ty))
+            cg.move(to: CGPoint(x: tx+8, y: ty)); cg.addLine(to: CGPoint(x: tx+21, y: ty))
+            cg.move(to: CGPoint(x: tx, y: ty-21)); cg.addLine(to: CGPoint(x: tx, y: ty-8))
+            cg.move(to: CGPoint(x: tx, y: ty+8)); cg.addLine(to: CGPoint(x: tx, y: ty+21)); cg.strokePath()
+        } else {      // tracking — thin dashed, harmless-looking
+            cg.setAlpha(0.4); cg.setStrokeColor(cAccent.cgColor); cg.setLineWidth(1.5); cg.setLineDash(phase: 0, lengths: [7, 9])
+            cg.move(to: CGPoint(x: fx, y: fy)); cg.addLine(to: CGPoint(x: tx, y: ty)); cg.strokePath()
+            cg.setLineDash(phase: 0, lengths: [])
+            cg.setAlpha(0.5); cg.strokeEllipse(in: CGRect(x: tx-11, y: ty-11, width: 22, height: 22))
+        }
+        cg.restoreGState(); cg.setAlpha(1)
+    }
     private func drawMonkey(_ m: Monkey) {
-        let x = m.bx, y = m.by, sc: CGFloat = m.kind == "boom" ? 1.26 : (m.kind == "gun" ? 0.82 : 1)
+        let x = m.bx, y = m.by
+        let sc: CGFloat = m.kind == "boom" ? 1.26 : (m.kind == "gun" ? 0.82 : (m.kind == "sniper" ? 0.9 : 1))
         cg.setStrokeColor(cMonkeyBody.cgColor); cg.setLineWidth(8*sc); cg.setLineCap(.round)
         cg.move(to: CGPoint(x: m.x, y: BRANCH_Y+2)); cg.addLine(to: CGPoint(x: x-4*sc, y: y-15*sc)); cg.strokePath()
         fillCircle(m.x, BRANCH_Y+1, 5, cMonkeyBody)
@@ -812,6 +881,13 @@ final class GameView: UIView {
         fillEllipse(0, -16, 18, 15, cMonkeyBody)
         fillEllipse(0, -13, 11, 10, cMonkeyFace)
         drawEyes(-6, -14, 6, -14, dead: m.stun > 0)
+        if m.kind == "sniper" && m.stun <= 0 {   // monocle scope over one eye
+            cg.setStrokeColor(cOutline.cgColor); cg.setLineWidth(2.2)
+            cg.strokeEllipse(in: CGRect(x: -1.5, y: -21.5, width: 15, height: 15))
+            cg.setAlpha(0.35); fillCircle(6, -14, 7, (m.aimT > 0 && m.aimT <= LOCK_T) ? hex("ff3b3b") : cAccent); cg.setAlpha(1)
+            cg.setStrokeColor(cOutline.cgColor); cg.setLineWidth(2.2)
+            cg.move(to: CGPoint(x: 13, y: -14)); cg.addLine(to: CGPoint(x: 19, y: -11)); cg.strokePath()
+        }
         fillEllipse(-11, 14, 14, 13, cMonkeyBody); fillEllipse(11, 14, 14, 13, cMonkeyBody)
         cg.setStrokeColor(cOutline.cgColor); cg.setLineWidth(5); cg.setLineCap(.round)
         cg.move(to: CGPoint(x: 0, y: 3)); cg.addLine(to: CGPoint(x: 0, y: 25)); cg.strokePath()
