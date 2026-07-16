@@ -73,6 +73,83 @@ private final class Floater { var x, y, vy, life, maxLife, size: CGFloat; var te
     init(x: CGFloat, y: CGFloat, text: String, color: UIColor, size: CGFloat) {
         self.x = x; self.y = y; vy = -46; life = 1.1; maxLife = 1.1; self.text = text; self.color = color; self.size = size } }
 
+// MARK: - Themes
+// Art direction is DATA + a few draw hooks (bg / eyes / fonts / sound), not baked into the
+// renderer — mirrors the web build so a new world is a table entry, not a new code path.
+private struct FartSound { let freq: Double, dur: Double, flutter: Double, cutoff: Double, gain: Double }
+private struct Theme {
+    let name: String, icon: String
+    let bg: String                       // halftone | paper | inkpaper | clay
+    var bgBase: UIColor = .black
+    var bgDot: UIColor = .clear
+    var rule: UIColor = .clear, margin: UIColor = .clear     // paper
+    var bgTop: UIColor = .clear, bgBot: UIColor = .clear     // clay gradient
+    let ground: UIColor, groundEdge: UIColor
+    let outline: UIColor, outlineW: CGFloat
+    let monkeyBody: UIColor, monkeyFace: UIColor, ear: UIColor
+    let playerBody: UIColor, playerSkin: UIColor
+    let banana: UIColor, bananaTip: UIColor
+    let fart: UIColor, fartRing: UIColor
+    let eye: String                      // dot | googly | pie | clay
+    let text: UIColor, accent: UIColor, panel: UIColor, border: UIColor
+    let wood: UIColor, leaf: UIColor
+    var smokeRings = false, highlight = false, vignette = false
+    let fontFamily: String               // "" = system
+    var titleItalic = false, rounded = false
+    let sThrow: FartSound, sJump: FartSound, sBlast: FartSound
+    var airhorn = false
+}
+private let THEME_ORDER = ["loud", "doodle", "ink", "clay"]
+private let THEMES: [String: Theme] = [
+    "loud": Theme(name: "LOUD!", icon: "\u{1F4A5}", bg: "halftone",
+        bgBase: hex("2a1857"), bgDot: hex("ff3d7f"),
+        ground: hex("17d1e8"), groundEdge: hex("0fb0c6"), outline: hex("000000"), outlineW: 5,
+        monkeyBody: hex("8a4bd6"), monkeyFace: hex("ffe022"), ear: hex("7a3ec6"),
+        playerBody: hex("17d1e8"), playerSkin: hex("ffb0c7"),
+        banana: hex("ffe234"), bananaTip: hex("e0b800"), fart: hex("7CFF5A"), fartRing: hex("c8ffb0"),
+        eye: "dot", text: hex("ffffff"), accent: hex("ffe022"), panel: hex("2a1857", 0.92), border: hex("ff3d7f"),
+        wood: hex("3a2557"), leaf: hex("17d1e8"), fontFamily: "", titleItalic: true,
+        sThrow: FartSound(freq: 150, dur: 0.2, flutter: 24, cutoff: 1500, gain: 0.32),
+        sJump: FartSound(freq: 250, dur: 0.14, flutter: 30, cutoff: 1900, gain: 0.28),
+        sBlast: FartSound(freq: 90, dur: 0.4, flutter: 16, cutoff: 1300, gain: 0.5), airhorn: true),
+    "doodle": Theme(name: "Doodle", icon: "\u{1F58D}", bg: "paper",
+        bgBase: hex("fbf7ea"), rule: hex("cfe0ef"), margin: hex("e8907f"),
+        ground: hex("8fca6a"), groundEdge: hex("5a9a3a"), outline: hex("5a3a17"), outlineW: 3,
+        monkeyBody: hex("a06a34"), monkeyFace: hex("d0a468"), ear: hex("8a5a2b"),
+        playerBody: hex("e24b3a"), playerSkin: hex("f4c9a0"),
+        banana: hex("f4c020"), bananaTip: hex("b98a00"), fart: hex("8fca6a"), fartRing: hex("c3e6a6"),
+        eye: "googly", text: hex("3a2a17"), accent: hex("e24b3a"), panel: hex("fbf7ea", 0.95), border: hex("3f6fd1"),
+        wood: hex("8a5a2b"), leaf: hex("4aa63e"), fontFamily: "ChalkboardSE-Bold",
+        sThrow: FartSound(freq: 300, dur: 0.17, flutter: 34, cutoff: 2200, gain: 0.24),
+        sJump: FartSound(freq: 430, dur: 0.12, flutter: 36, cutoff: 2600, gain: 0.22),
+        sBlast: FartSound(freq: 210, dur: 0.3, flutter: 26, cutoff: 1800, gain: 0.34)),
+    "ink": Theme(name: "Inkwell", icon: "\u{1F3A9}", bg: "inkpaper",
+        bgBase: hex("efe4c6"),
+        ground: hex("181410"), groundEdge: hex("2a2016"), outline: hex("181410"), outlineW: 3,
+        monkeyBody: hex("181410"), monkeyFace: hex("efe4c6"), ear: hex("181410"),
+        playerBody: hex("181410"), playerSkin: hex("efe4c6"),
+        banana: hex("d7a52c"), bananaTip: hex("8a6410"), fart: hex("fffef0"), fartRing: hex("ffffff"),
+        eye: "pie", text: hex("efe4c6"), accent: hex("d7a52c"), panel: hex("181410", 0.92), border: hex("d7a52c"),
+        wood: hex("20180f"), leaf: hex("2c2016"), smokeRings: true, vignette: true,
+        fontFamily: "Georgia", titleItalic: true,
+        sThrow: FartSound(freq: 110, dur: 0.26, flutter: 14, cutoff: 820, gain: 0.34),
+        sJump: FartSound(freq: 170, dur: 0.16, flutter: 16, cutoff: 1000, gain: 0.28),
+        sBlast: FartSound(freq: 68, dur: 0.5, flutter: 11, cutoff: 700, gain: 0.5)),
+    "clay": Theme(name: "Plasticine", icon: "\u{1F7E4}", bg: "clay",
+        // bgBase also fills the safe-area strips outside the logical canvas — without it
+        // the default black shows through as letterbox bands above/below a light theme.
+        bgBase: hex("f0e4cf"), bgTop: hex("f0e4cf"), bgBot: hex("c9b088"),
+        ground: hex("b98f5f"), groundEdge: hex("9a7145"), outline: hex("5a3e22"), outlineW: 0,
+        monkeyBody: hex("8a6038"), monkeyFace: hex("b98a5b"), ear: hex("7a5330"),
+        playerBody: hex("3fa39a"), playerSkin: hex("e6b487"),
+        banana: hex("f0c53d"), bananaTip: hex("c99a1e"), fart: hex("bfe6a0"), fartRing: hex("d8f0c4"),
+        eye: "clay", text: hex("4a3320"), accent: hex("2c7d75"), panel: hex("eee2cc", 0.96), border: hex("c99a1e"),
+        wood: hex("7a5330"), leaf: hex("6a9a3a"), highlight: true, fontFamily: "", rounded: true,
+        sThrow: FartSound(freq: 130, dur: 0.2, flutter: 18, cutoff: 900, gain: 0.3),
+        sJump: FartSound(freq: 200, dur: 0.13, flutter: 20, cutoff: 1100, gain: 0.26),
+        sBlast: FartSound(freq: 80, dur: 0.4, flutter: 13, cutoff: 800, gain: 0.46)),
+]
+
 // MARK: - Game view
 final class GameView: UIView {
 
@@ -116,12 +193,37 @@ final class GameView: UIView {
     private let LIVES_MAX = 4
     private let cMask = hex("25d4e8"), cGold = hex("ffe234"), cPlug = hex("b06bff"), cBeano = hex("93e552"), cBean = hex("ffab2e"), cMega = hex("ff4db8")
 
-    // Loud theme palette
-    private let cBgBase = hex("2a1857"), cBgDot = hex("ff3d7f"), cGround = hex("17d1e8"), cGroundEdge = hex("0fb0c6")
-    private let cOutline = hex("000000"), cMonkeyBody = hex("8a4bd6"), cMonkeyFace = hex("ffe022"), cEar = hex("7a3ec6")
-    private let cPlayerBody = hex("17d1e8"), cPlayerSkin = hex("ffb0c7"), cBanana = hex("ffe234"), cBananaTip = hex("e0b800")
-    private let cFart = hex("7CFF5A"), cAccent = hex("ffe022"), cText = hex("ffffff"), cPanel = hex("2a1857", 0.92), cBorder = hex("ff3d7f")
-    private let cWood = hex("3a2557"), cLeaf = hex("17d1e8")
+    // Active theme. The palette names below stay, but now resolve through the theme —
+    // so every existing draw call follows the swap without being rewritten.
+    private var themeId: String = {
+        let s = UserDefaults.standard.string(forKey: "mm_theme") ?? "loud"
+        return THEMES[s] != nil ? s : "loud"
+    }()
+    private var T: Theme { THEMES[themeId] ?? THEMES["loud"]! }
+    private func setTheme(_ id: String) {
+        guard THEMES[id] != nil else { return }
+        themeId = id; UserDefaults.standard.set(id, forKey: "mm_theme")
+        audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24); setNeedsDisplay()
+    }
+    private var cBgBase: UIColor { T.bgBase }
+    private var cBgDot: UIColor { T.bgDot }
+    private var cGround: UIColor { T.ground }
+    private var cGroundEdge: UIColor { T.groundEdge }
+    private var cOutline: UIColor { T.outline }
+    private var cMonkeyBody: UIColor { T.monkeyBody }
+    private var cMonkeyFace: UIColor { T.monkeyFace }
+    private var cEar: UIColor { T.ear }
+    private var cPlayerBody: UIColor { T.playerBody }
+    private var cPlayerSkin: UIColor { T.playerSkin }
+    private var cBanana: UIColor { T.banana }
+    private var cBananaTip: UIColor { T.bananaTip }
+    private var cFart: UIColor { T.fart }
+    private var cAccent: UIColor { T.accent }
+    private var cText: UIColor { T.text }
+    private var cPanel: UIColor { T.panel }
+    private var cBorder: UIColor { T.border }
+    private var cWood: UIColor { T.wood }
+    private var cLeaf: UIColor { T.leaf }
 
     // state
     private enum St { case start, play, leveldone, boss, win, over, pause }
@@ -223,6 +325,7 @@ final class GameView: UIView {
         let l = CADisplayLink(target: self, selector: #selector(tick))
         l.add(to: .main, forMode: .common)
         link = l; lastTs = 0
+        if let th = ProcessInfo.processInfo.environment["THEME"], THEMES[th] != nil { themeId = th }  // dev
         switch ProcessInfo.processInfo.environment["AUTOPLAY"] {  // dev: for automated screenshots
         case "1": startGame()
         case "boss": startGame(); startBoss(); boss?.hp = 62; boss?.chargeT = 0.4
@@ -276,10 +379,15 @@ final class GameView: UIView {
             monkeys.append(m)
         }
     }
+    // Per-theme fart voices — Doodle squeaks, Inkwell is low and beefy. With real samples
+    // loaded these set the playback pitch, so each world still sounds like itself.
+    private func sfxThrow() { let s = T.sThrow; audio.fart(freq: s.freq*Double(R(0.85, 1.15)), dur: s.dur, flutter: s.flutter, cutoff: s.cutoff, gain: s.gain) }
+    private func sfxJump() { let s = T.sJump; audio.fart(freq: s.freq*Double(R(0.9, 1.1)), dur: s.dur, flutter: s.flutter, cutoff: s.cutoff, gain: s.gain, square: true) }
+    private func sfxBlast() { let s = T.sBlast; audio.fart(freq: s.freq*Double(R(0.9, 1.1)), dur: s.dur, flutter: s.flutter, cutoff: s.cutoff, gain: s.gain) }
     private func doJump() {
         guard st == .play || st == .boss, P.onGround, P.slipT <= 0 else { return }
         P.vy = JUMP; P.onGround = false
-        audio.fart(freq: Double(R(200, 260)), dur: 0.15, flutter: 28, cutoff: 1700, gain: 0.28, square: true)
+        sfxJump()
         for _ in 0..<7 { particles.append(puff(P.x + R(-8, 8), PLAYER_GY + 20, R(-40, 40), R(20, 90))) }
         clouds.append(Cloud(x: P.x, y: PLAYER_GY + 22, r: 12, life: 0.7))
     }
@@ -290,7 +398,7 @@ final class GameView: UIView {
         if !free && P.gas < BLAST_COST { return }
         if !free { P.gas -= BLAST_COST }
         P.blastFlash = 0.22; P.face = 2; P.faceT = 0.4; P.barrierT = BARRIER_T; addShake(7, 0.18)
-        audio.fart(freq: Double(R(70, 92)), dur: 0.42, flutter: 14, cutoff: 1200, gain: 0.5)
+        sfxBlast()
         clouds.append(Cloud(x: P.x, y: P.y + 22, r: 20, life: 0.9))
         for _ in 0..<14 { let a = R(2.3, 4.0); particles.append(puff(P.x, P.y + 18, cos(a)*R(60, 150), sin(a)*R(30, 120)+40)) }
         fartClouds.append(FartCloud(x: P.x, y: P.y - 16, vy: FCLOUD_RISE, life: FCLOUD_LIFE))
@@ -519,7 +627,7 @@ final class GameView: UIView {
                 m.charge -= dt; m.gust = max(m.gust, 0.32)
                 if m.charge <= 0 {
                     throwBanana(m.bx, m.by+26, P.x, flight+0.05, 3, 0.55, "black"); m.gust = 0.55
-                    audio.fart(freq: Double(R(70, 92)), dur: 0.4, flutter: 13, cutoff: 900, gain: 0.46)
+                    sfxThrow()
                     for _ in 0..<12 { let a = R(1.3, 3.1); particles.append(puff(m.bx + R(-8, 8), m.by+28, cos(a)*R(40, 110), sin(a)*R(40, 110)+30)) }
                 }
             } else if m.aimT > 0 {
@@ -529,7 +637,7 @@ final class GameView: UIView {
                 else if !m.locked { m.locked = true; audio.tone(f0: 1100, f1: 1500, dur: 0.09, gain: 0.14); haptic(.warning) }
                 if m.aimT <= 0 {
                     m.locked = false; m.gust = 0.5; addShake(3, 0.08)
-                    audio.fart(freq: Double(R(115, 155)), dur: 0.18, flutter: 22, cutoff: 1500, gain: 0.32)
+                    sfxThrow()
                     let dx = m.lockX - m.bx, dy = m.lockY - (m.by+24), d = max(1, hypot(dx, dy))
                     let b = Banana(x: m.bx, y: m.by+24, vx: dx/d*SNIPE_SPD, vy: dy/d*SNIPE_SPD, rotV: 0, friendly: false, type: "black")
                     b.straight = true; b.rot = atan2(dy, dx); bananas.append(b)
@@ -545,7 +653,7 @@ final class GameView: UIView {
                         let b = Banana(x: fx, y: fy, vx: (rx-fx)/tf, vy: (PLAYER_GY-fy-0.5*GRAV*tf*tf)/tf, rotV: R(-14, 14), friendly: false, type: "yellow")
                         b.small = true; bananas.append(b)
                     }
-                    audio.fart(freq: Double(R(115, 155)), dur: 0.16, flutter: 24, cutoff: 1400, gain: 0.26)
+                    sfxThrow()
                 } else if m.kind == "boom" {
                     m.throwT = baseIv * R(1.5, 2.1); m.charge = 0.9; m.angryT = 0.9
                 } else {
@@ -553,7 +661,7 @@ final class GameView: UIView {
                     let count = level >= 7 ? 2 : 1
                     let roll = CGFloat.random(in: 0...1); let bt = roll < 0.22 ? "black" : (roll < 0.46 ? "brown" : "yellow")
                     throwBanana(m.bx, m.by+24, P.x, flight, count, spread, bt)
-                    audio.fart(freq: Double(R(115, 155)), dur: 0.2, flutter: 20, cutoff: 1000, gain: 0.3)
+                    sfxThrow()
                     if bt == "black" { for _ in 0..<8 { let a = R(1.5, 3.0); particles.append(puff(m.bx + R(-6, 6), m.by+26, cos(a)*R(30, 90), sin(a)*R(30, 90)+30)) } }
                 }
             }
@@ -677,6 +785,26 @@ final class GameView: UIView {
         return [("buttons", "\u{1F446} Buttons", x0, y, w, h), ("zones", "\u{1F590} Zones", x0+w+gap, y, w, h)]
     }
     private func ctrlChipAt(_ x: CGFloat, _ y: CGFloat) -> String? { for c in ctrlChips() { if x >= c.x && x <= c.x+c.w && y >= c.y && y <= c.y+c.h { return c.id } }; return nil }
+    private func themeChips() -> [(id: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
+        let n = CGFloat(THEME_ORDER.count), w: CGFloat = 104, h: CGFloat = 46, gap: CGFloat = 8
+        let tot = n*w + (n-1)*gap, x0 = LW/2 - tot/2, y = LH - 114
+        return THEME_ORDER.enumerated().map { (i, id) in (id, x0 + CGFloat(i)*(w+gap), y, w, h) }
+    }
+    private func themeChipAt(_ x: CGFloat, _ y: CGFloat) -> String? {
+        for c in themeChips() where x >= c.x && x <= c.x+c.w && y >= c.y && y <= c.y+c.h { return c.id }
+        return nil
+    }
+    private func drawThemePicker() {
+        cg.setAlpha(0.55); text("ART STYLE", LW/2, themeChips()[0].y - 12, 10, cText); cg.setAlpha(1)
+        for c in themeChips() {
+            guard let th = THEMES[c.id] else { continue }
+            let active = c.id == themeId
+            roundRect(c.x, c.y, c.w, c.h, 10, active ? cBorder : UIColor(white: 1, alpha: 0.08),
+                      stroke: active ? cAccent : UIColor(white: 1, alpha: 0.25), lw: active ? 2.5 : 1.5)
+            text(th.icon, c.x + c.w/2, c.y + 15, 17, cText)
+            text(th.name, c.x + c.w/2, c.y + 34, 11, active ? cText : cText.withAlphaComponent(0.75))
+        }
+    }
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
             let p = toLogical(t.location(in: self))
@@ -689,6 +817,7 @@ final class GameView: UIView {
             if st == .leveldone { nextLevel(); return }
             if st != .play && st != .boss {
                 if let cc = ctrlChipAt(p.x, p.y) { setControlStyle(cc); return }
+                if let tc = themeChipAt(p.x, p.y) { setTheme(tc); return }
                 startGame(); return
             }
             if inRound(pauseBtn, p.x, p.y) { pauseGame(); return }
@@ -737,8 +866,20 @@ final class GameView: UIView {
         if fill { c.setFill(); p.fill() }
         if let sc = stroke { sc.setStroke(); p.lineWidth = lw; p.stroke() }
     }
-    private func text(_ s: String, _ x: CGFloat, _ y: CGFloat, _ size: CGFloat, _ color: UIColor, align: NSTextAlignment = .center, weight: UIFont.Weight = .heavy) {
-        let font = UIFont.systemFont(ofSize: size, weight: weight)
+    /// The theme's face, falling back to the system font if the device lacks it —
+    /// a missing family silently renders as Helvetica otherwise, losing the whole voice.
+    private func themeFont(_ size: CGFloat, _ weight: UIFont.Weight) -> UIFont {
+        let t = T
+        if !t.fontFamily.isEmpty, let f = UIFont(name: t.fontFamily, size: size) { return f }
+        let base = UIFont.systemFont(ofSize: size, weight: weight)
+        if t.rounded, let d = base.fontDescriptor.withDesign(.rounded) { return UIFont(descriptor: d, size: size) }
+        return base
+    }
+    /// `system: true` opts out of the theme face. Needed for control glyphs: Chalkboard and
+    /// Georgia have no ◀/▶, so iOS silently falls back to the *emoji* font and the arrows
+    /// render as blue squares.
+    private func text(_ s: String, _ x: CGFloat, _ y: CGFloat, _ size: CGFloat, _ color: UIColor, align: NSTextAlignment = .center, weight: UIFont.Weight = .heavy, system: Bool = false) {
+        let font = system ? UIFont.systemFont(ofSize: size, weight: weight) : themeFont(size, weight)
         let para = NSMutableParagraphStyle(); para.alignment = align
         let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color, .paragraphStyle: para]
         let str = NSAttributedString(string: s, attributes: attrs)
@@ -793,14 +934,52 @@ final class GameView: UIView {
     }
 
     private func drawBg() {
-        cBgBase.setFill(); cg.fill(CGRect(x: 0, y: 0, width: LW, height: GROUND_Y))
-        cg.setFillColor(cBgDot.cgColor)
-        var y: CGFloat = 8
-        while y < GROUND_Y { var x: CGFloat = 8; while x < LW { cg.fillEllipse(in: CGRect(x: x-1.6, y: y-1.6, width: 3.2, height: 3.2)); x += 16 }; y += 16 }
+        let t = T
+        switch t.bg {
+        case "halftone":
+            t.bgBase.setFill(); cg.fill(CGRect(x: 0, y: 0, width: LW, height: GROUND_Y))
+            cg.setFillColor(t.bgDot.cgColor)
+            var y: CGFloat = 8
+            while y < GROUND_Y { var x: CGFloat = 8
+                while x < LW { cg.fillEllipse(in: CGRect(x: x-1.6, y: y-1.6, width: 3.2, height: 3.2)); x += 16 }
+                y += 16 }
+        case "paper":   // ruled exercise-book paper with a red margin line
+            t.bgBase.setFill(); cg.fill(CGRect(x: 0, y: 0, width: LW, height: GROUND_Y))
+            cg.setStrokeColor(t.rule.cgColor); cg.setLineWidth(1.4)
+            var y: CGFloat = 30
+            while y < GROUND_Y { cg.move(to: CGPoint(x: 0, y: y)); cg.addLine(to: CGPoint(x: LW, y: y)); y += 26 }
+            cg.strokePath()
+            cg.setStrokeColor(t.margin.cgColor); cg.setLineWidth(2)
+            cg.move(to: CGPoint(x: 34, y: 0)); cg.addLine(to: CGPoint(x: 34, y: GROUND_Y)); cg.strokePath()
+        case "clay":
+            let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                               colors: [t.bgTop.cgColor, t.bgBot.cgColor] as CFArray, locations: [0, 1])!
+            cg.saveGState(); cg.clip(to: CGRect(x: 0, y: 0, width: LW, height: GROUND_Y))
+            cg.drawLinearGradient(g, start: CGPoint(x: 0, y: 0), end: CGPoint(x: 0, y: GROUND_Y), options: [])
+            cg.restoreGState()
+        default:        // inkpaper — flat aged stock
+            t.bgBase.setFill(); cg.fill(CGRect(x: 0, y: 0, width: LW, height: GROUND_Y))
+        }
         // ground
         cGround.setFill(); cg.fill(CGRect(x: 0, y: GROUND_Y, width: LW, height: CTRL_TOP - GROUND_Y))
         cGroundEdge.setFill(); cg.fill(CGRect(x: 0, y: GROUND_Y, width: LW, height: 6))
+        if t.bg == "paper" {   // hand-drawn zigzag turf line
+            cg.setStrokeColor(t.groundEdge.cgColor); cg.setLineWidth(3)
+            cg.move(to: CGPoint(x: 0, y: GROUND_Y+3))
+            var x: CGFloat = 0
+            while x <= LW { cg.addLine(to: CGPoint(x: x, y: GROUND_Y + (Int(x) % 24 != 0 ? 3 : -2))); x += 12 }
+            cg.strokePath()
+        }
         drawBranch()
+        if t.vignette {   // Inkwell: darkened corners, old-film feel
+            let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                               colors: [UIColor(white: 0, alpha: 0).cgColor, UIColor(white: 0, alpha: 0.42).cgColor] as CFArray,
+                               locations: [0.55, 1])!
+            cg.saveGState(); cg.clip(to: CGRect(x: 0, y: 0, width: LW, height: GROUND_Y))
+            cg.drawRadialGradient(g, startCenter: CGPoint(x: LW/2, y: GROUND_Y/2), startRadius: 0,
+                                  endCenter: CGPoint(x: LW/2, y: GROUND_Y/2), endRadius: max(LW, GROUND_Y)*0.72, options: [])
+            cg.restoreGState()
+        }
     }
     private func drawBranch() {
         cg.setFillColor(cLeaf.cgColor)
@@ -839,7 +1018,25 @@ final class GameView: UIView {
             }
             return
         }
-        for (x, y) in [(lx, ly), (rx, ry)] { fillCircle(x, y, 3.6, .black) }
+        for (x, y) in [(lx, ly), (rx, ry)] {
+            switch T.eye {
+            case "googly":
+                fillCircle(x, y, 4.5, .white)
+                cg.setStrokeColor(UIColor(white: 0.2, alpha: 1).cgColor); cg.setLineWidth(1.5)
+                cg.strokeEllipse(in: CGRect(x: x-4.5, y: y-4.5, width: 9, height: 9))
+                fillCircle(x+1, y+1.5, 2, hex("111111"))
+            case "pie":   // rubber-hose pie-cut eye
+                fillCircle(x, y, 4.2, hex("181410"))
+                let p = CGMutablePath(); p.move(to: CGPoint(x: x, y: y))
+                p.addArc(center: CGPoint(x: x, y: y), radius: 4.4, startAngle: -0.5, endAngle: 0.7, clockwise: false)
+                p.closeSubpath(); cg.addPath(p); cg.setFillColor(T.monkeyFace.cgColor); cg.fillPath()
+            case "clay":
+                fillCircle(x, y, 3.4, hex("2a1e12"))
+                fillCircle(x-1, y-1, 1, UIColor(white: 1, alpha: 0.7))
+            default:
+                fillCircle(x, y, 3.6, .black)
+            }
+        }
     }
     private func drawLaser(_ m: Monkey) {
         guard m.aimT > 0, m.stun <= 0 else { return }
@@ -1083,7 +1280,8 @@ final class GameView: UIView {
         roundRect(gx-2, gy-2, gw+4, gh+4, 5, UIColor(white: 0, alpha: 0.4))
         roundRect(gx, gy, gw*(P.gas/GAS_MAX), gh, 4, ready ? cFart : UIColor(white: 0.5, alpha: 0.6))
         roundRect(gx, gy, gw, gh, 4, .clear, fill: false, stroke: UIColor(white: 1, alpha: 0.4), lw: 1)
-        text("GAS", LW/2, gy + gh/2, 9, .white)
+        // outline, not white: Inkwell's gas is near-white, so a white label vanishes into the bar
+        text("GAS", LW/2, gy + gh/2, 9, cOutline)
         if tipT > 0 {
             cg.setAlpha(min(1, tipT))
             text("\u{1F4A8} = FART BACK  \u{00B7}  \u{1F34C} = THROW A BANANA", LW/2, GROUND_Y-58, 14, cText)
@@ -1128,7 +1326,7 @@ final class GameView: UIView {
         cg.setAlpha(pressed ? 1 : 0.85)
         cg.setStrokeColor((accent ? (ready ? cAccent : UIColor(white: 0.53, alpha: 1)) : UIColor(white: 1, alpha: 0.55)).cgColor)
         cg.setLineWidth(2.6); cg.strokeEllipse(in: CGRect(x: cx-r*sc, y: cy-r*sc, width: r*sc*2, height: r*sc*2))
-        cg.setAlpha(1); text(glyph, cx, cy, gs*sc, .white, weight: .regular)
+        cg.setAlpha(1); text(glyph, cx, cy, gs*sc, .white, weight: .regular, system: true)
     }
     private func drawControls() {
         UIColor(white: 0, alpha: 0.32).setFill(); cg.fill(CGRect(x: 0, y: CTRL_TOP, width: LW, height: LH - CTRL_TOP))
@@ -1144,8 +1342,8 @@ final class GameView: UIView {
         } else {
             cg.setStrokeColor(UIColor(white: 1, alpha: 0.14).cgColor); cg.setLineWidth(2)
             cg.move(to: CGPoint(x: LW/2, y: CTRL_TOP+4)); cg.addLine(to: CGPoint(x: LW/2, y: LH-6)); cg.strokePath()
-            cg.setAlpha(held.contains("zoneL") ? 0.55 : 0.24); text("\u{25C0}", LW*0.22, LH-62, 34, .white, weight: .regular)
-            cg.setAlpha(held.contains("zoneR") ? 0.55 : 0.24); text("\u{25B6}", LW*0.78, LH-62, 34, .white, weight: .regular); cg.setAlpha(1)
+            cg.setAlpha(held.contains("zoneL") ? 0.55 : 0.24); text("\u{25C0}", LW*0.22, LH-62, 34, .white, weight: .regular, system: true)
+            cg.setAlpha(held.contains("zoneR") ? 0.55 : 0.24); text("\u{25B6}", LW*0.78, LH-62, 34, .white, weight: .regular, system: true); cg.setAlpha(1)
             text("hold to move \u{00B7} tap = jump", LW/2, CTRL_TOP+14, 10, UIColor(white: 1, alpha: 0.5))
             let zt = zThrow; drawBtn(zt.cx, zt.cy, zt.r, "\u{1F34C}", 30, held.contains("THROW"), throwReady, true); drawAmmoPips(zt.cx, zt.cy + zt.r + 9)
             let z = zFart; drawBtn(z.cx, z.cy, z.r, "\u{1F4A8}", 32, held.contains("FART"), fartReady, true)
@@ -1179,7 +1377,7 @@ final class GameView: UIView {
         if Int(Date().timeIntervalSince1970*2) % 2 == 0 { text("TAP TO START", LW/2, 460, 22, cAccent) }
         if best > 0 { cg.setAlpha(0.6); text("Best: \(best)", LW/2, 496, 12, cText); cg.setAlpha(1) }
         cg.restoreGState()
-        drawCtrlToggle()
+        drawCtrlToggle(); drawThemePicker()
     }
     private func drawOver() {
         drawBg()
@@ -1189,7 +1387,7 @@ final class GameView: UIView {
         text("Score \(Int(score))", LW/2, LH/2-44, 28, cAccent)
         cg.setAlpha(0.7); text("Best \(best)", LW/2, LH/2-8, 15, cText); cg.setAlpha(1)
         if Int(Date().timeIntervalSince1970*2) % 2 == 0 { text("Tap to fart again!", LW/2, LH/2+52, 18, cText) }
-        drawCtrlToggle()
+        drawCtrlToggle(); drawThemePicker()
     }
     private func drawBoss(_ b: Boss) {
         let x = b.bx, y = b.by; let col = b.hitFlash > 0 ? UIColor.white : cMonkeyBody

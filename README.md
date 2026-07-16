@@ -63,7 +63,7 @@ farts are ~70% of the comedy.
 
 ---
 
-## 🎨 Art direction — swappable themes
+## 🎨 Art direction — swappable themes (HTML **and** iOS)
 
 The look-and-feel is a **theme**, not baked in. Each world is defined as data + a few
 draw hooks in a `THEMES` object, so adding a new one doesn't touch the gameplay. Four
