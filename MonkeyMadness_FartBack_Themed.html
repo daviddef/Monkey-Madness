@@ -155,14 +155,25 @@ function buildPatterns(){
 }
 function setTheme(id){ themeId=id; T=THEMES[id]; try{localStorage.setItem('mm_theme',id);}catch(e){} buildPatterns(); }
 buildPatterns();
+// The splash paints all four worlds side by side, so it needs every theme's pattern at
+// once. Build them up-front — rebuilding 4x per frame would churn canvases every tick.
+const splashPats={};
+(function(){ const save=themeId;
+  for(const id of THEME_ORDER){ themeId=id; T=THEMES[id]; buildPatterns(); splashPats[id]={halftone:patHalftone,grain:patGrain}; }
+  themeId=save; T=THEMES[save]; buildPatterns(); })();
+// Run `fn` with a different theme active, then put everything back.
+function withTheme(id,fn){ const sT=themeId,sH=patHalftone,sG=patGrain;
+  themeId=id; T=THEMES[id]; patHalftone=splashPats[id].halftone; patGrain=splashPats[id].grain;
+  try{ fn(); } finally { themeId=sT; T=THEMES[sT]; patHalftone=sH; patGrain=sG; } }
 
 // ============================================================
 // STATE
 // ============================================================
-const ST={START:0,PLAY:1,LEVELDONE:2,BOSS:3,WIN:4,OVER:5,PAUSE:6};
+const ST={START:0,PLAY:1,LEVELDONE:2,BOSS:3,WIN:4,OVER:5,PAUSE:6,SPLASH:7};
 let pauseFrom=ST.PLAY;   // so RESUME returns you to PLAY or BOSS, whichever you paused from
+let splashT=0; const SPLASH_LEN=3.4;   // auto-advances; tap skips
 const LEVELS=[{secs:9,monkeys:1},{secs:10,monkeys:1},{secs:11,monkeys:1},{secs:12,monkeys:2},{secs:12,monkeys:2},{secs:13,monkeys:2},{secs:13,monkeys:3},{secs:14,monkeys:3},{secs:15,monkeys:3},{secs:16,monkeys:4}];
-let st=ST.START, lives, score, best=0, combo, comboBestRun, gameT, tipT, lastTs=0, level=1, levelT=0, boss=null;
+let st=ST.SPLASH, lives, score, best=0, combo, comboBestRun, gameT, tipT, lastTs=0, level=1, levelT=0, boss=null;
 try{best=parseInt(localStorage.getItem('fartback_best')||'0',10)||0;}catch(e){}
 let monkeys=[],bananas=[],particles=[],clouds=[],floaters=[],peels=[],pops=[],powerups=[],fartClouds=[],groundBananas=[],stars=[];
 let shakeT=0,shakeMag=0,flashT=0,flashCol='#fff',hitstop=0;
@@ -257,6 +268,7 @@ const roles=()=>{ const a=[]; for(const r of pointers.values())a.push(r.role); r
 canvas.addEventListener('pointerdown',e=>{
   e.preventDefault(); initAudio();
   const {x,y}=toCanvas(e);
+  if(st===ST.SPLASH){ st=ST.START; return; }   // skip — NOT straight into a game
   if(st===ST.PAUSE){ const pc=pauseChoiceAt(x,y); if(pc==='resume'){ st=pauseFrom; sfx.pick(); } else if(pc==='menu'){ toMenu(); } return; }
   if(st===ST.LEVELDONE){ nextLevel(); return; }
   if(st!==ST.PLAY&&st!==ST.BOSS){ const cc=ctrlChipAt(x,y); if(cc){ setControlStyle(cc); sfx.pick(); return; } const cid=chipAt(x,y); if(cid){ setTheme(cid); sfx.pick(); return; } startGame(); return; }
@@ -274,6 +286,7 @@ canvas.addEventListener('pointermove',e=>{ const rec=pointers.get(e.pointerId); 
 function endP(e){ const rec=pointers.get(e.pointerId); if(rec){ if(rec.role==='zoneL'||rec.role==='zoneR'){ const {x,y}=toCanvas(e); const dt=e.timeStamp-rec.st, dist=Math.hypot(x-rec.sx,y-rec.sy); if(dt<250&&dist<28)doJump(); } pointers.delete(e.pointerId); } }
 canvas.addEventListener('pointerup',endP); canvas.addEventListener('pointercancel',endP); canvas.addEventListener('pointerleave',endP);
 window.addEventListener('keydown',e=>{ if([' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))e.preventDefault(); initAudio();
+  if(st===ST.SPLASH){ if(!e.repeat) st=ST.START; return; }
   if(st===ST.PAUSE){ if(!e.repeat){ if(e.key==='Escape'||e.key==='p'||e.key==='P'){ st=pauseFrom; sfx.pick(); } else if(e.key==='m'||e.key==='M'){ toMenu(); } } return; }
   if((st===ST.PLAY||st===ST.BOSS)&&!e.repeat&&(e.key==='Escape'||e.key==='p'||e.key==='P')){ pauseGame(); return; }
   if(st===ST.LEVELDONE){ if(!e.repeat)nextLevel(); return; }
@@ -341,6 +354,7 @@ function doFlash(col,amt){flashT=Math.max(flashT,amt);flashCol=col;}
 
 function update(dt){
   if(st===ST.PAUSE)return;   // freeze everything, particles included
+  if(st===ST.SPLASH){ splashT+=dt; if(splashT>=SPLASH_LEN) st=ST.START; return; }
   for(const s of stars)s.tw+=dt;
   if(shakeT>0)shakeT-=dt; if(megaRingT>0)megaRingT-=dt;
   particles=particles.filter(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=(p.kind==='star'?520:40)*dt;p.life-=dt;return p.life>0;});
@@ -860,6 +874,69 @@ function sampleScene(){ // a couple of themed characters behind the menus
   ctx.save(); ctx.translate(0,0); const oldx=P.x,oldy=P.y,oi=P.inv; P.x=W/2;P.y=PLAYER_GY;P.inv=false;P.squashT=0;P.blastFlash=0; drawPlayer(); P.x=oldx;P.y=oldy;P.inv=oi; ctx.restore();
   drawOverlay();
 }
+// ---------- splash: all four worlds at once ----------
+// Each theme gets a vertical slice, drawn with its OWN palette/bg/monkey, so the art
+// system introduces itself before you touch anything. Slices wipe in one after another.
+function drawSplash(){
+  const n=THEME_ORDER.length, cw=W/n, t=splashT;
+  for(let i=0;i<n;i++){
+    const id=THEME_ORDER[i];
+    const appear=Math.max(0,Math.min(1,(t-i*0.16)/0.5));      // staggered wipe-in
+    if(appear<=0) continue;
+    const ease=1-Math.pow(1-appear,3);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(i*cw,0,cw,H); ctx.clip();       // this slice only
+    withTheme(id,()=>{
+      drawBg();
+      // no control strip on the splash — carry each world's ground to the bottom edge
+      ctx.fillStyle=T.ground; ctx.fillRect(i*cw,CTRL_TOP,cw,H-CTRL_TOP);
+      // a monkey hanging in this world, bobbing
+      // gust:0 — the PBBT! sticker collides with its neighbours at slice width
+      const m={x:i*cw+cw/2,y:132,bx:i*cw+cw/2+Math.sin(t*1.6+i)*5,by:132+Math.sin(t*2.1+i*1.3)*3,
+               swingT:t*1.5+i,swayX:0,bobT:t,angryT:0,stun:0,wob:0,gust:0,kind:'reg',aimT:0};
+      drawMonkey(m);
+      // ...farting a banana down the slice
+      const by=200+((t*150+i*90)%(GROUND_Y-230));
+      ctx.save(); ctx.translate(m.bx,by); ctx.rotate(t*3+i); ctx.translate(-10,-17);
+      bananaPath(); ctx.fillStyle=T.banana; ctx.fill();
+      if(T.outlineW>0){ctx.lineWidth=T.outlineW*.7;ctx.strokeStyle=T.outline;ctx.lineJoin='round';ctx.stroke();}
+      ctx.restore();
+      // World name in a pill, NOT bare T.text — Inkwell's text is cream on a cream
+      // background and vanishes. The pill makes it readable in every palette.
+      const nx=i*cw+cw/2, ny=GROUND_Y-22;
+      ctx.font=T.hudFont(11); ctx.textAlign='center'; ctx.textBaseline='middle';
+      const pw=Math.max(58,ctx.measureText(T.name).width+18);
+      ctx.fillStyle='rgba(0,0,0,.6)'; rr(nx-pw/2,ny-10,pw,20,10); ctx.fill();
+      ctx.fillStyle='#fff'; ctx.fillText(T.name,nx,ny); ctx.textBaseline='alphabetic';
+    });
+    ctx.restore();
+    // slice divider + wipe edge
+    if(ease<1){ ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(i*cw,ease*H,cw,H); }
+    ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(i*cw,0); ctx.lineTo(i*cw,H); ctx.stroke();
+  }
+  // title lands once the slices are in
+  const tt=Math.max(0,Math.min(1,(t-0.75)/0.45)), pop=1+0.12*Math.sin(Math.min(1,tt)*Math.PI);
+  if(tt>0){
+    ctx.save(); ctx.translate(W/2,H*0.42); ctx.scale(pop,pop); ctx.globalAlpha=tt;
+    ctx.fillStyle='rgba(0,0,0,.72)'; rr(-198,-74,396,148,18); ctx.fill();
+    ctx.strokeStyle='#ffe022'; ctx.lineWidth=4; rr(-198,-74,396,148,18); ctx.stroke();
+    ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+    ctx.font='900 italic 46px "Arial Black",Impact,sans-serif';
+    ctx.lineWidth=8; ctx.strokeStyle='#000'; ctx.strokeText('FART BACK!',0,4);
+    ctx.fillStyle='#ffe022'; ctx.fillText('FART BACK!',0,4);
+    ctx.font='900 17px "Arial Black",Impact,sans-serif'; ctx.fillStyle='#fff';
+    ctx.fillText('MONKEY FART MADNESS',0,34);
+    ctx.font='700 12px system-ui,sans-serif'; ctx.fillStyle='#7CFF5A';
+    ctx.fillText('4 worlds · pick yours next',0,58);
+    ctx.restore(); ctx.globalAlpha=1;
+  }
+  // sits over four different grounds, so it carries its own contrast
+  if(t>1.9&&Math.floor(t*2)%2===0){
+    ctx.fillStyle='rgba(0,0,0,.55)'; rr(W/2-52,H-56,104,26,13); ctx.fill();
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#fff';
+    ctx.font='700 13px system-ui,sans-serif'; ctx.fillText('tap to skip',W/2,H-43); ctx.textBaseline='alphabetic'; }
+}
 function drawStart(){
   sampleScene();
   ctx.save(); ctx.translate(0,SY);
@@ -941,6 +1018,7 @@ function drawWin(){ ctx.save(); if(shakeT>0)ctx.translate(R(-1,1)*shakeMag*shake
 // ============================================================
 function draw(){
   ctx.clearRect(0,0,W,H);
+  if(st===ST.SPLASH){drawSplash();return;}
   if(st===ST.START){drawStart();return;}
   if(st===ST.OVER){drawOver();return;}
   if(st===ST.WIN){drawWin();return;}
