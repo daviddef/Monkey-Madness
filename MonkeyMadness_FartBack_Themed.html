@@ -27,6 +27,9 @@ const GRAV=1500, JUMP=-660, PSPEED=305;
 const GAS_MAX=100, BLAST_COST=34, GAS_RECHARGE=30;
 const BARRIER_T=0.5, SLIP_T=1.2, PEEL_LIFE=5, PEEL_R=20;
 const PU_SHIELD=6, PU_X2=8, PU_SLOW=4, PU_DROP_LIFE=7, PU_FREE=4.5;
+// FCLOUD_RISE/DRAG are tuned so a cloud reaches the branch (~470px up) at ~1.6s —
+// slow enough that a monkey can swing out of the way, unlike the auto-aimed throw.
+const AMMO_MAX=6, AMMO_START=3, FCLOUD_LIFE=2.6, FCLOUD_RISE=-255, FCLOUD_DRAG=10, GBAN_LIFE=6;
 const PU_COLORS={mask:'#25d4e8',gold:'#ffe234',plug:'#b06bff',beano:'#93e552',bean:'#ffab2e',mega:'#ff4db8'};
 const R=(a,b)=>a+Math.random()*(b-a);
 
@@ -140,9 +143,9 @@ const ST={START:0,PLAY:1,LEVELDONE:2,BOSS:3,WIN:4,OVER:5};
 const LEVELS=[{secs:9,monkeys:1},{secs:10,monkeys:1},{secs:11,monkeys:1},{secs:12,monkeys:2},{secs:12,monkeys:2},{secs:13,monkeys:2},{secs:13,monkeys:3},{secs:14,monkeys:3},{secs:15,monkeys:3},{secs:16,monkeys:4}];
 let st=ST.START, lives, score, best=0, combo, comboBestRun, gameT, tipT, lastTs=0, level=1, levelT=0, boss=null;
 try{best=parseInt(localStorage.getItem('fartback_best')||'0',10)||0;}catch(e){}
-let monkeys=[],bananas=[],particles=[],clouds=[],floaters=[],peels=[],pops=[],powerups=[],stars=[];
+let monkeys=[],bananas=[],particles=[],clouds=[],floaters=[],peels=[],pops=[],powerups=[],fartClouds=[],groundBananas=[],stars=[];
 let shakeT=0,shakeMag=0,flashT=0,flashCol='#fff',hitstop=0;
-const P={x:W/2,y:PLAYER_GY,vy:0,onGround:true,inv:false,invT:0,blinkT:0,gas:GAS_MAX,squashT:0,stretch:0,face:0,faceT:0,blastFlash:0,barrierT:0,slipT:0,mushT:0,shieldT:0,x2T:0,slowT:0,freeFartT:0};
+const P={x:W/2,y:PLAYER_GY,vy:0,onGround:true,inv:false,invT:0,blinkT:0,gas:GAS_MAX,squashT:0,stretch:0,face:0,faceT:0,blastFlash:0,barrierT:0,slipT:0,mushT:0,shieldT:0,x2T:0,slowT:0,freeFartT:0,bananas:AMMO_START,throwT:0};
 let megaRingT=0;
 
 // ============================================================
@@ -207,14 +210,16 @@ const keys=new Set();
 const ZONE_TOP=470;   // in Zones mode, touches below this drive movement
 let controlStyle='buttons'; try{const c=localStorage.getItem('mm_ctrl'); if(c==='buttons'||c==='zones')controlStyle=c;}catch(e){}
 function setControlStyle(s){ controlStyle=s; try{localStorage.setItem('mm_ctrl',s);}catch(e){} }
-// Buttons mode: MOVE on the left thumb (◀▶), ACTIONS on the right thumb (JUMP + FART) — research-backed.
-const BTN=[{id:'L',cx:54,cy:H-62,r:42,glyph:'◀'},{id:'R',cx:150,cy:H-62,r:42,glyph:'▶'},
-  {id:'JUMP',cx:316,cy:H-62,r:42,glyph:'⤒'},{id:'FART',cx:426,cy:H-64,r:50,glyph:'💨'}];
-const ZFART={cx:W/2,cy:H-62,r:54};   // Zones mode fart button (centre)
+// Buttons mode: MOVE on the left thumb (◀▶), ACTIONS on the right thumb (JUMP · THROW · FART) — research-backed.
+const BTN=[{id:'L',cx:46,cy:H-62,r:40,glyph:'◀'},{id:'R',cx:132,cy:H-62,r:40,glyph:'▶'},
+  {id:'JUMP',cx:232,cy:H-62,r:38,glyph:'⤒'},{id:'THROW',cx:330,cy:H-62,r:40,glyph:'🍌'},
+  {id:'FART',cx:428,cy:H-64,r:44,glyph:'💨'}];
+const ZFART={cx:W/2+64,cy:H-62,r:50},ZTHROW={cx:W/2-64,cy:H-62,r:46};  // Zones mode action buttons
 const pointers=new Map();            // pointerId -> {role, sx, sy, st}
 function toCanvas(e){const r=canvas.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};}
-function btnAt(x,y){for(const b of BTN){const dx=x-b.cx,dy=y-b.cy;if(dx*dx+dy*dy<=(b.r+10)*(b.r+10))return b.id;}return null;}
-function inZFart(x,y){const dx=x-ZFART.cx,dy=y-ZFART.cy;return dx*dx+dy*dy<=(ZFART.r+10)*(ZFART.r+10);}
+// nearest-wins, so the tighter 5-button spacing can't hand a tap to the wrong neighbour
+function btnAt(x,y){let best=null,bd=1e9;for(const b of BTN){const dx=x-b.cx,dy=y-b.cy,d=dx*dx+dy*dy;if(d<=(b.r+10)*(b.r+10)&&d<bd){bd=d;best=b.id;}}return best;}
+function inRound(z,x,y){const dx=x-z.cx,dy=y-z.cy;return dx*dx+dy*dy<=(z.r+10)*(z.r+10);}
 function themeChips(){ const n=THEME_ORDER.length, w=104, h=46, gap=8, tot=n*w+(n-1)*gap, x0=(W-tot)/2, y=646;
   return THEME_ORDER.map((id,i)=>({id,x:x0+i*(w+gap),y,w,h})); }
 function chipAt(x,y){ for(const c of themeChips()){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h) return c.id; } return null; }
@@ -228,9 +233,10 @@ canvas.addEventListener('pointerdown',e=>{
   if(st===ST.LEVELDONE){ nextLevel(); return; }
   if(st!==ST.PLAY&&st!==ST.BOSS){ const cc=ctrlChipAt(x,y); if(cc){ setControlStyle(cc); sfx.pick(); return; } const cid=chipAt(x,y); if(cid){ setTheme(cid); sfx.pick(); return; } startGame(); return; }
   if(controlStyle==='buttons'){
-    const id=btnAt(x,y); if(id){ pointers.set(e.pointerId,{role:id}); if(id==='JUMP')doJump(); else if(id==='FART')doBlast(); }
+    const id=btnAt(x,y); if(id){ pointers.set(e.pointerId,{role:id}); if(id==='JUMP')doJump(); else if(id==='FART')doFart(); else if(id==='THROW')doThrow(); }
   } else {
-    if(inZFart(x,y)){ pointers.set(e.pointerId,{role:'FART'}); doBlast(); }
+    if(inRound(ZFART,x,y)){ pointers.set(e.pointerId,{role:'FART'}); doFart(); }
+    else if(inRound(ZTHROW,x,y)){ pointers.set(e.pointerId,{role:'THROW'}); doThrow(); }
     else if(y>ZONE_TOP){ pointers.set(e.pointerId,{role:x<W/2?'zoneL':'zoneR',sx:x,sy:y,st:e.timeStamp}); }
   }
 },{passive:false});
@@ -241,7 +247,9 @@ canvas.addEventListener('pointerup',endP); canvas.addEventListener('pointercance
 window.addEventListener('keydown',e=>{ if([' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))e.preventDefault(); initAudio();
   if(st===ST.LEVELDONE){ if(!e.repeat)nextLevel(); return; }
   if(st!==ST.PLAY&&st!==ST.BOSS){ if(!e.repeat){ if(e.key==='t'||e.key==='T'){ const i=THEME_ORDER.indexOf(themeId); setTheme(THEME_ORDER[(i+1)%THEME_ORDER.length]); sfx.pick(); } else if(e.key==='c'||e.key==='C'){ setControlStyle(controlStyle==='buttons'?'zones':'buttons'); sfx.pick(); } else startGame(); } return; }
-  if(e.repeat)return; if(e.key===' '||e.key==='ArrowUp'||e.key==='w')doJump(); if(e.key==='f'||e.key==='ArrowDown'||e.key==='Shift')doBlast(); keys.add(e.key); });
+  if(e.repeat)return; if(e.key===' '||e.key==='ArrowUp'||e.key==='w')doJump();
+  if(e.key==='f'||e.key==='F'||e.key==='ArrowDown'||e.key==='Shift')doFart();
+  if(e.key==='b'||e.key==='B'||e.key==='x'||e.key==='X'||e.key==='Enter')doThrow(); keys.add(e.key); });
 window.addEventListener('keyup',e=>keys.delete(e.key));
 const leftHeld=()=>{ if(keys.has('ArrowLeft')||keys.has('a'))return true; const r=roles(); return r.includes('L')||r.includes('zoneL'); };
 const rightHeld=()=>{ if(keys.has('ArrowRight')||keys.has('d'))return true; const r=roles(); return r.includes('R')||r.includes('zoneR'); };
@@ -249,8 +257,8 @@ const rightHeld=()=>{ if(keys.has('ArrowRight')||keys.has('d'))return true; cons
 // ============================================================
 // GAME FLOW / LOGIC  (unchanged across themes)
 // ============================================================
-function resetPlayer(inv){ P.x=W/2;P.y=PLAYER_GY;P.vy=0;P.onGround=true;P.inv=true;P.invT=inv||1.2;P.blinkT=0;P.gas=GAS_MAX;P.squashT=0;P.face=0;P.faceT=0;P.blastFlash=0;P.barrierT=0;P.slipT=0;P.mushT=0;P.shieldT=0;P.x2T=0;P.slowT=0;P.freeFartT=0; megaRingT=0; }
-function clearField(){ bananas=[];particles=[];clouds=[];floaters=[];pops=[];peels=[];powerups=[];flashT=0;hitstop=0; }
+function resetPlayer(inv){ P.x=W/2;P.y=PLAYER_GY;P.vy=0;P.onGround=true;P.inv=true;P.invT=inv||1.2;P.blinkT=0;P.gas=GAS_MAX;P.squashT=0;P.face=0;P.faceT=0;P.blastFlash=0;P.barrierT=0;P.slipT=0;P.mushT=0;P.shieldT=0;P.x2T=0;P.slowT=0;P.freeFartT=0;P.bananas=AMMO_START;P.throwT=0; megaRingT=0; }
+function clearField(){ bananas=[];particles=[];clouds=[];floaters=[];pops=[];peels=[];powerups=[];fartClouds=[];groundBananas=[];flashT=0;hitstop=0; }
 function startGame(){ st=ST.PLAY; lives=LIVES_MAX; score=0; combo=0; comboBestRun=0; gameT=0; level=1; levelT=0; boss=null; tipT=3.6;
   clearField(); resetPlayer(1.2); monkeys=[]; setMonkeyCount(LEVELS[0].monkeys); }
 function completeLevel(){ if(level>=10){ startBoss(); } else { st=ST.LEVELDONE; levelT=0; burstFx(P.x,P.y,14); sfx.stun(); } }
@@ -265,21 +273,30 @@ function setMonkeyCount(n){ while(monkeys.length<n){ const nx=R(60,W-60), ny=R(9
   monkeys.length=Math.min(monkeys.length,n); }
 function doJump(){ if((st!==ST.PLAY&&st!==ST.BOSS)||!P.onGround||P.slipT>0)return; P.vy=JUMP; P.onGround=false; P.stretch=1; P.squashT=0; sfx.jump();
   for(let i=0;i<7;i++)particles.push(puff(P.x+R(-8,8),PLAYER_GY+20,R(-40,40),R(20,90))); clouds.push({x:P.x,y:PLAYER_GY+22,r:12,life:.7,maxLife:.7}); }
-function doBlast(){ if((st!==ST.PLAY&&st!==ST.BOSS)||P.slipT>0)return;
+// 💨 FART BACK — costs GAS. Blocks whatever is already above you, then sends a rising
+// wall of gas up the screen that eats bananas and gasses monkeys it drifts into.
+function doFart(){ if((st!==ST.PLAY&&st!==ST.BOSS)||P.slipT>0)return;
   const free=P.freeFartT>0; if(!free&&P.gas<BLAST_COST){tone({f0:180,f1:90,dur:.1,gain:.12});return;}
   if(!free)P.gas-=BLAST_COST; P.blastFlash=.22; P.face=2; P.faceT=.4; P.barrierT=BARRIER_T; sfx.blast(); addShake(7,.18);
   // fart gust out the butt + a barrier puff above the head
   clouds.push({x:P.x,y:P.y+22,r:20,life:.9,maxLife:.9});
   for(let i=0;i<14;i++){const a=R(2.3,4.0);particles.push(puff(P.x,P.y+18,Math.cos(a)*R(60,150),Math.sin(a)*R(30,120)+40));}
-  // SHOOT a banana out of the butt, up at the nearest monkey
-  const tg=nearestMonkey(P.x,P.y-40); const tf=.6; let vx=R(-30,30),vy=-720;
-  if(tg){ vx=(tg.x-P.x)/tf; vy=(tg.y-(P.y-28)-.5*GRAV*tf*tf)/tf; }
-  bananas.push({x:P.x,y:P.y-22,vx,vy,rot:0,rotV:R(-16,16),friendly:true,type:'shot'});
+  fartClouds.push({x:P.x,y:P.y-16,vy:FCLOUD_RISE,r:32,life:FCLOUD_LIFE,maxLife:FCLOUD_LIFE,wob:R(0,6.28),hit:new Set()});
   // instant barrier — nuke incoming bananas already close/above
   let blocked=0;
   bananas=bananas.filter(b=>{ if(b.friendly)return true; const dx=b.x-P.x,dy=b.y-P.y;
     if(Math.abs(dx)<64&&dy>-74&&dy<14){ burstFx(b.x,b.y,5); blocked++; return false; } return true; });
   if(blocked){ sfx.deflect(); addPop(P.x,P.y-58,'BLOCK!',T.fart); score+=blocked*10; doFlash(T.fart,.14); }
+}
+// 🍌 THROW BANANA — costs 1 banana of ammo. Fast, auto-aimed, reliable stun.
+function doThrow(){ if((st!==ST.PLAY&&st!==ST.BOSS)||P.slipT>0||P.throwT>0)return;
+  if(P.bananas<=0){ tone({f0:300,f1:150,dur:.09,gain:.1}); addFloat(P.x,P.y-46,'NO BANANAS!',T.accent,14); return; }
+  P.bananas--; P.throwT=.24; P.face=2; P.faceT=.3; P.stretch=.7; sfx.throw(); addShake(3,.08);
+  const tg=nearestMonkey(P.x,P.y-40); const tf=.6; let vx=R(-30,30),vy=-720, ax=null,ay=null;
+  if(tg){ ax=tg.bx; ay=tg.by; } else if(st===ST.BOSS&&boss&&boss.hp>0&&!boss.deathT){ ax=boss.bx; ay=boss.by; }
+  if(ax!==null){ vx=(ax-P.x)/tf; vy=(ay-(P.y-28)-.5*GRAV*tf*tf)/tf; }
+  bananas.push({x:P.x,y:P.y-22,vx,vy,rot:0,rotV:R(-16,16),friendly:true,type:'shot'});
+  for(let i=0;i<5;i++)particles.push(puff(P.x,P.y-18,R(-50,50),R(-50,10)));
 }
 function nearestMonkey(x,y){let b=null,bd=1e9;for(const m of monkeys){if(m.stun>0)continue;const d=(m.bx-x)**2+(m.by-y)**2;if(d<bd){bd=d;b=m;}}return b;}
 function throwBanana(fx,fy,tx,tf,count,spread,type){ for(let i=0;i<count;i++){ const rx=tx+(Math.random()-.5)*150*spread; const vx=(rx-fx)/tf; const vy=(PLAYER_GY-fy-.5*GRAV*tf*tf)/tf; bananas.push({x:fx,y:fy,vx,vy,rot:0,rotV:(Math.random()-.5)*10,friendly:false,type:type||'yellow'}); } }
@@ -311,6 +328,7 @@ function update(dt){
   if(P.faceT>0){P.faceT-=dt;if(P.faceT<=0)P.face=0;}
   if(P.blastFlash>0)P.blastFlash-=dt; if(P.barrierT>0)P.barrierT-=dt; if(P.slipT>0)P.slipT-=dt; if(P.mushT>0)P.mushT-=dt;
   if(P.shieldT>0)P.shieldT-=dt; if(P.x2T>0)P.x2T-=dt; if(P.slowT>0)P.slowT-=dt; if(P.freeFartT>0)P.freeFartT-=dt;
+  if(P.throwT>0)P.throwT-=dt;
   P.gas=Math.min(GAS_MAX,P.gas+GAS_RECHARGE*dt);
   for(const m of monkeys){ m.bobT+=dt*2.4; m.swingT+=dt*2.6; if(m.gust>0)m.gust-=dt;
     if(m.stun>0){ m.stun-=dt; m.wob+=dt*20; m.bx=m.x+Math.sin(m.wob)*4; m.by=m.y+6; continue; }
@@ -356,6 +374,25 @@ function update(dt){
     // player hit
     if(!P.inv&&P.slipT<=0){const dx=Math.abs(b.x-P.x),dy=Math.abs(b.y-P.y);if(dx<22&&dy<26){hitPlayer(b.x,b.y,b.type);return false;}}
     return true; });
+  // rising fart clouds — the 💨 attack
+  fartClouds=fartClouds.filter(fc=>{ fc.life-=dt; fc.y+=fc.vy*wdt; fc.vy+=FCLOUD_DRAG*dt; fc.wob+=dt*7; fc.x+=Math.sin(fc.wob)*24*wdt; fc.r=Math.min(56,fc.r+dt*22);
+    if(Math.random()<.7)particles.push(puff(fc.x+R(-fc.r*.5,fc.r*.5),fc.y+R(-10,10),R(-26,26),R(-40,10)));
+    bananas=bananas.filter(b=>{ if(b.friendly)return true; const dx=b.x-fc.x,dy=b.y-fc.y;
+      if(dx*dx+dy*dy<(fc.r+10)*(fc.r+10)){ burstFx(b.x,b.y,3); score+=6*(P.x2T>0?2:1); return false; } return true; });
+    for(const m of monkeys){ if(m.stun>0||fc.hit.has(m))continue; const dx=m.bx-fc.x,dy=m.by-fc.y;
+      if(dx*dx+dy*dy<(fc.r+26)*(fc.r+26)){ fc.hit.add(m); m.stun=3; m.wob=0; m.angryT=0; combo++; comboBestRun=Math.max(comboBestRun,combo);
+        const pts=60*combo*(P.x2T>0?2:1); score+=pts; addFloat(m.bx,m.by-38,'+'+pts+(combo>1?('  x'+combo):''),T.fart,combo>2?21:16);
+        burstFx(m.bx,m.by,10); addPop(m.bx,m.by-8,combo>=6?'GASSED!':'PHEW!',T.fart); doFlash(T.fart,.16); sfx.stun(); addShake(5,.12);
+        if(Math.random()<.28)spawnPU(m.bx,m.by); } }
+    if(st===ST.BOSS&&boss&&boss.hp>0&&!boss.deathT&&!fc.hit.has(boss)){ const dx=boss.bx-fc.x,dy=boss.by-fc.y;
+      if(dx*dx+dy*dy<(fc.r+42)*(fc.r+42)){ fc.hit.add(boss); const d=boss.weakT>0?10:5; boss.hp=Math.max(0,boss.hp-d); boss.hitFlash=.25;
+        addFloat(boss.bx,boss.by-30,'-'+d,T.fart,17); if(boss.hp<=0)killBoss(); } }
+    return fc.life>0&&fc.y>-50; });
+  // bananas that landed intact — walk over them to reload your ammo
+  groundBananas=groundBananas.filter(g=>{ g.life-=dt; g.bob+=dt*4;
+    if(P.bananas<AMMO_MAX&&Math.abs(g.x-P.x)<26&&Math.abs(g.y-P.y)<44){ P.bananas++; sfx.pick(); addFloat(g.x,g.y-26,'+1 🍌','#ffd83d',15);
+      for(let i=0;i<4;i++)particles.push(puff(g.x,g.y,R(-40,40),R(-70,-10))); return false; }
+    return g.life>0; });
   peels=peels.filter(p=>{ p.life-=dt; return p.life>0; });
   if(P.onGround&&P.slipT<=0&&!P.inv){ for(const p of peels){ if(Math.abs(p.x-P.x)<PEEL_R){ slip(p); break; } } }
   powerups=powerups.filter(pu=>{ if(!pu.landed){ pu.vy+=GRAV*.5*dt; pu.y+=pu.vy*dt; if(pu.y>=GROUND_Y-12){pu.y=GROUND_Y-12;pu.landed=true;pu.vy=0;} } pu.life-=dt;
@@ -368,7 +405,7 @@ function collectPU(pu){ tone({f0:400,f1:1100,dur:.16,gain:.24,type:'square'}); a
   else if(pu.kind==='gold'){ P.x2T=PU_X2; addPop(P.x,P.y-52,'SCORE ×2!',PU_COLORS.gold); }
   else if(pu.kind==='plug'){ P.slowT=PU_SLOW; addPop(P.x,P.y-52,'SLO-MO!',PU_COLORS.plug); }
   else if(pu.kind==='beano'){ clouds=[]; peels=[]; addPop(P.x,P.y-52,'FRESH AIR!',PU_COLORS.beano); doFlash(T.fart,.2); }
-  else if(pu.kind==='bean'){ P.gas=GAS_MAX; P.freeFartT=PU_FREE; addPop(P.x,P.y-52,'RAPID FIRE!',PU_COLORS.bean); doFlash(PU_COLORS.bean,.2); }
+  else if(pu.kind==='bean'){ P.gas=GAS_MAX; P.freeFartT=PU_FREE; P.bananas=AMMO_MAX; addPop(P.x,P.y-52,'RAPID FIRE!',PU_COLORS.bean); doFlash(PU_COLORS.bean,.2); }
   else { megaFart(); } }
 function megaFart(){ doFlash(T.fart,.6); addShake(16,.5); hitstop=Math.max(hitstop,.06); sfx.blast(); tone({f0:120,f1:520,dur:.4,gain:.4}); megaRingT=.6;
   addPop(P.x,P.y-52,'MEGA FART!!',PU_COLORS.mega);
@@ -377,7 +414,10 @@ function megaFart(){ doFlash(T.fart,.6); addShake(16,.5); hitstop=Math.max(hitst
   if(boss&&boss.hp>0&&!boss.deathT){ const d=25; boss.hp=Math.max(0,boss.hp-d); boss.hitFlash=.3; addFloat(boss.bx,boss.by-30,'-'+d,PU_COLORS.mega,20); if(boss.hp<=0)killBoss(); }
   for(let i=0;i<44;i++){ const a=R(0,6.28); particles.push(puff(P.x,P.y,Math.cos(a)*R(120,340),Math.sin(a)*R(120,340))); } }
 function groundSplat(b){ burstFx(b.x,GROUND_Y-2,4); for(let i=0;i<4;i++)particles.push(puff(b.x,GROUND_Y-2,R(-40,40),R(-30,-5)));
-  if(b.type!=='black'&&!b.small&&peels.length<7&&Math.random()<.5)peels.push({x:Math.max(24,Math.min(W-24,b.x)),life:PEEL_LIFE,kind:b.type}); }
+  const gx=Math.max(24,Math.min(W-24,b.x));
+  if(b.type==='black')return;                                  // farted-out ones just splat
+  if(!b.small&&peels.length<7&&Math.random()<.34){ peels.push({x:gx,life:PEEL_LIFE,kind:b.type}); return; }
+  if(groundBananas.length<8)groundBananas.push({x:gx,y:GROUND_Y-9,life:GBAN_LIFE,type:b.type,bob:Math.random()*6.28}); }
 function slip(p){ P.slipT=SLIP_T; P.onGround=true; P.vy=0; combo=0; p.life=0; sfx.hurt(); addShake(8,.2);
   addFloat(P.x,P.y-40,'WHOOPS!',T.accent,17); for(let i=0;i<8;i++)particles.push(puff(P.x+R(-14,14),PLAYER_GY+18,R(-80,80),R(-20,20))); }
 function hitPlayer(bx,by,type){
@@ -542,6 +582,20 @@ function drawCloud(c){ const a=Math.max(0,c.life/c.maxLife); ctx.globalAlpha=a*.
   for(let k=0;k<4;k++){ctx.beginPath();ctx.arc(c.x+Math.sin(k*1.7)*c.r*.5,c.y+Math.cos(k*1.3)*c.r*.4,Math.max(1,c.r*.7-k*4),0,6.28);ctx.fill();}
   if(T.smokeRings){ctx.globalAlpha=a*.5;ctx.strokeStyle=T.fartRing;ctx.lineWidth=2;ctx.beginPath();ctx.arc(c.x,c.y,c.r*.6,0,6.28);ctx.stroke();}
   ctx.globalAlpha=1; }
+function drawFartCloud(fc){ const a=Math.max(0,Math.min(1,fc.life/(fc.maxLife*.55)));
+  ctx.globalAlpha=a*.72; ctx.fillStyle=T.fart;
+  for(let k=0;k<6;k++){ const ang=k*1.05+fc.wob*.5; ctx.beginPath();
+    ctx.arc(fc.x+Math.cos(ang)*fc.r*.55,fc.y+Math.sin(ang*1.3)*fc.r*.42,Math.max(2,fc.r*.62-k*3),0,6.28); ctx.fill(); }
+  ctx.globalAlpha=a*.55; ctx.strokeStyle=T.fartRing||T.fart; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(fc.x,fc.y,fc.r*.9,0,6.28); ctx.stroke(); ctx.globalAlpha=1; }
+function drawGroundBanana(g){ const a=g.life<1.2?Math.abs(Math.sin(g.life*14)):1;
+  ctx.save(); ctx.globalAlpha=a; ctx.translate(g.x,g.y+Math.sin(g.bob)*2.5);
+  ctx.globalAlpha=a*.25; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(0,11,12,3.5,0,0,6.28); ctx.fill(); ctx.globalAlpha=a;
+  ctx.shadowColor=T.banana; ctx.shadowBlur=12;
+  ctx.rotate(-.35); ctx.scale(.8,.8); ctx.translate(-10,-17);
+  bananaPath(); ctx.fillStyle=g.type==='brown'?'#9a6a34':T.banana; ctx.fill();
+  if(T.outlineW>0){ctx.lineWidth=T.outlineW*.7;ctx.strokeStyle=T.outline;ctx.lineJoin='round';ctx.stroke();}
+  ctx.restore(); ctx.globalAlpha=1; }
 function drawParticles(){ for(const p of particles){ const a=Math.max(0,p.life/p.maxLife);
   if(p.kind==='puff'){ctx.globalAlpha=a*.55;ctx.fillStyle=T.fart;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.28);ctx.fill();}
   else{ctx.globalAlpha=a;ctx.fillStyle=T.accent;star(p.x,p.y,p.size,5);} } ctx.globalAlpha=1; }
@@ -607,8 +661,11 @@ function drawHUD(){
   ctx.strokeStyle='rgba(255,255,255,.4)'; ctx.lineWidth=1; rr(gx,gy,gw,gh,4); ctx.stroke();
   ctx.fillStyle='#fff'; ctx.font=T.hudFont(9); ctx.textAlign='center'; ctx.fillText('GAS',W/2,gy+gh/2);
   if(tipT>0){ ctx.globalAlpha=Math.min(1,tipT); ctx.fillStyle=T.text; ctx.font=T.hudFont(14); ctx.textAlign='center';
-    ctx.fillText('💨 = fart a banana BACK + shield!',W/2,GROUND_Y-52);
-    ctx.font=T.hudFont(11); ctx.globalAlpha=Math.min(1,tipT)*.85; ctx.fillText('⚫ black = ouch · 🟤 brown = mushy · 🍌 peels = jump!',W/2,GROUND_Y-36); ctx.globalAlpha=1; }
+    ctx.fillText('💨 = FART BACK  ·  🍌 = THROW A BANANA',W/2,GROUND_Y-66);
+    ctx.font=T.hudFont(11); ctx.globalAlpha=Math.min(1,tipT)*.85;
+    ctx.fillText('gas rises + gasses monkeys · bananas auto-aim',W/2,GROUND_Y-50);
+    ctx.fillText('walk over landed 🍌 to reload!',W/2,GROUND_Y-36);
+    ctx.fillText('⚫ black = ouch · 🟤 brown = mushy · peels = jump!',W/2,GROUND_Y-22); ctx.globalAlpha=1; }
 }
 function drawHeart(x,y,s){ ctx.fillStyle='#ff4d6d'; ctx.beginPath(); ctx.moveTo(x,y+s*.4); ctx.bezierCurveTo(x-s,y-s*.6,x-s*1.1,y+s*.3,x,y+s); ctx.bezierCurveTo(x+s*1.1,y+s*.3,x+s,y-s*.6,x,y+s*.4); ctx.fill(); }
 function drawBtn(cx,cy,r,glyph,gs,pressed,ready,accentFill){ const sc=pressed?.9:1;
@@ -617,19 +674,26 @@ function drawBtn(cx,cy,r,glyph,gs,pressed,ready,accentFill){ const sc=pressed?.9
   ctx.globalAlpha=1; ctx.fillStyle='#fff'; ctx.font=`${gs*sc}px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(glyph,cx,cy+1); }
 function drawControls(){
   ctx.fillStyle='rgba(0,0,0,.32)'; ctx.fillRect(0,CTRL_TOP,W,H-CTRL_TOP);
-  const pr=roles(), fartReady=P.gas>=BLAST_COST||P.freeFartT>0;
+  const pr=roles(), fartReady=P.gas>=BLAST_COST||P.freeFartT>0, throwReady=P.bananas>0;
   if(controlStyle==='buttons'){
-    for(const b of BTN){ const isFart=b.id==='FART'; drawBtn(b.cx,b.cy,b.r,b.glyph,isFart?30:24,pr.includes(b.id),isFart?fartReady:true,isFart); }
+    for(const b of BTN){ const act=b.id==='FART'||b.id==='THROW';
+      drawBtn(b.cx,b.cy,b.r,b.glyph,act?28:24,pr.includes(b.id),b.id==='FART'?fartReady:b.id==='THROW'?throwReady:true,act);
+      if(b.id==='THROW')drawAmmoPips(b.cx,b.cy+b.r+9); }
   } else {
     ctx.strokeStyle='rgba(255,255,255,.14)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(W/2,CTRL_TOP+4); ctx.lineTo(W/2,H-6); ctx.stroke();
     ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='34px Arial';
     ctx.globalAlpha=pr.includes('zoneL')?.55:.24; ctx.fillStyle='#fff'; ctx.fillText('◀',W*0.22,H-62);
     ctx.globalAlpha=pr.includes('zoneR')?.55:.24; ctx.fillText('▶',W*0.78,H-62); ctx.globalAlpha=1;
     ctx.fillStyle='rgba(255,255,255,.5)'; ctx.font=T.hudFont(10); ctx.fillText('hold to move · tap = jump',W/2,CTRL_TOP+14);
-    drawBtn(ZFART.cx,ZFART.cy,ZFART.r,'💨',34,pr.includes('FART'),fartReady,true);
+    drawBtn(ZTHROW.cx,ZTHROW.cy,ZTHROW.r,'🍌',30,pr.includes('THROW'),throwReady,true); drawAmmoPips(ZTHROW.cx,ZTHROW.cy+ZTHROW.r+9);
+    drawBtn(ZFART.cx,ZFART.cy,ZFART.r,'💨',32,pr.includes('FART'),fartReady,true);
   }
   ctx.globalAlpha=1;
 }
+// tiny ammo pips under the 🍌 button
+function drawAmmoPips(cx,cy){ const n=AMMO_MAX, gap=8, x0=cx-(n-1)*gap/2;
+  for(let i=0;i<n;i++){ ctx.beginPath(); ctx.arc(x0+i*gap,cy,2.6,0,6.28);
+    ctx.fillStyle=i<P.bananas?T.banana:'rgba(255,255,255,.22)'; ctx.fill(); } }
 function drawCtrlToggle(){ ctx.textAlign='center'; ctx.textBaseline='middle';
   for(const c of ctrlChips()){ const active=c.id===controlStyle;
     ctx.fillStyle=active?T.border:'rgba(255,255,255,.08)'; rr(c.x,c.y,c.w,c.h,9); ctx.fill();
@@ -710,13 +774,15 @@ function drawStart(){
   ctx.fillStyle=T.text; ctx.font=T.hudFont(15); ctx.fillText('Monkey Fart Madness',W/2,180);
   ctx.font=T.hudFont(16); ctx.fillStyle=T.text; ctx.globalAlpha=.95;
   ctx.fillText('Monkeys fart bananas at you.',W/2,236);
-  ctx.fillText('Dodge them — then fart them RIGHT BACK',W/2,262);
-  ctx.fillText('to stun the monkeys for combo points!',W/2,288); ctx.globalAlpha=1;
-  ctx.fillStyle=T.accent; ctx.font=T.hudFont(15);
-  ctx.fillText('◀ ▶ move    ⤒ jump    💨 FART BLAST',W/2,332);
-  ctx.fillStyle=T.text; ctx.globalAlpha=.6; ctx.font=T.hudFont(12);
-  ctx.fillText('Keyboard: ← →  ·  Space  ·  F     (T = theme)',W/2,356); ctx.globalAlpha=1;
-  ctx.fillStyle=T.fart; ctx.font=T.hudFont(13); ctx.fillText('Blasting costs gas — watch the meter!',W/2,392);
+  ctx.fillText('Dodge them — then FART them back',W/2,262);
+  ctx.fillText('or THROW their own bananas at them!',W/2,288); ctx.globalAlpha=1;
+  ctx.fillStyle=T.accent; ctx.font=T.hudFont(14);
+  ctx.fillText('◀ ▶ move   ⤒ jump   💨 fart   🍌 throw',W/2,332);
+  ctx.fillStyle=T.text; ctx.globalAlpha=.6; ctx.font=T.hudFont(11);
+  ctx.fillText('Keyboard: ← →  ·  Space  ·  F  ·  B     (T = theme)',W/2,356); ctx.globalAlpha=1;
+  ctx.fillStyle=T.fart; ctx.font=T.hudFont(12);
+  ctx.fillText('💨 costs gas · 🍌 costs ammo — walk over',W/2,388);
+  ctx.fillText('landed bananas to pick more up!',W/2,404);
   ctx.fillStyle=T.text; ctx.globalAlpha=.85; ctx.font=T.hudFont(13); ctx.fillText('4 lives ❤ · survive & score high',W/2,420); ctx.globalAlpha=1;
   if(Math.floor(Date.now()/500)%2===0){ ctx.fillStyle=T.accent; ctx.font=T.titleFont(20); ctx.fillText('▶ TAP TO START ◀',W/2,470); }
   if(best>0){ ctx.fillStyle=T.text; ctx.globalAlpha=.5; ctx.font=T.hudFont(12); ctx.fillText('Best: '+best,W/2,500); ctx.globalAlpha=1; }
@@ -781,7 +847,7 @@ function draw(){
   if(st===ST.OVER){drawOver();return;}
   if(st===ST.WIN){drawWin();return;}
   ctx.save(); if(shakeT>0)ctx.translate(R(-1,1)*shakeMag*shakeT,R(-1,1)*shakeMag*shakeT);
-  drawBg(); for(const c of clouds)drawCloud(c); for(const m of monkeys)drawMonkey(m); if(st===ST.BOSS&&boss)drawBoss(); for(const p of peels)drawPeel(p); for(const pu of powerups)drawPowerup(pu); for(const b of bananas)drawBanana(b); drawPlayer(); drawParticles(); drawFloaters(); drawPops(); drawOverlay();
+  drawBg(); for(const c of clouds)drawCloud(c); for(const m of monkeys)drawMonkey(m); if(st===ST.BOSS&&boss)drawBoss(); for(const p of peels)drawPeel(p); for(const g of groundBananas)drawGroundBanana(g); for(const pu of powerups)drawPowerup(pu); for(const b of bananas)drawBanana(b); drawPlayer(); for(const fc of fartClouds)drawFartCloud(fc); drawParticles(); drawFloaters(); drawPops(); drawOverlay();
   ctx.restore();
   if(P.slowT>0){ ctx.globalAlpha=.1; ctx.fillStyle=PU_COLORS.plug; ctx.fillRect(0,0,W,CTRL_TOP); ctx.globalAlpha=1; }
   drawHUD(); drawEffectPips(); drawControls();
