@@ -50,7 +50,20 @@ farts are ~70% of the comedy.
   **locks red** — step off the line before it fires, or bonk it to cancel the shot).
   Variety ramps up as you survive longer.
 - **Gas meter**: farting costs gas that recharges, so you can't just spam it.
-- Chain stuns to build your combo. Getting hit resets it. You have 4 lives.
+- Chain stuns to build your combo. Getting hit resets it.
+- **Difficulty**: 😌 Easy or 🔥 Normal. Easy isn't just more hearts — 6 lives *and* a
+  measurably gentler barrage (23% fewer bananas, slower flight, a longer sniper warning).
+
+### Progression — all earned, never bought
+- **🍌 Banana Coins** drop off bonked monkeys. Walk over them to collect, or grab the
+  **Magnet** power-up and they come to you. Level clears, the boss, and winning all pay.
+- **Ranks**: Fart Cadet → Parp Private → Gas Corporal → Toot Sergeant → Blast Captain →
+  Methane Major → **Gas Guardian**. Driven by *lifetime* coins, so spending never demotes you.
+- **Banana Shop**: 6 hats and 5 fart-skins (which tint your own gas). Cosmetic only.
+- **Fart of the Day**: a modifier seeded from the date — double coins, floaty jumps, bean
+  feast, well stocked, slow-mo — plus 25 coins for your first run each day. Every daily is
+  a *buff*; nothing about the calendar can make you lose.
+- **No ads. No in-app purchases. Nothing costs real money — ever.**
 
 ### Controls
 | | Touch | Keyboard |

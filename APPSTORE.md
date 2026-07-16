@@ -48,8 +48,13 @@ paste what you like into App Store Connect. Everything below is a suggestion, no
 > Watch for brown bananas (soft, mushy, slows you down), black farted ones (ouch),
 > and slippery peels — jump those.
 >
+> **Earn it, don't buy it.** Bonk monkeys for 🍌 Banana Coins, then spend them in the
+> Banana Shop on hats and fart colours. Climb seven ranks from Fart Cadet to Gas
+> Guardian. Come back for the Fart of the Day. Every single unlock is earned by
+> playing — there is nothing to buy.
+>
 > Built for kids and the adults laughing next to them. Big buttons, two control
-> styles, ten levels and a boss.
+> styles, an Easy mode with a genuinely gentler barrage, ten levels and a boss.
 >
 > **No ads. No in-app purchases. No accounts. Nothing to buy — ever.**
 
@@ -57,13 +62,23 @@ paste what you like into App Store Connect. Everything below is a suggestion, no
 
 `fart,monkey,banana,funny,kids,dodge,silly,arcade,jump,family,cartoon,comedy,gross,pixel`
 
-## What's New (for 1.3)
+## What's New (for 1.7)
+
+> • NEW: 🍌 Banana Coins — bonk monkeys, collect coins, spend them in the Banana Shop
+> • NEW: Banana Shop — 6 hats and 5 fart colours. All earned. No ads, no purchases.
+> • NEW: Ranks — climb from Fart Cadet all the way to Gas Guardian
+> • NEW: Fart of the Day — a new twist every day, plus a daily coin bonus
+> • NEW: Easy mode — 6 lives and a gentler barrage, for younger players
+> • NEW: Magnet power-up — coins fly straight to you
+> • Fixed: holding left or right sometimes wouldn't move you
+
+## Earlier: 1.3–1.6
 
 > • Fart and throw are now two different moves — gas clouds vs. auto-aimed bananas
 > • Bananas that land can be picked up and thrown back
-> • NEW: Sniper Chimp — watch for the red laser lock
+> • Sniper Chimp — watch for the red laser lock
 > • Pause button with a main menu
-> • All four art styles now on iPhone, swappable any time
+> • All four art styles on iPhone — now picked by tapping the swim lanes
 > • Fills the whole screen, and haptics on every bonk
 
 ---
