@@ -128,41 +128,38 @@
 
   <header>
     <div class="badges">
-      <span class="badge live">● Living doc · v8 + native iOS</span>
-      <span class="badge">HTML lab → Swift (porting now)</span>
-      <span class="badge grape">Flagship theme: Loud!</span>
+      <span class="badge live">● Living doc · v23 · shipped</span>
+      <span class="badge">HTML lab ⇄ native Swift, in lockstep</span>
+      <span class="badge grape">2.0 (12) · in App Store Connect</span>
     </div>
     <h1>Monkey Madness — <span class="g">Fart Back</span> <span class="y">Storyboard</span></h1>
-    <p class="dek">The single source of truth for where the game is and where it's going. A flatulent-monkey dodge-'em-up: monkeys swing on a branch and <b>fart bananas</b> at you; you <b>fart them right back</b>. We're proving the fun in a fast HTML lab, then porting to a native iOS SpriteKit app. This doc updates every iteration.</p>
+    <p class="dek">The single source of truth for where the game is and where it's going. A flatulent-monkey dodge-'em-up: monkeys swing on a branch and <b>fart bananas</b> at you; you <b>fart them right back</b>. Proven in a fast HTML lab, then ported 1:1 to a native iOS app (UIKit + Core Graphics). <b>The build is done, playtested, and staged for the App Store.</b> This doc now looks past launch.</p>
   </header>
 
   <!-- STATUS -->
   <section>
     <div class="eyebrow"><span class="n">01</span> Status — where we are</div>
-    <h2>Feature-complete &amp; shipping to TestFlight — now it needs a 6-year-old</h2>
-    <p class="lead">The roadmap is <b>done</b> — enemies, moves, power-ups, hazards, themes, levels, boss, juice, audio, <i>and</i> the whole meta &amp; retention column — all built, verified and live on TestFlight (currently <b>1.9&nbsp;(10)</b>), in both the HTML lab and the native Swift build, which are kept in lockstep. What's left in the backlog is genuinely optional. What's <i>not</i> optional: <b>real hands on a real device</b>. Every claim below is verified in the browser harness or the Simulator; <b>nobody has played it by hand on a phone yet</b>, and that's the only thing that can settle the control layout.</p>
+    <h2>Built, playtested, loved — staged for the App Store</h2>
+    <p class="lead">The roadmap is <b>done</b> — enemies, moves, power-ups, hazards, themes, levels, boss, juice, audio, <i>and</i> the whole meta &amp; retention column — all built and shipping as <b>2.0&nbsp;(12)</b>, iPhone-only, in both the HTML lab and the native Swift build, kept in lockstep. The one gate that mattered — <b>a real 6-year-old on a real phone</b> — is now <b>cleared: Mateo played it and it's a hit.</b> The App Store listing (name, subtitle, description, keywords, categories, privacy URL, 5 screenshots, the build) is all pushed live via the API. What's left before launch isn't code — it's three clicks only David can make. This doc now looks <b>past</b> launch.</p>
     <div class="bar">
       <div class="step done"><span class="s">🥊</span><b>Core combat</b><small>✅ Shipped</small></div>
-      <div class="step done"><span class="s">🧃</span><b>Juice</b><small>✅ Shipped</small></div>
       <div class="step done"><span class="s">🐒</span><b>Monkey variety</b><small>✅ Shipped</small></div>
-      <div class="step done"><span class="s">🎁</span><b>Power-ups</b><small>✅ Shipped</small></div>
       <div class="step done"><span class="s">👑</span><b>Levels + Boss</b><small>✅ Shipped</small></div>
       <div class="step done"><span class="s">🎨</span><b>4 themes · iOS</b><small>✅ Shipped</small></div>
       <div class="step done"><span class="s">📈</span><b>Coins · Shop · Ranks</b><small>✅ Shipped</small></div>
-      <div class="step done"><span class="s">📱</span><b>TestFlight 1.9 (10)</b><small>✅ Live</small></div>
-      <div class="step now"><span class="s">🧒</span><b>Playtest w/ Mateo</b><small>🔨 Next</small></div>
+      <div class="step done"><span class="s">🧒</span><b>Playtest w/ Mateo</b><small>✅ Loved it</small></div>
+      <div class="step done"><span class="s">🏬</span><b>Listing · 2.0 (12)</b><small>✅ Staged</small></div>
+      <div class="step now"><span class="s">🚀</span><b>Age rating + Submit</b><small>🔨 David</small></div>
+      <div class="step"><span class="s">🌟</span><b>Post-launch update</b><small>📋 Planning</small></div>
     </div>
-    <div class="legend"><span>✅ shipped</span><span>🔨 building</span><span>📋 queued</span><span>💡 backlog idea</span></div>
+    <div class="legend"><span>✅ shipped</span><span>🔨 David's 3 clicks</span><span>📋 planning</span><span>💡 backlog idea</span></div>
     <div class="mini" style="margin-top:18px">
-      <b>🧒 The only real gate left</b>
-      <p>Three things I can't answer from here, in priority order:
-      <b>(1)</b> do five buttons fit his thumbs, or is <i>Zones</i> better? The toggle exists to A/B exactly this.
-      <b>(2)</b> is the ~1.9s Sniper warning enough for him, or terrifying?
-      <b>(3)</b> is the level-1→10 ramp still too steep once he's actually holding it?</p>
+      <b>🚀 The last three clicks (David only — legal declarations + publish)</b>
+      <p>Everything else is done. In App Store Connect: <b>(1)</b> answer the age-rating questionnaire — expect <b>9+</b>, not 4+ (Apple's 4+ tier allows <i>no</i> crude humour at all; a fart game clears 9+). <b>(2)</b> confirm <b>Data Not Collected</b> in App Privacy — true, verifiably: zero networking in the binary. <b>(3)</b> press <b>Submit</b>. Then ~24–48h of Apple review. Full detail in <code>APPSTORE.md</code>.</p>
     </div>
     <div class="mini">
-      <b>📋 Then, to actually hit the App Store</b>
-      <p>Not code — see <code>APPSTORE.md</code>: age rating (4+), a privacy policy URL (required even though the app collects nothing and has no networking), screenshots (one per world), and the Kids-Category decision. Listing copy is already drafted.</p>
+      <b>🔎 The most valuable input now: watch him play</b>
+      <p>"It's great" is the headline; the <i>details</i> are the roadmap. What does he reach for — fart-back or throw? Does he ever find the double-jump or hover? Which world does he pick? Where does he laugh, and where does he put the phone down? A week of watching beats any feature I could guess at — and it re-orders everything below.</p>
     </div>
   </section>
 
@@ -172,11 +169,11 @@
     <h2>Start → escalate → boss → the big win</h2>
     <p class="lead">One run is a 2–4 minute arc with a clear shape. The dashed panels aren't built yet — they're the target.</p>
     <div class="story">
-      <div class="panel"><div class="art">🎮</div><div class="txt"><span class="tag">✅ built</span><br><b>Start</b><p>Pick your world, tap to play. Themed splash.</p></div></div>
-      <div class="panel"><div class="art">🐒🍌</div><div class="txt"><span class="tag">✅ built (endless)</span><br><b>Dodge &amp; Fart Back</b><p>Swinging monkeys, banana types, combos, gas.</p></div></div>
-      <div class="panel"><div class="art">🎁⭐</div><div class="txt"><span class="tag">🔨 next</span><br><b>Power-ups &amp; escalation</b><p>Drops from stuns; new monkey mixes each wave.</p></div></div>
-      <div class="panel"><div class="art">👑🦍</div><div class="txt"><span class="tag">📋 queued</span><br><b>Boss: King Kong-a-Toot</b><p>Telegraphed, phased fart-barrage finale.</p></div></div>
-      <div class="panel"><div class="art">💰🏆</div><div class="txt"><span class="tag">✅ moment exists</span><br><b>The Win</b><p>"$10 in your bank!" — keep this hero beat.</p></div></div>
+      <div class="panel"><div class="art">🎮</div><div class="txt"><span class="tag">✅ built</span><br><b>Start</b><p>Pick your world in the swim lanes, tap PLAY.</p></div></div>
+      <div class="panel"><div class="art">🐒🍌</div><div class="txt"><span class="tag">✅ built</span><br><b>Dodge &amp; Fart Back</b><p>Swinging monkeys, banana types, combos, gas.</p></div></div>
+      <div class="panel"><div class="art">🎁⭐</div><div class="txt"><span class="tag">✅ built</span><br><b>Power-ups &amp; escalation</b><p>Drops from stuns; new monkey mixes each wave.</p></div></div>
+      <div class="panel"><div class="art">👑🦍</div><div class="txt"><span class="tag">✅ built</span><br><b>Boss: King Kong-a-Toot</b><p>Telegraphed, phased fart-barrage finale.</p></div></div>
+      <div class="panel"><div class="art">💰🏆</div><div class="txt"><span class="tag">✅ built</span><br><b>The Win</b><p>"$10 in your bank!" — the hero beat, kept.</p></div></div>
     </div>
 
     <div class="rhythm">
@@ -194,8 +191,8 @@
 
   <!-- FEATURE SPECS -->
   <section>
-    <div class="eyebrow"><span class="n">03</span> Design specs — what's coming, and how</div>
-    <h2>The next builds, research-backed</h2>
+    <div class="eyebrow"><span class="n">03</span> Design specs — how the shipped systems work</div>
+    <h2>The research behind what's built</h2>
 
     <!-- Power-ups -->
     <div class="spec">
@@ -234,7 +231,7 @@
 
     <!-- Progression -->
     <div class="spec">
-      <div class="h"><span class="ic">📈</span><h3>Progression &amp; retention</h3><span class="st next">Queued</span></div>
+      <div class="h"><span class="ic">📈</span><h3>Progression &amp; retention</h3><span class="st now">✓ Shipped</span></div>
       <p style="color:var(--muted); font-size:.94rem; margin:.5rem 0 0">Turn the endless loop into a game with shape and reasons to return — without adding cognitive load for a young player.</p>
       <div class="grid2">
         <div class="mini"><b>10 levels → boss</b><p>Structured arc (from the brief). Level-complete interstitials.</p></div>
@@ -264,9 +261,54 @@
     </div>
   </section>
 
+  <!-- WHAT'S NEXT -->
+  <section>
+    <div class="eyebrow"><span class="n">04</span> What's next — the first post-launch update</div>
+    <h2>Update 2.1 · "Make it his"</h2>
+    <p class="lead">The game is finished; 2.1 isn't new systems, it's the cheapest, most personal way to make it feel like <b>Mateo's own game</b> — shipped small and fast while we watch how he really plays. The big swings (co-op, a vertical mode, new worlds) wait for 2.2+, once a week or two of watching says which way he pulls. Deliberately restrained: <b>don't over-build a game a kid already loves.</b></p>
+
+    <div class="spec">
+      <div class="h"><span class="ic">🎙️</span><h3>His own voice</h3><span class="st next">Next</span></div>
+      <p style="color:var(--muted); font-size:.94rem; margin:.5rem 0 0">Record <b>Mateo</b> saying a handful of one-shots — <i>"ewww!"</i>, <i>"nice!"</i>, <i>"PBBT!"</i>, <i>"again!"</i> — and wire them to events. Nearly free to build, and the single biggest "this game is <b>mine</b>" lever there is. This is the one backlog item I can't do alone: it needs a phone, a quiet room, and a giggling six-year-old.</p>
+      <div class="grid2">
+        <div class="mini"><b>ewww!</b><p>On taking a hit — turns a life lost into a laugh.</p></div>
+        <div class="mini"><b>nice! / yeah!</b><p>On a big combo or a monkey popped clean.</p></div>
+        <div class="mini"><b>PBBT!</b><p>His voice <i>is</i> the fart — layered under the synth, or replacing it.</p></div>
+        <div class="mini"><b>again!</b><p>On the game-over screen, over the ▶ AGAIN button.</p></div>
+      </div>
+      <ul class="rules">
+        <li><b>Rides the existing SFX toggle</b> — no new setting; if sound's on, his voice is on.</li>
+        <li><b>Sit under the synth, don't fight it:</b> voice one-shots duck the procedural fart rather than doubling it up.</li>
+        <li><b>A few takes each,</b> chosen at random, so it never sounds like a soundboard.</li>
+      </ul>
+    </div>
+
+    <div class="spec">
+      <div class="h"><span class="ic">🕹️</span><h3>Free Play — a no-fail mode</h3><span class="st next">Next</span></div>
+      <p style="color:var(--muted); font-size:.94rem; margin:.5rem 0 0">A calm entry where <b>nothing can go wrong</b>: no lives, no game-over, just fart around with the monkeys. Young kids often bounce off a fail state — this lets him mess about, learn the moves, and still earn coins for the shop. Cheap: it reuses every spawn and system, just switches off death and the OVER screen.</p>
+      <div class="grid2">
+        <div class="mini"><b>No lives</b><p>Getting hit is a stumble + a squeak, never an ending.</p></div>
+        <div class="mini"><b>Still earns coins</b><p>So it feeds the same shop — messing about isn't a dead end.</p></div>
+        <div class="mini"><b>Gentle mix</b><p>Leans on the Easy barrage; no boss pressure, no clock.</p></div>
+        <div class="mini"><b>One tap from the menu</b><p>A quiet toggle by PLAY, not a mode-select wall.</p></div>
+      </div>
+      <p class="research">Research: for the youngest players, a no-lose sandbox raises session count and lowers rage-quits — the fun is the toy, not the win state.</p>
+    </div>
+
+    <div class="spec">
+      <div class="h"><span class="ic">🎩</span><h3>More to collect</h3><span class="st next">Next</span></div>
+      <p style="color:var(--muted); font-size:.94rem; margin:.5rem 0 0">Kids are collectors. A few more <b>hats and fart-skins</b> on the rails the Banana Shop already has — near-free content that stretches the reason to keep earning. No new systems, just more of a thing that already works.</p>
+      <ul class="rules">
+        <li><b>A pull toward the next unlock:</b> a couple priced just past the current balance, so there's always one more to want.</li>
+        <li><b>All earned, still no IAP</b> — the project's line doesn't move.</li>
+        <li>Candidates: a party hat, a wizard hat, a rainbow / glitter / fire fart-skin. Vector, per-theme-aware.</li>
+      </ul>
+    </div>
+  </section>
+
   <!-- BACKLOG -->
   <section>
-    <div class="eyebrow"><span class="n">04</span> Idea backlog</div>
+    <div class="eyebrow"><span class="n">05</span> Idea backlog</div>
     <h2>Everything on the table</h2>
     <p class="lead">The full grab-bag, tagged by status. We pull from here each iteration.</p>
     <div class="cols">
@@ -303,14 +345,16 @@
       <div class="cat"><h4>🗺️ Modes &amp; arenas</h4>
         <div class="item"><span class="s">✅</span><span class="t">4 art-direction themes — HTML <b>+ iOS</b>, swappable &amp; remembered <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">10 levels + boss (main mode) <span class="k ship">shipped</span></span></div>
+        <div class="item"><span class="s">🕹️</span><span class="t"><b>Free Play</b> — no-fail sandbox for young play <span class="k next">2.1</span></span></div>
+        <div class="item"><span class="s">💡</span><span class="t">Couch co-op / "Dad mode" (2-player) <span class="k maybe">2.2+ big swing</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">Jetpack Climber (vertical) <span class="k later">later</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Arena / 2-player couch <span class="k maybe">maybe</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Arenas: Volcano, Swamp, Space, Kitchen <span class="k later">later</span></span></div>
+        <div class="item"><span class="s">💡</span><span class="t">5th world: Volcano · Space · Kitchen <span class="k later">later</span></span></div>
       </div>
 
       <div class="cat"><h4>📈 Meta &amp; retention</h4>
         <div class="item"><span class="s">✅</span><span class="t">Banana Coins + cosmetic shop <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">Hats &amp; fart-skins (11 cosmetics, earned) <span class="k ship">shipped</span></span></div>
+        <div class="item"><span class="s">🎩</span><span class="t">More hats + skins (party · wizard · rainbow) <span class="k next">2.1</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">Fart of the Day (daily buff + bonus) <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">Ranks: Fart Cadet → Gas Guardian (7 tiers) <span class="k ship">shipped</span></span></div>
       </div>
@@ -318,7 +362,7 @@
       <div class="cat"><h4>🔊 Audio</h4>
         <div class="item"><span class="s">✅</span><span class="t">Per-theme fart synth (brap/kazoo/brass/squelch) <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">Music loop per theme (synthesised, off by default) <span class="k ship">shipped</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Voice "ewww!/nice!" one-shots <span class="k maybe">maybe</span></span></div>
+        <div class="item"><span class="s">🎙️</span><span class="t"><b>Mateo-voiced</b> "ewww!/nice!/PBBT!" one-shots <span class="k next">2.1</span></span></div>
       </div>
 
       <div class="cat"><h4>✨ Juice &amp; polish</h4>
@@ -338,7 +382,7 @@
 
   <!-- SWIFT GATE -->
   <section>
-    <div class="eyebrow"><span class="n">05</span> How it's built</div>
+    <div class="eyebrow"><span class="n">06</span> How it's built</div>
     <h2>The lab → Swift pipeline (settled)</h2>
     <div class="two">
       <div class="note"><h3>✅ Ported — and the port is done</h3>
@@ -360,9 +404,10 @@
 
   <!-- CHANGELOG -->
   <section>
-    <div class="eyebrow"><span class="n">06</span> Changelog</div>
+    <div class="eyebrow"><span class="n">07</span> Changelog</div>
     <h2>What's shipped so far</h2>
     <div class="changelog">
+      <div class="cl"><span class="v">v23</span><span class="d"><b>Shipped to the App Store — and Mateo loves it</b>. The one gate that mattered is cleared: a real 6-year-old played it on a real phone, and it's a hit. Then the whole listing went up <b>through the App Store Connect API</b> (no dashboard clicking): name, subtitle, categories (Games · Action · Family), description, keywords, promo text, support URL, and <b>5 screenshots</b> — one per world plus King Kong-a-Toot — each captured on a <i>dedicated</i> simulator (a shared one let another project's session launch its app over ours mid-shot) and <b>verified by eye before upload</b>. <b>iPad dropped</b> (<code>TARGETED_DEVICE_FAMILY 1,2 → 1</code>): the game is portrait and phone-shaped and had never once run on an iPad, so shipping a device nobody had played was a worse bet than iPhone-only now. Re-archived as <b>2.0 (12)</b>, verified from the archive's own Info.plist, uploaded and attached. All that's left is David's three clicks: age rating (<b>9+</b>, not 4+), the privacy toggle, and Submit.</span></div>
       <div class="cl"><span class="v">v22</span><span class="d"><b>Why ◀▶ was unreliable — found it</b> (David: <i>"sometimes works other times not"</i>). Not the game's code: <b>iOS was eating the touches</b>. The steering zone runs to the bottom of the canvas, which sits <b>~34pt from the screen edge</b> — inside the home-indicator gesture region, where the system holds the first touch to check whether it's a home swipe and only passes it on if it isn't. Held presses get delayed or cancelled outright, which is exactly "sometimes". It hit ◀▶ hardest because they're <i>held</i>, <i>low</i>, right where a thumb rests — and my earlier fix widening the pad to the bottom edge made it <b>worse</b>. Fixed with <code>preferredScreenEdgesDeferringSystemGestures = .bottom</code>, so the game gets the first touch. Plus <b>DOUBLE JUMP</b>: a second mid-air parp, free on purpose (hover is the thing that costs gas). Measured: 140px → 242px at the apex, capped at 2, and it still can't reach the branch.</span></div>
       <div class="cl"><span class="v">v21</span><span class="d"><b>Crisper menu</b> (David: <i>"too crazy busy"</i>) — the menu had <b>ten</b> stacked groups over four animated lanes. Now <b>six</b>: title, one status line (rank · coins · best), <b>PLAY</b>, two quiet secondary buttons, one daily line, and the lanes. Everything adjustable moved to a new <b>Settings</b> screen where it has room. Unpicked lanes recede harder (60%) and the falling bananas are splash-only. ~7.5KB of the code making the noise deleted.</span></div>
       <div class="cl"><span class="v">v20b</span><span class="d"><b>Mega-Hover, coconuts, music</b> — <b>hold JUMP</b> to ride your own gas down (no sixth button; the strip was full). Getting the economics honest took three passes: hovering first <i>recharged</i> you (drain 26/s vs recharge 30/s), then <i>sputtered</i> forever at a 46% duty cycle; now holding jump keeps the valve open — full tank 2.95s, empty tank <b>0.00s</b>, and it costs you the fart. <b>Coconuts</b> (L5+) punish standing still, always with a 1s shadow tell. <b>Per-theme music</b>, synthesised so it needs no licensed assets — and <b>off by default</b>, because a parent is sitting next to this.</span></div>
