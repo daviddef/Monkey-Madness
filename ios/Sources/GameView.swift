@@ -104,6 +104,9 @@ private struct Theme {
     var titleItalic = false, rounded = false
     let sThrow: FartSound, sJump: FartSound, sBlast: FartSound
     var airhorn = false
+    // music voice — each world gets its own key, tempo and waveform
+    var mRoot: Double = 196, mBpm: Double = 120, mWave = "square", mLead = "sawtooth", mGain: Double = 0.16
+    var mScale: [Int] = [0,3,5,7,10]
 }
 private let THEME_ORDER = ["loud", "doodle", "ink", "clay"]
 private let THEMES: [String: Theme] = [
@@ -117,7 +120,8 @@ private let THEMES: [String: Theme] = [
         wood: hex("3a2557"), leaf: hex("17d1e8"), paraKind: "rings", paraCols: [hex("3a2270"), hex("472a86")], fontFamily: "", titleItalic: true,
         sThrow: FartSound(freq: 150, dur: 0.2, flutter: 24, cutoff: 1500, gain: 0.32),
         sJump: FartSound(freq: 250, dur: 0.14, flutter: 30, cutoff: 1900, gain: 0.28),
-        sBlast: FartSound(freq: 90, dur: 0.4, flutter: 16, cutoff: 1300, gain: 0.5), airhorn: true),
+        sBlast: FartSound(freq: 90, dur: 0.4, flutter: 16, cutoff: 1300, gain: 0.5), airhorn: true,
+        mRoot: 196.00, mBpm: 132, mWave: "square", mLead: "sawtooth", mGain: 0.16, mScale: [0,3,5,7,10]),
     "doodle": Theme(name: "Doodle", icon: "\u{1F58D}", bg: "paper",
         bgBase: hex("fbf7ea"), rule: hex("cfe0ef"), margin: hex("e8907f"),
         ground: hex("8fca6a"), groundEdge: hex("5a9a3a"), outline: hex("5a3a17"), outlineW: 3,
@@ -128,7 +132,8 @@ private let THEMES: [String: Theme] = [
         wood: hex("8a5a2b"), leaf: hex("4aa63e"), paraKind: "clouds", paraCols: [hex("e4eef8"), hex("f1f6fb")], fontFamily: "ChalkboardSE-Bold",
         sThrow: FartSound(freq: 300, dur: 0.17, flutter: 34, cutoff: 2200, gain: 0.24),
         sJump: FartSound(freq: 430, dur: 0.12, flutter: 36, cutoff: 2600, gain: 0.22),
-        sBlast: FartSound(freq: 210, dur: 0.3, flutter: 26, cutoff: 1800, gain: 0.34)),
+        sBlast: FartSound(freq: 210, dur: 0.3, flutter: 26, cutoff: 1800, gain: 0.34),
+        mRoot: 261.63, mBpm: 112, mWave: "triangle", mLead: "square", mGain: 0.14, mScale: [0,2,4,7,9]),
     "ink": Theme(name: "Inkwell", icon: "\u{1F3A9}", bg: "inkpaper",
         bgBase: hex("efe4c6"),
         ground: hex("181410"), groundEdge: hex("2a2016"), outline: hex("181410"), outlineW: 3,
@@ -141,7 +146,8 @@ private let THEMES: [String: Theme] = [
         fontFamily: "Georgia", titleItalic: true,
         sThrow: FartSound(freq: 110, dur: 0.26, flutter: 14, cutoff: 820, gain: 0.34),
         sJump: FartSound(freq: 170, dur: 0.16, flutter: 16, cutoff: 1000, gain: 0.28),
-        sBlast: FartSound(freq: 68, dur: 0.5, flutter: 11, cutoff: 700, gain: 0.5)),
+        sBlast: FartSound(freq: 68, dur: 0.5, flutter: 11, cutoff: 700, gain: 0.5),
+        mRoot: 174.61, mBpm: 96, mWave: "sine", mLead: "triangle", mGain: 0.15, mScale: [0,2,3,5,7]),
     "clay": Theme(name: "Plasticine", icon: "\u{1F7E4}", bg: "clay",
         // bgBase also fills the safe-area strips outside the logical canvas — without it
         // the default black shows through as letterbox bands above/below a light theme.
@@ -154,14 +160,15 @@ private let THEMES: [String: Theme] = [
         wood: hex("7a5330"), leaf: hex("6a9a3a"), highlight: true, paraKind: "hills", paraCols: [hex("cdb994"), hex("dccdb0")], fontFamily: "", rounded: true,
         sThrow: FartSound(freq: 130, dur: 0.2, flutter: 18, cutoff: 900, gain: 0.3),
         sJump: FartSound(freq: 200, dur: 0.13, flutter: 20, cutoff: 1100, gain: 0.26),
-        sBlast: FartSound(freq: 80, dur: 0.4, flutter: 13, cutoff: 800, gain: 0.46)),
+        sBlast: FartSound(freq: 80, dur: 0.4, flutter: 13, cutoff: 800, gain: 0.46),
+        mRoot: 220.00, mBpm: 104, mWave: "sine", mLead: "sine", mGain: 0.16, mScale: [0,2,4,5,7]),
 ]
 
 // MARK: - Progression
 // Everything here is EARNED. No ads, no IAP, nothing to buy with money (project rule).
 private enum SK {   // UserDefaults keys
     static let best = "fartback_best", coins = "mm_coins", life = "mm_lifetime"
-    static let owned = "mm_owned", hat = "mm_hat", skin = "mm_skin", diff = "mm_diff", daily = "mm_daily"
+    static let owned = "mm_owned", hat = "mm_hat", skin = "mm_skin", diff = "mm_diff", daily = "mm_daily", music = "mm_music"
 }
 private struct Diff { let label: String, lives: Int; let ivMul, flightAdd, aimMul, blackMul, coinMul: CGFloat }
 // Easy isn't just more lives: the whole barrage relaxes. Mateo is 6.
@@ -265,7 +272,9 @@ final class GameView: UIView {
     private func setTheme(_ id: String) {
         guard THEMES[id] != nil else { return }
         themeId = id; UserDefaults.standard.set(id, forKey: "mm_theme")
-        audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24); setNeedsDisplay()
+        audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24)
+        applyMusic()   // each world has its own key and tempo
+        setNeedsDisplay()
     }
     private var cBgBase: UIColor { T.bgBase }
     private var cBgDot: UIColor { T.bgDot }
@@ -288,7 +297,7 @@ final class GameView: UIView {
     private var cLeaf: UIColor { T.leaf }
 
     // state
-    private enum St { case start, play, leveldone, boss, win, over, pause, splash, shop }
+    private enum St { case start, play, leveldone, boss, win, over, pause, splash, shop, settings }
     private var st: St = .splash
     private var pauseFrom: St = .play   // so RESUME returns to play or boss, whichever you paused from
     private var splashT: CGFloat = 0
@@ -309,6 +318,17 @@ final class GameView: UIView {
     private var runCoins = 0                                                 // earned this run
     private var rankUpTo: Rank? = nil
     private var dailyPaid = false
+    // Defaults OFF — a parent sits next to this, and an autoplaying loop is how an app
+    // gets deleted. Opt-in, remembered.
+    private var musicOn = UserDefaults.standard.bool(forKey: SK.music)
+    private func applyMusic() {
+        if musicOn { audio.setMusic(root: T.mRoot, bpm: T.mBpm, scale: T.mScale, wave: T.mWave, lead: T.mLead, gain: T.mGain) }
+        else { audio.stopMusic() }
+    }
+    private func setMusic(_ on: Bool) {
+        musicOn = on; ud.set(on, forKey: SK.music); applyMusic()
+        audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24); haptic(.pick)
+    }
     private var diffId: String = {
         let s = UserDefaults.standard.string(forKey: SK.diff) ?? "normal"
         return DIFFS[s] != nil ? s : "normal"
@@ -466,6 +486,7 @@ final class GameView: UIView {
         link = l; lastTs = 0
         if let th = ProcessInfo.processInfo.environment["THEME"], THEMES[th] != nil { themeId = th }  // dev
         if ProcessInfo.processInfo.environment["SCREEN"] == "shop" { st = .shop }                    // dev
+        if ProcessInfo.processInfo.environment["SCREEN"] == "settings" { st = .settings }            // dev
         if ProcessInfo.processInfo.environment["SCREEN"] == "menu" { st = .start }                   // dev
         switch ProcessInfo.processInfo.environment["AUTOPLAY"] {  // dev: for automated screenshots
         case "1": startGame()
@@ -756,6 +777,7 @@ final class GameView: UIView {
     private func update(_ dt: CGFloat) {
         if st == .pause { return }   // freeze everything, particles included
         if st == .splash { splashT += dt; if splashT >= SPLASH_LEN { st = .start }; return }
+        if st == .settings { return }
         if st == .shop {   // only the shop's own feedback animates
             pops = pops.filter { p in p.life -= dt; p.y -= 12*dt; return p.life > 0 }
             floaters = floaters.filter { f in f.y += f.vy*dt; f.vy += 60*dt; f.life -= dt; return f.life > 0 }
@@ -1045,7 +1067,7 @@ final class GameView: UIView {
         let dx = x-z.cx, dy = y-z.cy; return dx*dx + dy*dy <= (z.r+10)*(z.r+10)
     }
     private func ctrlChips() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
-        let w: CGFloat = 126, h: CGFloat = 32, gap: CGFloat = 12, y: CGFloat = LH - 186, tot = 2*w + gap, x0 = LW/2 - tot/2
+        let w: CGFloat = 132, h: CGFloat = 40, gap: CGFloat = 12, y = (LH*0.34).rounded(), tot = 2*w + gap, x0 = LW/2 - tot/2
         return [("buttons", "\u{1F446} Buttons", x0, y, w, h), ("zones", "\u{1F590} Zones", x0+w+gap, y, w, h)]
     }
     private func ctrlChipAt(_ x: CGFloat, _ y: CGFloat) -> String? { for c in ctrlChips() { if x >= c.x && x <= c.x+c.w && y >= c.y && y <= c.y+c.h { return c.id } }; return nil }
@@ -1067,12 +1089,21 @@ final class GameView: UIView {
             if st == .leveldone { nextLevel(); return }
             // Menu / game-over: the lanes ARE the picker, so a tap can no longer mean
             // "start" — only PLAY starts. Otherwise choosing a world would launch a run.
-            if st != .play && st != .boss {
+            if st == .settings {
                 if let cc = ctrlChipAt(p.x, p.y) { setControlStyle(cc); return }
                 if let dc = diffChipAt(p.x, p.y) { setDiff(dc); return }
-                if shopBtn.contains(CGPoint(x: p.x, y: p.y)) { st = .shop; haptic(.pick); return }
+                if musicChip.contains(CGPoint(x: p.x, y: p.y)) { setMusic(!musicOn); return }
+                if shopBack.contains(CGPoint(x: p.x, y: p.y)) { st = .start; haptic(.pick) }
+                return
+            }
+            if st != .play && st != .boss {
+                switch menuBtnAt(p.x, p.y) {
+                case "shop": st = .shop; haptic(.pick); return
+                case "settings": st = .settings; haptic(.pick); return
+                default: break
+                }
                 if playBtn.contains(CGPoint(x: p.x, y: p.y)) { startGame(); return }
-                let lane = laneAt(p.x); if lane != themeId { setTheme(lane); haptic(.pick) }
+                if let lane = laneAt(p.x), lane != themeId { setTheme(lane); haptic(.pick) }
                 return
             }
             if inRound(pauseBtn, p.x, p.y) { pauseGame(); return }
@@ -1168,6 +1199,7 @@ final class GameView: UIView {
 
         if st == .splash { drawSplash(); ctx.restoreGState(); return }
         if st == .shop { drawShop(); ctx.restoreGState(); return }
+        if st == .settings { drawSettings(); ctx.restoreGState(); return }
         if st == .start { drawStart(); ctx.restoreGState(); return }
         if st == .over { drawOver(); ctx.restoreGState(); return }
         if st == .win { drawWin(); ctx.restoreGState(); return }
@@ -1798,18 +1830,6 @@ final class GameView: UIView {
             let z = zFart; drawBtn(z.cx, z.cy, z.r, "\u{1F4A8}", 32, held.contains("FART"), fartReady, true)
         }
     }
-    private func drawCtrlToggle() {
-        // Dark backing: this row sits over four different (and dimmed) lanes now, so it
-        // can't lean on T.text — Inkwell's cream label was invisible against them.
-        let cs = ctrlChips(), x0 = cs[0].x - 12, x1 = cs[1].x + cs[1].w + 12
-        roundRect(x0, cs[0].y - 24, x1 - x0, cs[0].h + 34, 14, UIColor(white: 0, alpha: 0.55), stroke: nil, lw: 0)
-        for c in cs {
-            let active = c.id == controlStyle
-            roundRect(c.x, c.y, c.w, c.h, 9, active ? cBorder : UIColor(white: 1, alpha: 0.10), stroke: active ? cAccent : UIColor(white: 1, alpha: 0.3), lw: active ? 2.5 : 1.5)
-            text(c.label, c.x + c.w/2, c.y + c.h/2, 13, active ? .white : UIColor(white: 1, alpha: 0.75))
-        }
-        cg.setAlpha(0.7); text("CONTROLS", LW/2, cs[0].y - 13, 10, .white, system: true); cg.setAlpha(1)
-    }
 
     // MARK: - Screens
     private func panel(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat) {
@@ -1828,11 +1848,12 @@ final class GameView: UIView {
     // SHARED by the splash and the menu so they read as the same screen. On the menu the
     // lanes ARE the theme picker: tap a lane, that world lights up and the rest dim.
     private var LANE_W: CGFloat { LW/CGFloat(THEME_ORDER.count) }
-    private func laneAt(_ x: CGFloat) -> String {
+    private func laneAt(_ x: CGFloat) -> String? {
+        guard x.isFinite else { return nil }   // a garbage coord must not silently reset your theme
         let i = Int(x/LANE_W); return THEME_ORDER[max(0, min(THEME_ORDER.count-1, i))]
     }
     private var laneNameY: CGFloat { (LH*0.665).rounded() }
-    private func drawLanes(_ t: CGFloat, wipe: CGFloat?, dim: Bool, pills: Bool = true) {
+    private func drawLanes(_ t: CGFloat, wipe: CGFloat?, dim: Bool, pills: Bool = true, bananas showBananas: Bool = true) {
         let cw = LANE_W
         for (i, id) in THEME_ORDER.enumerated() {
             let fi = CGFloat(i), sel = (id == themeId)
@@ -1853,7 +1874,9 @@ final class GameView: UIView {
                 m.bx = fi*cw + cw/2 + sin(t*1.6 + fi)*5; m.by = 132 + sin(t*2.1 + fi*1.3)*3
                 m.swingT = t*1.5 + fi; m.swayX = 0; m.gust = 0; m.kind = "reg"; m.aimT = 0; m.stun = 0
                 drawMonkey(m)
-                // ...farting a banana down the lane
+                // ...farting a banana down the lane. Splash only: on the menu it's just
+                // motion crawling behind the buttons.
+                guard showBananas else { return }
                 let by = 200 + (t*150 + fi*90).truncatingRemainder(dividingBy: max(1, GROUND_Y - 230))
                 cg.saveGState(); cg.translateBy(x: m.bx, y: by); cg.rotate(by: t*3 + fi); cg.translateBy(x: -10, y: -17)
                 cg.addPath(bananaPath()); cg.setFillColor(T.banana.cgColor); cg.fillPath()
@@ -1864,7 +1887,7 @@ final class GameView: UIView {
             cg.restoreGState()
             if wipe != nil && ease < 1 { UIColor(white: 0, alpha: 0.55).setFill(); cg.fill(CGRect(x: fi*cw, y: ease*LH, width: cw, height: LH)) }
             // unpicked worlds recede
-            if dim && !sel { UIColor(white: 0, alpha: 0.46).setFill(); cg.fill(CGRect(x: fi*cw, y: 0, width: cw, height: LH)) }
+            if dim && !sel { UIColor(white: 0, alpha: 0.60).setFill(); cg.fill(CGRect(x: fi*cw, y: 0, width: cw, height: LH)) }
             cg.setStrokeColor(UIColor(white: 0, alpha: 0.35).cgColor); cg.setLineWidth(2)
             cg.move(to: CGPoint(x: fi*cw, y: 0)); cg.addLine(to: CGPoint(x: fi*cw, y: LH)); cg.strokePath()
             // the picked lane gets a frame — the selection, without a separate widget
@@ -1921,7 +1944,7 @@ final class GameView: UIView {
         }
     }
     private func drawShop() {
-        drawLanes(menuT, wipe: nil, dim: true, pills: false)
+        drawLanes(menuT, wipe: nil, dim: true, pills: false, bananas: false)
         UIColor(white: 0, alpha: 0.55).setFill(); cg.fill(CGRect(x: 0, y: 0, width: LW, height: LH))
         cg.saveGState(); cg.translateBy(x: LW/2, y: (LH*0.15).rounded())
         roundRect(-180, -42, 360, 84, 16, UIColor(white: 0, alpha: 0.78), stroke: hex("ffd93d"), lw: 4)
@@ -1981,88 +2004,101 @@ final class GameView: UIView {
     }
     /// menuT — the lanes idle-animate on the menu the same way they do on the splash.
     private var menuT: CGFloat { CGFloat(CACurrentMediaTime().truncatingRemainder(dividingBy: 100000)) }
-    // The menu IS the splash, still on its lanes — you just get to touch it now.
+    // The menu had ten stacked groups over four animated lanes. It's now five things:
+    // title, one status line, PLAY, two small buttons, and the lanes as the picker.
+    // Everything adjustable moved behind SETTINGS.
     private func drawStart() {
-        drawLanes(menuT, wipe: nil, dim: true)
-        cg.saveGState(); cg.translateBy(x: LW/2, y: (LH*0.20).rounded())
-        roundRect(-198, -58, 396, 116, 18, UIColor(white: 0, alpha: 0.72), stroke: cAccent, lw: 4)
-        text("FART BACK!", 0, -16, 42, hex("ffe022"))
-        text("MONKEY FART MADNESS", 0, 18, 15, .white)
-        text("dodge \u{00B7} fart back \u{00B7} throw bananas", 0, 42, 12, hex("7CFF5A"), system: true)
+        drawLanes(menuT, wipe: nil, dim: true, bananas: false)
+        cg.saveGState(); cg.translateBy(x: LW/2, y: (LH*0.205).rounded())
+        roundRect(-186, -48, 372, 96, 18, UIColor(white: 0, alpha: 0.74), stroke: cAccent, lw: 3.5)
+        text("FART BACK!", 0, -12, 40, hex("ffe022"))
+        text("MONKEY FART MADNESS", 0, 22, 13, UIColor(white: 1, alpha: 0.8))
         cg.restoreGState()
-        drawRankStrip((LH*0.316).rounded())
-        drawDailyBanner((LH*0.374).rounded())
+        drawStatusLine((LH*0.30).rounded())
         drawPlayBtn("\u{25B6} PLAY")
-        drawShopBtn()
-        // tells you the lanes are the picker
-        roundRect(LW/2-118, laneNameY-46, 236, 24, 12, UIColor(white: 0, alpha: 0.6), stroke: nil, lw: 0)
-        text("\u{1F446} tap a lane to change the look", LW/2, laneNameY-34, 12, .white, system: true)
-        if best > 0 {
-            roundRect(LW/2-52, LH-42, 104, 20, 10, UIColor(white: 0, alpha: 0.6), stroke: nil, lw: 0)
-            text("best \(best)", LW/2, LH-32, 10, UIColor(white: 1, alpha: 0.8), system: true)
-        }
-        drawCtrlToggle(); drawDiffToggle()
+        drawMenuButtons()
+        drawDailyLine((LH*0.615).rounded())
     }
-    // Rank + purse, one strip. Rank is LIFETIME coins, so it only ever goes up —
-    // nothing you buy can demote you.
-    private func drawRankStrip(_ y: CGFloat) {
-        let rk = rankFor(lifetime), nx = rankNext(lifetime)
-        roundRect(LW/2-186, y-23, 372, 46, 21, UIColor(white: 0, alpha: 0.68), stroke: UIColor(red: 1, green: 0.85, blue: 0.24, alpha: 0.5), lw: 1.5)
-        text(rk.icon + "  " + rk.name, LW/2-174, y-10, 13, hex("ffd93d"), align: .left, system: true)
-        text("\u{1F34C} \(coins)", LW/2+174, y-10, 14, .white, align: .right, system: true)
-        let bw: CGFloat = 340, bx = LW/2 - bw/2, by = y+5
-        roundRect(bx, by, bw, 7, 3.5, UIColor(white: 1, alpha: 0.16), stroke: nil, lw: 0)
-        if let nx {
-            let a = CGFloat(lifetime - rk.at)/CGFloat(nx.at - rk.at)
-            roundRect(bx, by, bw*max(0.02, min(1, a)), 7, 3.5, hex("ffd93d"), stroke: nil, lw: 0)
-            text("\(nx.at - lifetime) \u{1F34C} to \(nx.icon) \(nx.name)", LW/2, y+17, 8, UIColor(white: 1, alpha: 0.72), system: true)
-        } else {
-            roundRect(bx, by, bw, 7, 3.5, hex("ffd93d"), stroke: nil, lw: 0)
-            text("MAX RANK — you are the Gas Guardian", LW/2, y+17, 8, hex("ffd93d"), system: true)
-        }
+    /// Rank · purse · best, on ONE line. The old strip had a progress bar and a sub-label
+    /// competing with everything else; the rank name is the part you actually care about.
+    private func drawStatusLine(_ y: CGFloat) {
+        let rk = rankFor(lifetime)
+        let txt = "\(rk.icon) \(rk.name)   \u{00B7}   \u{1F34C} \(coins)" + (best > 0 ? "   \u{00B7}   best \(best)" : "")
+        let w = max(240, (txt as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 13, weight: .bold)]).width + 34)
+        roundRect(LW/2-w/2, y-15, w, 30, 15, UIColor(white: 0, alpha: 0.62),
+                  stroke: UIColor(red: 1, green: 0.85, blue: 0.24, alpha: 0.4), lw: 1)
+        text(txt, LW/2, y, 13, .white, system: true)
     }
-    private func drawDailyBanner(_ y: CGFloat) {
+    /// One quiet line, not a bordered banner shouting for attention.
+    private func drawDailyLine(_ y: CGFloat) {
         let d = dailyOfDay(), done = dailyDone()
-        roundRect(LW/2-160, y-14, 320, 28, 14,
-                  done ? UIColor(white: 0, alpha: 0.5) : UIColor(red: 0.49, green: 1, blue: 0.35, alpha: 0.16),
-                  stroke: done ? UIColor(white: 1, alpha: 0.2) : hex("7CFF5A"), lw: 1.5)
-        text("\(d.icon)  TODAY: \(d.name) — \(d.blurb)" + (done ? "" : "  (+25 \u{1F34C})"),
-             LW/2, y, 11, done ? UIColor(white: 1, alpha: 0.55) : .white, system: true)
+        cg.setAlpha(done ? 0.5 : 0.9)
+        text(d.icon + "  " + d.name + (done ? "" : "  \u{00B7}  +25 \u{1F34C} today"), LW/2, y, 11,
+             done ? .white : hex("7CFF5A"), system: true)
+        cg.setAlpha(1)
     }
-    private var shopBtn: CGRect { CGRect(x: LW/2-75, y: (LH*0.545).rounded(), width: 150, height: 44) }
-    private func drawShopBtn() {
-        let b = shopBtn, canBuy = (HATS + SKINS).contains { !owned.contains($0.id) && coins >= $0.cost }
-        roundRect(b.minX, b.minY, b.width, b.height, 13, UIColor(white: 0, alpha: 0.62),
-                  stroke: canBuy ? hex("ffd93d") : UIColor(white: 1, alpha: 0.35), lw: canBuy ? 3 : 1.5)
-        text("\u{1F6CD}  SHOP", b.midX, b.midY, 15, .white, system: true)
-        if canBuy {   // there's something you can actually afford
-            fillCircle(b.maxX-7, b.minY+7, 6, hex("ffd93d"))
-            text("!", b.maxX-7, b.minY+7, 9, .black, system: true)
+    // SHOP + SETTINGS, side by side and secondary — PLAY is the only loud thing.
+    private func menuBtns() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
+        let w: CGFloat = 132, h: CGFloat = 44, gap: CGFloat = 14, y = (LH*0.535).rounded(), x0 = LW/2 - (2*w+gap)/2
+        return [("shop", "\u{1F6CD}  Shop", x0, y, w, h), ("settings", "\u{2699}  Settings", x0+w+gap, y, w, h)]
+    }
+    private func menuBtnAt(_ x: CGFloat, _ y: CGFloat) -> String? {
+        menuBtns().first { x >= $0.x && x <= $0.x+$0.w && y >= $0.y && y <= $0.y+$0.h }?.id
+    }
+    private func drawMenuButtons() {
+        let canBuy = (HATS + SKINS).contains { !owned.contains($0.id) && coins >= $0.cost }
+        for b in menuBtns() {
+            let hot = (b.id == "shop" && canBuy)
+            roundRect(b.x, b.y, b.w, b.h, 13, UIColor(white: 0, alpha: 0.62),
+                      stroke: hot ? hex("ffd93d") : UIColor(white: 1, alpha: 0.32), lw: hot ? 2.5 : 1.5)
+            text(b.label, b.x + b.w/2, b.y + b.h/2, 14, .white, system: true)
+            if hot { fillCircle(b.x + b.w - 7, b.y + 7, 5.5, hex("ffd93d")) }
         }
     }
+    // ---------- settings ----------
+    // Everything adjustable, in one place, with room to breathe.
+    private func drawSettings() {
+        drawLanes(menuT, wipe: nil, dim: true, pills: false, bananas: false)
+        UIColor(white: 0, alpha: 0.62).setFill(); cg.fill(CGRect(x: 0, y: 0, width: LW, height: LH))
+        cg.saveGState(); cg.translateBy(x: LW/2, y: (LH*0.16).rounded())
+        roundRect(-150, -30, 300, 60, 15, UIColor(white: 0, alpha: 0.8), stroke: cAccent, lw: 3.5)
+        text("SETTINGS", 0, 0, 26, cAccent)
+        cg.restoreGState()
+        let cs = ctrlChips(), ds = diffChips(), mc = musicChip
+        text("CONTROLS", LW/2, cs[0].y - 16, 10, UIColor(white: 1, alpha: 0.6), system: true)
+        for c in cs {
+            let on = c.id == controlStyle
+            roundRect(c.x, c.y, c.w, c.h, 11, on ? cBorder : UIColor(white: 1, alpha: 0.10),
+                      stroke: on ? cAccent : UIColor(white: 1, alpha: 0.3), lw: on ? 2.5 : 1.5)
+            text(c.label, c.x + c.w/2, c.y + c.h/2, 14, on ? .white : UIColor(white: 1, alpha: 0.75), system: true)
+        }
+        text("DIFFICULTY  \u{00B7}  \(D.lives) lives", LW/2, ds[0].y - 16, 10, UIColor(white: 1, alpha: 0.6), system: true)
+        for c in ds {
+            let on = c.id == diffId
+            roundRect(c.x, c.y, c.w, c.h, 11, on ? cBorder : UIColor(white: 1, alpha: 0.10),
+                      stroke: on ? cAccent : UIColor(white: 1, alpha: 0.3), lw: on ? 2.5 : 1.5)
+            text(c.label, c.x + c.w/2, c.y + c.h/2, 14, on ? .white : UIColor(white: 1, alpha: 0.75), system: true)
+        }
+        text("MUSIC", LW/2, mc.minY - 16, 10, UIColor(white: 1, alpha: 0.6), system: true)
+        roundRect(mc.minX, mc.minY, mc.width, mc.height, 11, musicOn ? cBorder : UIColor(white: 1, alpha: 0.10),
+                  stroke: musicOn ? cAccent : UIColor(white: 1, alpha: 0.3), lw: musicOn ? 2.5 : 1.5)
+        text(musicOn ? "\u{1F3B5} Music On" : "\u{1F507} Music Off", mc.midX, mc.midY, 14,
+             musicOn ? .white : UIColor(white: 1, alpha: 0.75), system: true)
+        let b = shopBack
+        roundRect(b.minX, b.minY, b.width, b.height, 14, T.border, stroke: T.accent, lw: 3)
+        text("\u{25C0} BACK", b.midX, b.midY, 20, .white)
+    }
+    private var musicChip: CGRect { CGRect(x: LW/2-90, y: (LH*0.645).rounded(), width: 180, height: 40) }
     private func diffChips() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
-        let w: CGFloat = 118, h: CGFloat = 30, gap: CGFloat = 10, y = LH - 110, tot = 2*w + gap, x0 = LW/2 - tot/2
+        let w: CGFloat = 132, h: CGFloat = 40, gap: CGFloat = 12, y = (LH*0.50).rounded(), tot = 2*w + gap, x0 = LW/2 - tot/2
         return [("easy", DIFFS["easy"]!.label, x0, y, w, h), ("normal", DIFFS["normal"]!.label, x0+w+gap, y, w, h)]
     }
     private func diffChipAt(_ x: CGFloat, _ y: CGFloat) -> String? {
         diffChips().first { x >= $0.x && x <= $0.x+$0.w && y >= $0.y && y <= $0.y+$0.h }?.id
     }
-    private func drawDiffToggle() {
-        let cs = diffChips(), x0 = cs[0].x-12, x1 = cs[1].x+cs[1].w+12
-        roundRect(x0, cs[0].y-22, x1-x0, cs[0].h+32, 14, UIColor(white: 0, alpha: 0.55), stroke: nil, lw: 0)
-        for c in cs {
-            let on = c.id == diffId
-            roundRect(c.x, c.y, c.w, c.h, 9, on ? cBorder : UIColor(white: 1, alpha: 0.10),
-                      stroke: on ? cAccent : UIColor(white: 1, alpha: 0.3), lw: on ? 2.5 : 1.5)
-            text(c.label, c.x + c.w/2, c.y + c.h/2, 12, on ? .white : UIColor(white: 1, alpha: 0.75), system: true)
-        }
-        cg.setAlpha(0.7)
-        text("DIFFICULTY  \u{00B7}  \(D.lives) lives", LW/2, cs[0].y-11, 10, .white, system: true)
-        cg.setAlpha(1)
-    }
     // Same lanes, same PLAY button — game over is the menu with your score on it.
     private func drawOver() {
-        drawLanes(menuT, wipe: nil, dim: true)
+        drawLanes(menuT, wipe: nil, dim: true, bananas: false)
         for p in particles { drawParticle(p) }
         cg.saveGState(); cg.translateBy(x: LW/2, y: (LH*0.22).rounded())
         roundRect(-190, -62, 380, 124, 18, UIColor(white: 0, alpha: 0.72), stroke: hex("ff5a5a"), lw: 4)
@@ -2081,10 +2117,7 @@ final class GameView: UIView {
             text("\u{2B06} NEW RANK: \(ru.icon) \(ru.name)", LW/2, py, 15, hex("ffd93d"))
         }
         drawPlayBtn("\u{25B6} AGAIN")
-        drawShopBtn()
-        roundRect(LW/2-118, laneNameY-46, 236, 24, 12, UIColor(white: 0, alpha: 0.6), stroke: nil, lw: 0)
-        text("\u{1F446} tap a lane to change the look", LW/2, laneNameY-34, 12, .white, system: true)
-        drawCtrlToggle(); drawDiffToggle()
+        drawMenuButtons()
     }
     private func drawBoss(_ b: Boss) {
         let x = b.bx, y = b.by; let col = b.hitFlash > 0 ? UIColor.white : cMonkeyBody

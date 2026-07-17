@@ -1297,7 +1297,9 @@ function drawLanes(t,opts){
       const m={x:i*cw+cw/2,y:132,bx:i*cw+cw/2+Math.sin(t*1.6+i)*5,by:132+Math.sin(t*2.1+i*1.3)*3,
                swingT:t*1.5+i,swayX:0,bobT:t,angryT:0,stun:0,wob:0,gust:0,kind:'reg',aimT:0};
       drawMonkey(m);
-      // ...farting a banana down the lane
+      // ...farting a banana down the lane. Splash only: on the menu it's just motion
+      // crawling behind the buttons.
+      if(opts.bananas===false) return;
       const by=200+((t*150+i*90)%Math.max(1,GROUND_Y-230));
       ctx.save(); ctx.translate(m.bx,by); ctx.rotate(t*3+i); ctx.translate(-10,-17);
       bananaPath(); ctx.fillStyle=T.banana; ctx.fill();
@@ -1307,7 +1309,7 @@ function drawLanes(t,opts){
     ctx.restore();
     if(wipe!=null&&ease<1){ ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(i*cw,ease*H,cw,H); }
     // unpicked worlds recede
-    if(dim&&!sel){ ctx.fillStyle='rgba(0,0,0,.46)'; ctx.fillRect(i*cw,0,cw,H); }
+    if(dim&&!sel){ ctx.fillStyle='rgba(0,0,0,.60)'; ctx.fillRect(i*cw,0,cw,H); }
     ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.lineWidth=2;
     ctx.beginPath(); ctx.moveTo(i*cw,0); ctx.lineTo(i*cw,H); ctx.stroke();
     // the picked lane gets a frame — the selection, without a separate widget
@@ -1376,7 +1378,7 @@ function shopTap(c){
 }
 function drawShop(){
   const t=(Date.now()%100000)/1000;
-  drawLanes(t,{wipe:null,dim:true,pills:false});
+  drawLanes(t,{wipe:null,dim:true,pills:false,bananas:false});
   ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(0,0,W,H);
   // header
   ctx.save(); ctx.translate(W/2,Math.round(H*0.15));
@@ -1443,7 +1445,7 @@ function drawPlayBtn(label){
 // Everything adjustable moved behind SETTINGS.
 function drawStart(){
   const t=(Date.now()%100000)/1000;
-  drawLanes(t,{wipe:null,dim:true});
+  drawLanes(t,{wipe:null,dim:true,bananas:false});
   // title — two lines, not three
   ctx.save(); ctx.translate(W/2,Math.round(H*0.205));
   ctx.fillStyle='rgba(0,0,0,.74)'; rr(-186,-48,372,96,18); ctx.fill();
@@ -1502,7 +1504,7 @@ function drawMenuButtons(){
 // Everything adjustable, in one place, with room to breathe.
 function drawSettings(){
   const t=(Date.now()%100000)/1000;
-  drawLanes(t,{wipe:null,dim:true,pills:false});
+  drawLanes(t,{wipe:null,dim:true,pills:false,bananas:false});
   ctx.fillStyle='rgba(0,0,0,.62)'; ctx.fillRect(0,0,W,H);
   ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.save(); ctx.translate(W/2,Math.round(H*0.16));
@@ -1551,7 +1553,7 @@ function diffChipAt(x,y){ for(const c of diffChips()){ if(x>=c.x&&x<=c.x+c.w&&y>
 // Same lanes, same PLAY button — game over is the menu with your score on it.
 function drawOver(){
   const t=(Date.now()%100000)/1000;
-  drawLanes(t,{wipe:null,dim:true});
+  drawLanes(t,{wipe:null,dim:true,bananas:false});
   drawParticles();
   ctx.save(); ctx.translate(W/2,Math.round(H*0.22));
   ctx.fillStyle='rgba(0,0,0,.72)'; rr(-190,-62,380,124,18); ctx.fill();
