@@ -140,7 +140,7 @@
   <section>
     <div class="eyebrow"><span class="n">01</span> Status — where we are</div>
     <h2>Feature-complete &amp; shipping to TestFlight — now it needs a 6-year-old</h2>
-    <p class="lead">The roadmap is <b>done</b> — enemies, moves, power-ups, hazards, themes, levels, boss, juice, audio, <i>and</i> the whole meta &amp; retention column — all built, verified and live on TestFlight (currently <b>1.7&nbsp;(8)</b>), in both the HTML lab and the native Swift build, which are kept in lockstep. What's left in the backlog is genuinely optional. What's <i>not</i> optional: <b>real hands on a real device</b>. Every claim below is verified in the browser harness or the Simulator; <b>nobody has played it by hand on a phone yet</b>, and that's the only thing that can settle the control layout.</p>
+    <p class="lead">The roadmap is <b>done</b> — enemies, moves, power-ups, hazards, themes, levels, boss, juice, audio, <i>and</i> the whole meta &amp; retention column — all built, verified and live on TestFlight (currently <b>1.9&nbsp;(10)</b>), in both the HTML lab and the native Swift build, which are kept in lockstep. What's left in the backlog is genuinely optional. What's <i>not</i> optional: <b>real hands on a real device</b>. Every claim below is verified in the browser harness or the Simulator; <b>nobody has played it by hand on a phone yet</b>, and that's the only thing that can settle the control layout.</p>
     <div class="bar">
       <div class="step done"><span class="s">🥊</span><b>Core combat</b><small>✅ Shipped</small></div>
       <div class="step done"><span class="s">🧃</span><b>Juice</b><small>✅ Shipped</small></div>
@@ -149,7 +149,7 @@
       <div class="step done"><span class="s">👑</span><b>Levels + Boss</b><small>✅ Shipped</small></div>
       <div class="step done"><span class="s">🎨</span><b>4 themes · iOS</b><small>✅ Shipped</small></div>
       <div class="step done"><span class="s">📈</span><b>Coins · Shop · Ranks</b><small>✅ Shipped</small></div>
-      <div class="step done"><span class="s">📱</span><b>TestFlight 1.7 (8)</b><small>✅ Live</small></div>
+      <div class="step done"><span class="s">📱</span><b>TestFlight 1.9 (10)</b><small>✅ Live</small></div>
       <div class="step now"><span class="s">🧒</span><b>Playtest w/ Mateo</b><small>🔨 Next</small></div>
     </div>
     <div class="legend"><span>✅ shipped</span><span>🔨 building</span><span>📋 queued</span><span>💡 backlog idea</span></div>
@@ -284,7 +284,7 @@
         <div class="item"><span class="s">✅</span><span class="t">Fart-jump + double context <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">Fart back (gas, rising cloud + barrier) <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">Throw banana (ammo, auto-aimed) + banana pickups <span class="k ship">shipped</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Mega-Hover — hold to charge &amp; float <span class="k later">later</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Mega-Hover — hold jump to ride your gas down <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">Panic Parp — screen-clear bomb on cooldown <span class="k maybe">maybe</span></span></div>
       </div>
 
@@ -297,7 +297,7 @@
       <div class="cat"><h4>🍌 Hazards &amp; items</h4>
         <div class="item"><span class="s">✅</span><span class="t">Banana types: yellow/brown/black <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">Slippery peels <span class="k ship">shipped</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Falling coconuts / swinging vines <span class="k maybe">maybe</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Falling coconuts (1s telegraphed shadow) <span class="k ship">shipped</span></span></div>
       </div>
 
       <div class="cat"><h4>🗺️ Modes &amp; arenas</h4>
@@ -317,7 +317,7 @@
 
       <div class="cat"><h4>🔊 Audio</h4>
         <div class="item"><span class="s">✅</span><span class="t">Per-theme fart synth (brap/kazoo/brass/squelch) <span class="k ship">shipped</span></span></div>
-        <div class="item"><span class="s">💡</span><span class="t">Music loop per theme <span class="k later">later</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t">Music loop per theme (synthesised, off by default) <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">Voice "ewww!/nice!" one-shots <span class="k maybe">maybe</span></span></div>
       </div>
 
@@ -363,6 +363,8 @@
     <div class="eyebrow"><span class="n">06</span> Changelog</div>
     <h2>What's shipped so far</h2>
     <div class="changelog">
+      <div class="cl"><span class="v">v21</span><span class="d"><b>Crisper menu</b> (David: <i>"too crazy busy"</i>) — the menu had <b>ten</b> stacked groups over four animated lanes. Now <b>six</b>: title, one status line (rank · coins · best), <b>PLAY</b>, two quiet secondary buttons, one daily line, and the lanes. Everything adjustable moved to a new <b>Settings</b> screen where it has room. Unpicked lanes recede harder (60%) and the falling bananas are splash-only. ~7.5KB of the code making the noise deleted.</span></div>
+      <div class="cl"><span class="v">v20b</span><span class="d"><b>Mega-Hover, coconuts, music</b> — <b>hold JUMP</b> to ride your own gas down (no sixth button; the strip was full). Getting the economics honest took three passes: hovering first <i>recharged</i> you (drain 26/s vs recharge 30/s), then <i>sputtered</i> forever at a 46% duty cycle; now holding jump keeps the valve open — full tank 2.95s, empty tank <b>0.00s</b>, and it costs you the fart. <b>Coconuts</b> (L5+) punish standing still, always with a 1s shadow tell. <b>Per-theme music</b>, synthesised so it needs no licensed assets — and <b>off by default</b>, because a parent is sitting next to this.</span></div>
       <div class="cl"><span class="v">v20</span><span class="d"><b>Two new monkeys + parallax</b> — the mid-field was <i>dead air</i>, so the <b>Balloon Monkey</b> now lives there: it detaches from the branch, drifts, and drops bananas <b>straight down</b> (dodge by not standing under it). One hit <b>pops</b> it — no stun, a coin shower, +150×combo. The <b>Baby Monkey</b> is tiny and squeaky with a comedic wind-up and a lazy lob, and always pays double. <code>pickKind()</code> became a <b>weighted pool</b>: with chained thresholds each new kind silently ate everyone else's share the moment its gate opened (measured L10 mix: reg 30 / gun 17 / sniper 16 / balloon 15 / baby 13 / boom 10). Plus <b>per-theme parallax</b> — rings, biro clouds, rolling hills — drawn behind each world's surface texture, and kept far below the bananas in contrast (0.18 vs 0.85) so the distance never competes with something you must dodge.</span></div>
       <div class="cl"><span class="v">v19</span><span class="d"><b>Progression &amp; retention — the whole grab bag</b> — <b>🍌 Banana Coins</b> drop off bonked monkeys (walk over to collect; the new <b>Magnet</b> power-up drags them in). <b>7 ranks</b> Fart Cadet → Gas Guardian, driven by <i>lifetime</i> coins so spending can never demote you. A <b>Banana Shop</b> with 6 vector hats + 5 fart-skins that tint your own gas — cosmetic only, earned only, <b>no ads and no IAP, ever</b>. <b>Fart of the Day</b>: a date-seeded modifier + 25 coins for your first run each day, and every modifier is a <i>buff</i> — a kid shouldn't lose to the calendar. Plus <b>Easy mode</b>, which isn't just more hearts: measured <b>23% fewer bananas</b> at every level, 6 lives, and 1.67s of sniper warning vs 1.15s.</span></div>
       <div class="cl"><span class="v">v18</span><span class="d"><b>Fixed: "sometimes ◀/▶ doesn't move the sprite"</b> (reported by David) — two causes, both reproduced. <b>(1)</b> Holding ◀ and resting a second thumb on ▶ made them <i>cancel to a dead stop</i> (measured: −101.7px → <b>0.0px</b>). The newest press now wins, like a real d-pad. <b>(2)</b> The control strip is 120 tall but the ◀▶ circles only accepted the middle 100 — a thumb landing low or in the gap hit <b>nothing</b>. The whole lower-left is now a gap-free steering pad (<b>0 dead pixels</b>, measured); the circles are just the affordance. Also guarded a NaN coord that could conjure a phantom "R" and drift the sprite on its own.</span></div>
