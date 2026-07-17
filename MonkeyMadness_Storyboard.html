@@ -284,7 +284,7 @@
     </div>
 
     <div class="spec">
-      <div class="h"><span class="ic">🕹️</span><h3>Free Play — a no-fail mode</h3><span class="st next">Next</span></div>
+      <div class="h"><span class="ic">🕹️</span><h3>Free Play — a no-fail mode</h3><span class="st now">✓ Built · lab + iOS</span></div>
       <p style="color:var(--muted); font-size:.94rem; margin:.5rem 0 0">A calm entry where <b>nothing can go wrong</b>: no lives, no game-over, just fart around with the monkeys. Young kids often bounce off a fail state — this lets him mess about, learn the moves, and still earn coins for the shop. Cheap: it reuses every spawn and system, just switches off death and the OVER screen.</p>
       <div class="grid2">
         <div class="mini"><b>No lives</b><p>Getting hit is a stumble + a squeak, never an ending.</p></div>
@@ -303,6 +303,16 @@
         <li><b>All earned, still no IAP</b> — the project's line doesn't move.</li>
         <li>Candidates: a party hat, a wizard hat, a rainbow / glitter / fire fart-skin. Vector, per-theme-aware.</li>
       </ul>
+    </div>
+
+    <div class="spec">
+      <div class="h"><span class="ic">👍</span><h3>Controls that fit a small thumb</h3><span class="st now">✓ Built · lab + iOS</span></div>
+      <p style="color:var(--muted); font-size:.94rem; margin:.5rem 0 0">Straight from watching him play. Two changes, both aimed at a six-year-old's hands.</p>
+      <div class="grid2">
+        <div class="mini"><b>Zones is the default now</b><p>Touch a side to steer, tap to jump — no more five little ◀▶ targets. A saved choice still wins, so Settings can pick Buttons back.</p></div>
+        <div class="mini"><b>The steering zone is drawn</b><p>Two faint dotted boxes over the lower third show <i>exactly</i> where left/right responds — and each lights up while that side is held. No more invisible touch area.</p></div>
+      </div>
+      <p class="research">David's note: <i>"the default not to be arrows"</i> and <i>"draw faint dotted lines around the area that's sensitive to my left/right."</i> Both done.</p>
     </div>
   </section>
 
@@ -345,7 +355,7 @@
       <div class="cat"><h4>🗺️ Modes &amp; arenas</h4>
         <div class="item"><span class="s">✅</span><span class="t">4 art-direction themes — HTML <b>+ iOS</b>, swappable &amp; remembered <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">✅</span><span class="t">10 levels + boss (main mode) <span class="k ship">shipped</span></span></div>
-        <div class="item"><span class="s">🕹️</span><span class="t"><b>Free Play</b> — no-fail sandbox for young play <span class="k next">2.1</span></span></div>
+        <div class="item"><span class="s">✅</span><span class="t"><b>Free Play</b> — no-fail sandbox for young play <span class="k ship">shipped</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">Couch co-op / "Dad mode" (2-player) <span class="k maybe">2.2+ big swing</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">Jetpack Climber (vertical) <span class="k later">later</span></span></div>
         <div class="item"><span class="s">💡</span><span class="t">5th world: Volcano · Space · Kitchen <span class="k later">later</span></span></div>
@@ -407,6 +417,7 @@
     <div class="eyebrow"><span class="n">07</span> Changelog</div>
     <h2>What's shipped so far</h2>
     <div class="changelog">
+      <div class="cl"><span class="v">v24</span><span class="d"><b>Free Play + controls that fit a small thumb</b> (David, after watching him play). <b>Free Play</b> is a no-fail sandbox: no life ever lost, no game-over, no boss, and the ramp is capped at level 4 so the mix stays gentle (no machine-gun, sniper, boomer or coconuts) — but it still earns coins, so messing about isn't a dead end. Chosen from a quiet <b>Levels | Free Play</b> toggle above PLAY; in-game the HUD shows <b>∞</b> for lives and <i>KEEP GOING</i>. Verified in the browser: twelve straight hits kept lives at 4 and never triggered game-over, and the level cap makes the boss unreachable. Two control changes too: <b>Zones is the default</b> now (touch a side to steer, tap to jump — no more five little ◀▶ targets; a saved choice still wins), and <b>the steering zone is drawn</b> as two faint dotted boxes over the lower third, each brightening while that side is held — the invisible touch area, made visible. HTML lab + native Swift, screenshot-verified on both.</span></div>
       <div class="cl"><span class="v">v23</span><span class="d"><b>Shipped to the App Store — and Mateo loves it</b>. The one gate that mattered is cleared: a real 6-year-old played it on a real phone, and it's a hit. Then the whole listing went up <b>through the App Store Connect API</b> (no dashboard clicking): name, subtitle, categories (Games · Action · Family), description, keywords, promo text, support URL, and <b>5 screenshots</b> — one per world plus King Kong-a-Toot — each captured on a <i>dedicated</i> simulator (a shared one let another project's session launch its app over ours mid-shot) and <b>verified by eye before upload</b>. <b>iPad dropped</b> (<code>TARGETED_DEVICE_FAMILY 1,2 → 1</code>): the game is portrait and phone-shaped and had never once run on an iPad, so shipping a device nobody had played was a worse bet than iPhone-only now. Re-archived as <b>2.0 (12)</b>, verified from the archive's own Info.plist, uploaded and attached. All that's left is David's three clicks: age rating (<b>9+</b>, not 4+), the privacy toggle, and Submit.</span></div>
       <div class="cl"><span class="v">v22</span><span class="d"><b>Why ◀▶ was unreliable — found it</b> (David: <i>"sometimes works other times not"</i>). Not the game's code: <b>iOS was eating the touches</b>. The steering zone runs to the bottom of the canvas, which sits <b>~34pt from the screen edge</b> — inside the home-indicator gesture region, where the system holds the first touch to check whether it's a home swipe and only passes it on if it isn't. Held presses get delayed or cancelled outright, which is exactly "sometimes". It hit ◀▶ hardest because they're <i>held</i>, <i>low</i>, right where a thumb rests — and my earlier fix widening the pad to the bottom edge made it <b>worse</b>. Fixed with <code>preferredScreenEdgesDeferringSystemGestures = .bottom</code>, so the game gets the first touch. Plus <b>DOUBLE JUMP</b>: a second mid-air parp, free on purpose (hover is the thing that costs gas). Measured: 140px → 242px at the apex, capped at 2, and it still can't reach the branch.</span></div>
       <div class="cl"><span class="v">v21</span><span class="d"><b>Crisper menu</b> (David: <i>"too crazy busy"</i>) — the menu had <b>ten</b> stacked groups over four animated lanes. Now <b>six</b>: title, one status line (rank · coins · best), <b>PLAY</b>, two quiet secondary buttons, one daily line, and the lanes. Everything adjustable moved to a new <b>Settings</b> screen where it has room. Unpicked lanes recede harder (60%) and the falling bananas are splash-only. ~7.5KB of the code making the noise deleted.</span></div>
