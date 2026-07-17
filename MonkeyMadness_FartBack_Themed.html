@@ -325,8 +325,15 @@ const sfx={
 // ============================================================
 const keys=new Set();
 const ZONE_TOP=CTRL_TOP-170;   // in Zones mode, touches below this drive movement
-let controlStyle='buttons'; try{const c=localStorage.getItem('mm_ctrl'); if(c==='buttons'||c==='zones')controlStyle=c;}catch(e){}
+// Default is Zones, not the ◀▶ buttons: touch a side to steer, tap to jump. Easier for a
+// small thumb than five little targets. A saved choice still wins (Settings can pick Buttons).
+let controlStyle='zones'; try{const c=localStorage.getItem('mm_ctrl'); if(c==='buttons'||c==='zones')controlStyle=c;}catch(e){}
 function setControlStyle(s){ controlStyle=s; try{localStorage.setItem('mm_ctrl',s);}catch(e){} }
+// Free Play: a no-fail sandbox for young players — no life ever lost, no game-over, no boss,
+// and a gentle mix capped low. It still earns coins, so messing about isn't a dead end.
+const FREEPLAY_CAP=4;   // never ramps past balloon(4): no machine-gun, sniper, boomer or coconuts
+let freePlay=false; try{ freePlay=localStorage.getItem('mm_free')==='1'; }catch(e){}
+function setFreePlay(v){ freePlay=v; try{localStorage.setItem('mm_free',v?'1':'0');}catch(e){} }
 // Buttons mode: MOVE on the left thumb (◀▶), ACTIONS on the right thumb (JUMP · THROW · FART) — research-backed.
 const BTN=[{id:'L',cx:46,cy:H-62,r:40,glyph:'◀'},{id:'R',cx:132,cy:H-62,r:40,glyph:'▶'},
   {id:'JUMP',cx:232,cy:H-62,r:38,glyph:'⤒'},{id:'THROW',cx:330,cy:H-62,r:40,glyph:'🍌'},
@@ -354,6 +361,11 @@ function inRound(z,x,y){const dx=x-z.cx,dy=y-z.cy;return dx*dx+dy*dy<=(z.r+10)*(
 // These live on the SETTINGS screen now — off the main menu, which was doing too much.
 function ctrlChips(){ const w=132,h=40,gap=12,y=Math.round(H*0.34),tot=2*w+gap,x0=(W-tot)/2; return [{id:'buttons',label:'👆 Buttons',x:x0,y,w,h},{id:'zones',label:'🖐 Zones',x:x0+w+gap,y,w,h}]; }
 function ctrlChipAt(x,y){ for(const c of ctrlChips()){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h)return c.id; } return null; }
+// A quiet mode toggle just above PLAY — Levels (the real game) vs Free Play (no-fail sandbox).
+// Not a mode-select wall: two chips, then the same PLAY button starts whichever is lit.
+function modeChips(){ const w=124,h=34,gap=10,y=Math.round(H*0.375),tot=2*w+gap,x0=(W-tot)/2;
+  return [{id:'levels',label:'🎮 Levels',x:x0,y,w,h},{id:'free',label:'🌈 Free Play',x:x0+w+gap,y,w,h}]; }
+function modeChipAt(x,y){ for(const c of modeChips()){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h)return c.id; } return null; }
 const roles=()=>{ const a=[]; for(const r of pointers.values())a.push(r.role); return a; };
 
 canvas.addEventListener('pointerdown',e=>{
@@ -372,6 +384,7 @@ canvas.addEventListener('pointerdown',e=>{
     if(inMusicChip(x,y)){ setMusic(!musicOn); sfx.pick(); return; }
     if(inShopBack(x,y)){ st=ST.START; sfx.pick(); } return; }
   if(st!==ST.PLAY&&st!==ST.BOSS){
+    const mc=modeChipAt(x,y); if(mc){ setFreePlay(mc==='free'); sfx.pick(); return; }
     const mb=menuBtnAt(x,y);
     if(mb==='shop'){ st=ST.SHOP; sfx.pick(); return; }
     if(mb==='settings'){ st=ST.SETTINGS; sfx.pick(); return; }
@@ -498,8 +511,9 @@ function startGame(){ st=ST.PLAY; lives=D.lives; score=0; combo=0; comboBestRun=
   runCoins=0; rankUpTo=null; applyDaily();
   clearField(); resetPlayer(1.2); monkeys=[]; setMonkeyCount(LEVELS[0].monkeys); }
 function completeLevel(){ awardCoins(5,P.x,P.y-40);
-  if(level>=10){ startBoss(); } else { st=ST.LEVELDONE; levelT=0; burstFx(P.x,P.y,14); sfx.stun(); } }
-function nextLevel(){ level++; levelT=0; clearField(); resetPlayer(1.0); monkeys=[]; setMonkeyCount(LEVELS[level-1].monkeys); st=ST.PLAY; }
+  // Free Play never meets the boss — it just rolls into another gentle wave.
+  if(!freePlay&&level>=10){ startBoss(); } else { st=ST.LEVELDONE; levelT=0; burstFx(P.x,P.y,14); sfx.stun(); } }
+function nextLevel(){ level=freePlay?Math.min(level+1,FREEPLAY_CAP):level+1; levelT=0; clearField(); resetPlayer(1.0); monkeys=[]; setMonkeyCount(LEVELS[level-1].monkeys); st=ST.PLAY; }
 function startBoss(){ st=ST.BOSS; levelT=0; clearField(); resetPlayer(1.6); monkeys=[];
   boss={x:W/2,bx:W/2,by:98,hp:100,maxHp:100,atkT:1.4,chargeT:0,phase:1,lastPhase:1,bobT:0,swingT:0,hitFlash:0,vx:46,roarT:1.4,weakT:0,slamT:0,slamHit:0,deathT:0,minionsSpawned:false,wob:0,tell:null,angryT:0};
   addPop(W/2,168,'KING KONG-A-TOOT!','#ff5a5a'); doFlash('#ff5a5a',.4); addShake(14,.6); tone({f0:90,f1:50,dur:1.0,gain:.5,type:'sawtooth'}); }
@@ -815,9 +829,10 @@ function hitPlayer(bx,by,type){
   if(P.shieldT>0){ burstFx(bx,by,5); addPop(P.x,P.y-46,'SAFE!',PU_COLORS.mask); addShake(3,.08); return; }
   if(type==='brown'){ P.mushT=1.2; combo=0; P.face=1; P.faceT=1; P.inv=true;P.invT=.7;P.blinkT=0;
     burstFx(bx,by,6); addShake(6,.18); doFlash('#b07a44',.14); sfx.hurt(); addFloat(P.x,P.y-44,'SPLAT!','#b07a44',18); return; }
-  lives--; combo=0; P.inv=true;P.invT=1.8;P.blinkT=0;P.face=1;P.faceT=1;
+  if(!freePlay)lives--;   // Free Play: a hit is a stumble + a squeak, never a life lost
+  combo=0; P.inv=true;P.invT=1.8;P.blinkT=0;P.face=1;P.faceT=1;
   burstFx(bx,by,10); addShake(type==='black'?14:12,.3); doFlash('#ff5a5a',.32); hitstop=Math.max(hitstop,.08); sfx.hurt();
-  addPop(P.x,P.y-46,type==='coco'?'BONK!':type==='black'?'BLECH!':'OUCH!','#ff5a5a'); if(lives<=0)gameOver(); }
+  addPop(P.x,P.y-46,type==='coco'?'BONK!':type==='black'?'BLECH!':'OUCH!','#ff5a5a'); if(!freePlay&&lives<=0)gameOver(); }
 function endRun(){ // shared by gameOver + winGame: bank the score and pay the daily
   const fs=Math.floor(score); if(fs>best){ best=fs; save(SAVE.best,best); }
   if(!dailyDone()){ save(SAVE.daily,todayKey()); awardCoins(25); dailyPaid=true; }
@@ -1206,16 +1221,17 @@ function drawOverlay(){
 // ---------- HUD & controls ----------
 function drawHUD(){
   ctx.textAlign='left'; ctx.textBaseline='middle';
-  for(let i=0;i<D.lives;i++){ ctx.globalAlpha=i<lives?1:.22; drawHeart(56+i*22,22,8); } ctx.globalAlpha=1;
+  if(freePlay){ ctx.fillStyle=T.accent; ctx.font=T.hudFont(22); ctx.fillText('∞',54,21); }
+  else { for(let i=0;i<D.lives;i++){ ctx.globalAlpha=i<lives?1:.22; drawHeart(56+i*22,22,8); } ctx.globalAlpha=1; }
   drawPauseBtn();
   ctx.textAlign='right'; ctx.fillStyle=T.accent; ctx.font=T.hudFont(22); ctx.fillText(Math.floor(score),W-12,20);
   ctx.fillStyle=T.text; ctx.globalAlpha=.6; ctx.font=T.hudFont(11); ctx.fillText('BEST '+best,W-12,40); ctx.globalAlpha=1;
   if(runCoins>0){ ctx.fillStyle='#ffd93d'; ctx.font=T.hudFont(13); ctx.fillText('🍌 '+runCoins,W-12,58); }
   if(combo>1){ ctx.textAlign='center'; ctx.fillStyle=T.fart; ctx.font=T.hudFont(18); ctx.fillText('COMBO x'+combo,W/2,16); }
-  if(st===ST.PLAY){ ctx.textAlign='center'; ctx.fillStyle=T.accent; ctx.font=T.hudFont(13); ctx.fillText('LEVEL '+level+' / 10',W/2,64);
+  if(st===ST.PLAY){ ctx.textAlign='center'; ctx.fillStyle=T.accent; ctx.font=T.hudFont(13); ctx.fillText(freePlay?'🌈 FREE PLAY':('LEVEL '+level+' / 10'),W/2,64);
     const cfg=LEVELS[level-1], prog=Math.min(1,levelT/cfg.secs), bw=190,bx=W/2-bw/2,by=CTRL_TOP-40;
     ctx.fillStyle='rgba(0,0,0,.4)'; rr(bx-1,by-1,bw+2,10,4); ctx.fill(); ctx.fillStyle='hsl('+(prog*120)+',80%,55%)'; rr(bx,by,bw*prog,8,3); ctx.fill();
-    ctx.fillStyle=T.text; ctx.globalAlpha=.7; ctx.font=T.hudFont(9); ctx.fillText('SURVIVE!',W/2,by-7); ctx.globalAlpha=1; }
+    ctx.fillStyle=T.text; ctx.globalAlpha=.7; ctx.font=T.hudFont(9); ctx.fillText(freePlay?'KEEP GOING':'SURVIVE!',W/2,by-7); ctx.globalAlpha=1; }
   if(st===ST.BOSS&&boss){ const bw=264,bx=W/2-bw/2,by=60,frac=Math.max(0,boss.hp/boss.maxHp);
     ctx.fillStyle='rgba(0,0,0,.55)'; rr(bx-2,by-2,bw+4,16,5); ctx.fill(); ctx.fillStyle='#aa0000'; rr(bx,by,bw*frac,12,4); ctx.fill(); ctx.fillStyle='#ff4444'; rr(bx,by,bw*frac,5,3); ctx.fill();
     ctx.strokeStyle=T.accent; ctx.lineWidth=2; rr(bx,by,bw,12,4); ctx.stroke();
@@ -1268,11 +1284,18 @@ function drawControls(){
       drawBtn(b.cx,b.cy,b.r,b.glyph,act?28:24,pr.includes(b.id),b.id==='FART'?fartReady:b.id==='THROW'?throwReady:b.id==='JUMP'?jumpReady:true,act);
       if(b.id==='THROW')drawAmmoPips(b.cx,b.cy+b.r+9); }
   } else {
-    ctx.strokeStyle='rgba(255,255,255,.14)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(W/2,CTRL_TOP+4); ctx.lineTo(W/2,H-6); ctx.stroke();
-    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='34px Arial';
-    ctx.globalAlpha=pr.includes('zoneL')?.55:.24; ctx.fillStyle='#fff'; ctx.fillText('◀',W*0.22,H-62);
-    ctx.globalAlpha=pr.includes('zoneR')?.55:.24; ctx.fillText('▶',W*0.78,H-62); ctx.globalAlpha=1;
-    ctx.fillStyle='rgba(255,255,255,.5)'; ctx.font=T.hudFont(10); ctx.fillText('hold to move · tap = jump',W/2,CTRL_TOP+14);
+    // Faint dotted outline of the two steering zones, so the (otherwise invisible) area that
+    // responds to left/right is visible: the whole lower third steers. Each box brightens
+    // while that side is held. This is the "where can I touch to move?" answer, drawn.
+    const zt=ZONE_TOP, zb=H-6, mid=W/2, heldL=pr.includes('zoneL'), heldR=pr.includes('zoneR');
+    ctx.save(); ctx.setLineDash([5,7]); ctx.lineWidth=1.5;
+    ctx.strokeStyle=heldL?'rgba(255,255,255,.36)':'rgba(255,255,255,.15)'; rr(6,zt,mid-11,zb-zt,16); ctx.stroke();
+    ctx.strokeStyle=heldR?'rgba(255,255,255,.36)':'rgba(255,255,255,.15)'; rr(mid+5,zt,mid-11,zb-zt,16); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='36px Arial'; ctx.fillStyle='#fff';
+    ctx.globalAlpha=heldL?.5:.18; ctx.fillText('◀',W*0.25,zt+34);
+    ctx.globalAlpha=heldR?.5:.18; ctx.fillText('▶',W*0.75,zt+34); ctx.globalAlpha=1;
+    ctx.fillStyle='rgba(255,255,255,.5)'; ctx.font=T.hudFont(10); ctx.fillText('hold either side to move · tap to jump',W/2,CTRL_TOP+14);
     drawBtn(ZTHROW.cx,ZTHROW.cy,ZTHROW.r,'🍌',30,pr.includes('THROW'),throwReady,true); drawAmmoPips(ZTHROW.cx,ZTHROW.cy+ZTHROW.r+9);
     drawBtn(ZFART.cx,ZFART.cy,ZFART.r,'💨',32,pr.includes('FART'),fartReady,true);
   }
@@ -1479,10 +1502,18 @@ function drawStart(){
   ctx.fillText('MONKEY FART MADNESS',0,30);
   ctx.restore();
   drawStatusLine(Math.round(H*0.30));
-  drawPlayBtn('▶ PLAY');
+  drawModeChips();
+  drawPlayBtn(freePlay?'▶ FREE PLAY':'▶ PLAY');
   drawMenuButtons();
   drawDailyLine(Math.round(H*0.615));
 }
+// Levels vs Free Play — the lit chip is the mode PLAY will start.
+function drawModeChips(){ ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='700 12px system-ui,sans-serif';
+  for(const c of modeChips()){ const on=(c.id==='free')===freePlay;
+    ctx.fillStyle=on?T.accent:'rgba(0,0,0,.5)'; rr(c.x,c.y,c.w,c.h,12); ctx.fill();
+    ctx.strokeStyle=on?T.accent:'rgba(255,255,255,.26)'; ctx.lineWidth=on?2:1.2; rr(c.x,c.y,c.w,c.h,12); ctx.stroke();
+    ctx.fillStyle=on?'#0c1207':'rgba(255,255,255,.8)'; ctx.fillText(c.label,c.x+c.w/2,c.y+c.h/2); }
+  ctx.textBaseline='alphabetic'; }
 /// Rank · purse · best, on ONE line. The old strip had a progress bar and a sub-label
 /// competing with everything else; the rank name is the part you actually care about.
 function drawStatusLine(y){

@@ -426,8 +426,15 @@ final class GameView: UIView {
         return x < MOVE_SPLIT ? "L" : "R"
     }
     private var ZONE_TOP: CGFloat { CTRL_TOP - 170 }
-    private var controlStyle: String = (UserDefaults.standard.string(forKey: "mm_ctrl") == "zones") ? "zones" : "buttons"
+    // Default is Zones, not the ◀▶ buttons: touch a side to steer, tap to jump — easier for a
+    // small thumb than five little targets. A saved choice still wins (Settings can pick Buttons).
+    private var controlStyle: String = { let c = UserDefaults.standard.string(forKey: "mm_ctrl"); return (c == "buttons" || c == "zones") ? c! : "zones" }()
     private func setControlStyle(_ s: String) { controlStyle = s; UserDefaults.standard.set(s, forKey: "mm_ctrl") }
+    // Free Play: a no-fail sandbox — no life ever lost, no game-over, no boss, a gentle mix
+    // capped low. Still earns coins, so messing about isn't a dead end.
+    private let FREEPLAY_CAP = 4   // never ramps past balloon(4): no machine-gun, sniper, boomer or coconuts
+    private var freePlay: Bool = UserDefaults.standard.string(forKey: "mm_free") == "1"
+    private func setFreePlay(_ v: Bool) { freePlay = v; UserDefaults.standard.set(v ? "1" : "0", forKey: "mm_free") }
     private var zFart: (cx: CGFloat, cy: CGFloat, r: CGFloat) { (LW/2 + 64, LH-62, 50) }
     private var zThrow: (cx: CGFloat, cy: CGFloat, r: CGFloat) { (LW/2 - 64, LH-62, 46) }
     private var pauseBtn: (cx: CGFloat, cy: CGFloat, r: CGFloat) { (26, 24, 16) }   // top-left, away from both thumbs
@@ -531,9 +538,10 @@ final class GameView: UIView {
     }
     private func completeLevel() {
         awardCoins(5, P.x, P.y-40)
-        if level >= 10 { startBoss() } else { st = .leveldone; levelT = 0; burstFx(P.x, P.y, 14); audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24) }
+        // Free Play never meets the boss — it just rolls into another gentle wave.
+        if !freePlay && level >= 10 { startBoss() } else { st = .leveldone; levelT = 0; burstFx(P.x, P.y, 14); audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24) }
     }
-    private func nextLevel() { level += 1; levelT = 0; resetForLevel(1.0); setMonkeyCount(LEVELS[level-1].monkeys); st = .play }
+    private func nextLevel() { level = freePlay ? min(level+1, FREEPLAY_CAP) : level + 1; levelT = 0; resetForLevel(1.0); setMonkeyCount(LEVELS[level-1].monkeys); st = .play }
     private func startBoss() {
         st = .boss; levelT = 0; resetForLevel(1.6); boss = Boss()
         addPop(LW/2, 168, "KING KONG-A-TOOT!", hex("ff5a5a")); doFlash(hex("ff5a5a"), 0.4); addShake(14, 0.6)
@@ -718,11 +726,12 @@ final class GameView: UIView {
         if P.shieldT > 0 { burstFx(bx, by, 5); addPop(P.x, P.y-46, "SAFE!", cMask); addShake(3, 0.08); return }
         if type == "brown" { P.mushT = 1.2; combo = 0; P.face = 1; P.faceT = 1; P.inv = true; P.invT = 0.7; P.blinkT = 0
             burstFx(bx, by, 6); addShake(6, 0.18); doFlash(hex("b07a44"), 0.14); addFloat(P.x, P.y-44, "SPLAT!", hex("b07a44"), 18); return }
-        lives -= 1; combo = 0; P.inv = true; P.invT = 1.8; P.blinkT = 0; P.face = 1; P.faceT = 1
+        if !freePlay { lives -= 1 }   // Free Play: a hit is a stumble + a squeak, never a life lost
+        combo = 0; P.inv = true; P.invT = 1.8; P.blinkT = 0; P.face = 1; P.faceT = 1
         burstFx(bx, by, 10); addShake(type == "black" ? 14 : 12, 0.3); doFlash(hex("ff5a5a"), 0.32); hitstop = max(hitstop, 0.08); haptic(.hurt)
         audio.fart(freq: 270, dur: 0.5, flutter: 22, cutoff: 1300, gain: 0.4)
         addPop(P.x, P.y-46, type == "coco" ? "BONK!" : (type == "black" ? "BLECH!" : "OUCH!"), hex("ff5a5a"))
-        if lives <= 0 { gameOver() }
+        if !freePlay && lives <= 0 { gameOver() }
     }
     private func gameOver() {
         st = .over; burstFx(P.x, P.y, 16); addShake(14, 0.4)
@@ -1094,6 +1103,12 @@ final class GameView: UIView {
         return [("buttons", "\u{1F446} Buttons", x0, y, w, h), ("zones", "\u{1F590} Zones", x0+w+gap, y, w, h)]
     }
     private func ctrlChipAt(_ x: CGFloat, _ y: CGFloat) -> String? { for c in ctrlChips() { if x >= c.x && x <= c.x+c.w && y >= c.y && y <= c.y+c.h { return c.id } }; return nil }
+    // A quiet mode toggle just above PLAY — Levels (the real game) vs Free Play (no-fail sandbox).
+    private func modeChips() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
+        let w: CGFloat = 124, h: CGFloat = 34, gap: CGFloat = 10, y = (LH*0.375).rounded(), tot = 2*w + gap, x0 = LW/2 - tot/2
+        return [("levels", "\u{1F3AE} Levels", x0, y, w, h), ("free", "\u{1F308} Free Play", x0+w+gap, y, w, h)]
+    }
+    private func modeChipAt(_ x: CGFloat, _ y: CGFloat) -> String? { for c in modeChips() { if x >= c.x && x <= c.x+c.w && y >= c.y && y <= c.y+c.h { return c.id } }; return nil }
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
             let p = toLogical(t.location(in: self))
@@ -1120,6 +1135,7 @@ final class GameView: UIView {
                 return
             }
             if st != .play && st != .boss {
+                if let mc = modeChipAt(p.x, p.y) { setFreePlay(mc == "free"); haptic(.pick); return }
                 switch menuBtnAt(p.x, p.y) {
                 case "shop": st = .shop; haptic(.pick); return
                 case "settings": st = .settings; haptic(.pick); return
@@ -1763,18 +1779,19 @@ final class GameView: UIView {
     }
 
     private func drawHUD() {
-        for i in 0..<D.lives { cg.setAlpha(i < lives ? 1 : 0.22); drawHeart(56 + CGFloat(i)*22, 22, 8) }
+        if freePlay { text("\u{221E}", 54, 21, 22, cAccent, align: .left) }   // no-fail: ∞ instead of hearts
+        else { for i in 0..<D.lives { cg.setAlpha(i < lives ? 1 : 0.22); drawHeart(56 + CGFloat(i)*22, 22, 8) } }
         cg.setAlpha(1); drawPauseBtn()
         cg.setAlpha(1)
         text("\(Int(score))", LW-12, 20, 22, cAccent, align: .right)
         cg.setAlpha(0.6); text("BEST \(best)", LW-12, 40, 11, cText, align: .right); cg.setAlpha(1)
         if combo > 1 { text("COMBO x\(combo)", LW/2, 16, 18, cFart) }
         if st == .play {
-            text("LEVEL \(level) / 10", LW/2, 64, 13, cAccent)
+            text(freePlay ? "\u{1F308} FREE PLAY" : "LEVEL \(level) / 10", LW/2, 64, 13, cAccent)
             let cfg = LEVELS[level-1]; let prog = min(1, levelT/cfg.secs); let bw: CGFloat = 190, bx = LW/2 - bw/2, by = CTRL_TOP - 40
             roundRect(bx-1, by-1, bw+2, 10, 4, UIColor(white: 0, alpha: 0.4))
             roundRect(bx, by, bw*prog, 8, 3, UIColor(hue: prog*120/360, saturation: 0.8, brightness: 0.55, alpha: 1))
-            cg.setAlpha(0.7); text("SURVIVE!", LW/2, by-7, 9, cText); cg.setAlpha(1)
+            cg.setAlpha(0.7); text(freePlay ? "KEEP GOING" : "SURVIVE!", LW/2, by-7, 9, cText); cg.setAlpha(1)
         }
         if st == .boss, let b = boss {
             let bw: CGFloat = 264, bx = LW/2 - bw/2, by: CGFloat = 60, frac = max(0, b.hp/b.maxHp)
@@ -1851,12 +1868,21 @@ final class GameView: UIView {
                 if b.id == "THROW" { drawAmmoPips(b.cx, b.cy + b.r + 9) }
             }
         } else {
-            cg.setStrokeColor(UIColor(white: 1, alpha: 0.14).cgColor); cg.setLineWidth(2)
-            cg.move(to: CGPoint(x: LW/2, y: CTRL_TOP+4)); cg.addLine(to: CGPoint(x: LW/2, y: LH-6)); cg.strokePath()
-            cg.setAlpha(held.contains("zoneL") ? 0.55 : 0.24); text("\u{25C0}", LW*0.22, LH-62, 34, .white, weight: .regular, system: true)
-            cg.setAlpha(held.contains("zoneR") ? 0.55 : 0.24); text("\u{25B6}", LW*0.78, LH-62, 34, .white, weight: .regular, system: true); cg.setAlpha(1)
-            text("hold to move \u{00B7} tap = jump", LW/2, CTRL_TOP+14, 10, UIColor(white: 1, alpha: 0.5))
-            let zt = zThrow; drawBtn(zt.cx, zt.cy, zt.r, "\u{1F34C}", 30, held.contains("THROW"), throwReady, true); drawAmmoPips(zt.cx, zt.cy + zt.r + 9)
+            // Faint dotted outline of the two steering zones, so the (otherwise invisible) area
+            // that responds to left/right is visible: the whole lower third steers. Each box
+            // brightens while that side is held. The "where can I touch to move?" answer, drawn.
+            let zt = ZONE_TOP, zb = LH-6, mid = LW/2
+            let heldL = held.contains("zoneL"), heldR = held.contains("zoneR")
+            cg.saveGState(); cg.setLineDash(phase: 0, lengths: [5, 7]); cg.setLineWidth(1.5)
+            cg.setStrokeColor(UIColor(white: 1, alpha: heldL ? 0.36 : 0.15).cgColor)
+            cg.addPath(UIBezierPath(roundedRect: CGRect(x: 6, y: zt, width: mid-11, height: zb-zt), cornerRadius: 16).cgPath); cg.strokePath()
+            cg.setStrokeColor(UIColor(white: 1, alpha: heldR ? 0.36 : 0.15).cgColor)
+            cg.addPath(UIBezierPath(roundedRect: CGRect(x: mid+5, y: zt, width: mid-11, height: zb-zt), cornerRadius: 16).cgPath); cg.strokePath()
+            cg.setLineDash(phase: 0, lengths: []); cg.restoreGState()
+            cg.setAlpha(heldL ? 0.5 : 0.18); text("\u{25C0}", LW*0.25, zt+34, 36, .white, weight: .regular, system: true)
+            cg.setAlpha(heldR ? 0.5 : 0.18); text("\u{25B6}", LW*0.75, zt+34, 36, .white, weight: .regular, system: true); cg.setAlpha(1)
+            text("hold either side to move \u{00B7} tap to jump", LW/2, CTRL_TOP+14, 10, UIColor(white: 1, alpha: 0.5))
+            let zt2 = zThrow; drawBtn(zt2.cx, zt2.cy, zt2.r, "\u{1F34C}", 30, held.contains("THROW"), throwReady, true); drawAmmoPips(zt2.cx, zt2.cy + zt2.r + 9)
             let z = zFart; drawBtn(z.cx, z.cy, z.r, "\u{1F4A8}", 32, held.contains("FART"), fartReady, true)
         }
     }
@@ -2045,9 +2071,19 @@ final class GameView: UIView {
         text("MONKEY FART MADNESS", 0, 22, 13, UIColor(white: 1, alpha: 0.8))
         cg.restoreGState()
         drawStatusLine((LH*0.30).rounded())
-        drawPlayBtn("\u{25B6} PLAY")
+        drawModeChips()
+        drawPlayBtn(freePlay ? "\u{25B6} FREE PLAY" : "\u{25B6} PLAY")
         drawMenuButtons()
         drawDailyLine((LH*0.615).rounded())
+    }
+    // Levels vs Free Play — the lit chip is the mode PLAY will start.
+    private func drawModeChips() {
+        for c in modeChips() {
+            let on = (c.id == "free") == freePlay
+            roundRect(c.x, c.y, c.w, c.h, 12, on ? cAccent : UIColor(white: 0, alpha: 0.5),
+                      stroke: on ? cAccent : UIColor(white: 1, alpha: 0.26), lw: on ? 2 : 1.2)
+            text(c.label, c.x + c.w/2, c.y + c.h/2, 12, on ? hex("0c1207") : UIColor(white: 1, alpha: 0.8), system: true)
+        }
     }
     /// Rank · purse · best, on ONE line. The old strip had a progress bar and a sub-label
     /// competing with everything else; the rank name is the part you actually care about.
