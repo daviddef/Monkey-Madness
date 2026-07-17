@@ -64,7 +64,16 @@ paste what you like into App Store Connect. Everything below is a suggestion, no
 
 `fart,monkey,banana,funny,kids,dodge,silly,arcade,jump,family,cartoon,comedy,gross,pixel`
 
-## What's New (for 1.8)
+## What's New (for 2.0)
+
+> • NEW: DOUBLE JUMP — parp again in mid-air to go higher
+> • NEW: Mega-Hover — hold jump as you fall to ride your own gas down
+> • NEW: Falling coconuts — watch for the shadow!
+> • NEW: Music for every world (off by default — turn it on in Settings)
+> • Tidier main menu, with everything adjustable now under Settings
+> • FIXED: left and right sometimes not responding
+
+## Earlier: 1.8
 
 > • NEW: Balloon Monkey — floats out in the open and drops bananas. Pop it!
 > • NEW: Baby Monkey — tiny, squeaky, and worth double bananas
