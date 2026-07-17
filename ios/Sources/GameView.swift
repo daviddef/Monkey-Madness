@@ -496,6 +496,12 @@ final class GameView: UIView {
         case "win": startGame(); winGame()
         default: break
         }
+        // dev: jump straight to a later level — level 1 is deliberately near-empty, which
+        // makes for a truthful but very boring App Store screenshot.
+        if st == .play, let lv = ProcessInfo.processInfo.environment["LEVEL"], let n = Int(lv),
+           n >= 1, n <= LEVELS.count {
+            level = n; levelT = 0; setMonkeyCount(LEVELS[n-1].monkeys)
+        }
     }
     func stop() { link?.invalidate(); link = nil }
 
