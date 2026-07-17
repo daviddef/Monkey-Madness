@@ -51,6 +51,7 @@ const AMMO_MAX=6, AMMO_START=3, FCLOUD_LIFE=2.6, FCLOUD_DRAG=10, GBAN_LIFE=6;
 // Gas does NOT recharge while you hover (see update), so this is the true burn rate:
 // a full tank buys ~3s of float. HOVER_MIN stops it stuttering on and off at empty.
 const HOVER_GAS=32, HOVER_MIN=6, HOVER_VY=52, COCO_R=15, COCO_WARN=1.0;
+const MAX_JUMPS=2;   // ground jump + one mid-air parp
 // Sniper Chimp: laser tracks you for (AIM_T - LOCK_T), then LOCKS and turns red — that
 // window plus the shot's travel is your cue to step off the line.
 const AIM_T=1.15, LOCK_T=.4, SNIPE_SPD=640;
@@ -209,7 +210,7 @@ function setDiff(id){ if(!DIFFS[id])return; diffId=id; D=DIFFS[id]; save(SAVE.di
 let monkeys=[],bananas=[],particles=[],clouds=[],floaters=[],peels=[],pops=[],powerups=[],fartClouds=[],groundBananas=[],coinsOnGround=[],cocos=[],stars=[];
 let cocoT=6;
 let shakeT=0,shakeMag=0,flashT=0,flashCol='#fff',hitstop=0;
-const P={x:W/2,y:PLAYER_GY,vy:0,onGround:true,hover:false,inv:false,invT:0,blinkT:0,gas:GAS_MAX,squashT:0,stretch:0,face:0,faceT:0,blastFlash:0,barrierT:0,slipT:0,mushT:0,shieldT:0,x2T:0,slowT:0,freeFartT:0,bananas:AMMO_START,throwT:0,magnetT:0};
+const P={x:W/2,y:PLAYER_GY,vy:0,onGround:true,hover:false,jumps:0,dblT:0,inv:false,invT:0,blinkT:0,gas:GAS_MAX,squashT:0,stretch:0,face:0,faceT:0,blastFlash:0,barrierT:0,slipT:0,mushT:0,shieldT:0,x2T:0,slowT:0,freeFartT:0,bananas:AMMO_START,throwT:0,magnetT:0};
 let megaRingT=0;
 
 // ============================================================
@@ -491,7 +492,7 @@ function awardCoins(n,x,y){ const amt=Math.max(1,Math.round(n*coinMul()*D.coinMu
 function spawnCoin(x,y,n){ for(let i=0;i<(n||1);i++)
   coinsOnGround.push({x:Math.max(20,Math.min(W-20,x+R(-14,14))),y,vy:R(-120,-40),vx:R(-50,50),landed:false,life:9,spin:R(0,6.28)}); }
 
-function resetPlayer(inv){ P.x=W/2;P.y=PLAYER_GY;P.vy=0;P.onGround=true;P.inv=true;P.invT=inv||1.2;P.blinkT=0;P.gas=GAS_MAX;P.squashT=0;P.face=0;P.faceT=0;P.blastFlash=0;P.barrierT=0;P.slipT=0;P.mushT=0;P.shieldT=0;P.x2T=0;P.slowT=0;P.freeFartT=0;P.bananas=AMMO_START;P.throwT=0;P.magnetT=0; megaRingT=0; }
+function resetPlayer(inv){ P.x=W/2;P.y=PLAYER_GY;P.vy=0;P.onGround=true;P.inv=true;P.invT=inv||1.2;P.blinkT=0;P.gas=GAS_MAX;P.squashT=0;P.face=0;P.faceT=0;P.blastFlash=0;P.barrierT=0;P.slipT=0;P.mushT=0;P.shieldT=0;P.x2T=0;P.slowT=0;P.freeFartT=0;P.bananas=AMMO_START;P.throwT=0;P.magnetT=0;P.jumps=0;P.dblT=0; megaRingT=0; }
 function clearField(){ bananas=[];particles=[];clouds=[];floaters=[];pops=[];peels=[];powerups=[];fartClouds=[];groundBananas=[];coinsOnGround=[];cocos=[];flashT=0;hitstop=0; cocoT=6; }
 function startGame(){ st=ST.PLAY; lives=D.lives; score=0; combo=0; comboBestRun=0; gameT=0; level=1; levelT=0; boss=null; tipT=3.6;
   runCoins=0; rankUpTo=null; applyDaily();
@@ -533,8 +534,25 @@ function popBalloon(m){
   for(let i=0;i<12;i++)particles.push(puff(m.bx,m.by,R(-140,140),R(-140,140)));
   if(Math.random()<.4)spawnPU(m.bx,m.by);
 }
-function doJump(){ if((st!==ST.PLAY&&st!==ST.BOSS)||!P.onGround||P.slipT>0)return; P.vy=JUMP*(dailyOfDay().id==='floaty'?1.24:1); P.onGround=false; P.stretch=1; P.squashT=0; sfx.jump();
-  for(let i=0;i<7;i++)particles.push(puff(P.x+R(-8,8),PLAYER_GY+20,R(-40,40),R(20,90))); clouds.push({x:P.x,y:PLAYER_GY+22,r:12,life:.7,maxLife:.7}); }
+function doJump(){
+  if((st!==ST.PLAY&&st!==ST.BOSS)||P.slipT>0)return;
+  const fl=dailyOfDay().id==='floaty'?1.24:1;
+  if(P.onGround){
+    P.vy=JUMP*fl; P.onGround=false; P.jumps=1; P.stretch=1; P.squashT=0; sfx.jump();
+    for(let i=0;i<7;i++)particles.push(puff(P.x+R(-8,8),PLAYER_GY+20,R(-40,40),R(20,90)));
+    clouds.push({x:P.x,y:PLAYER_GY+22,r:12,life:.7,maxLife:.7});
+  } else if(P.jumps<MAX_JUMPS){
+    // DOUBLE JUMP — a second parp in mid-air. FREE on purpose: it's a movement verb for a
+    // 6-year-old, not a resource to ration. Hover is the thing that spends gas.
+    // Fires on a fresh PRESS only, so holding the button still means hover, not a re-jump.
+    P.jumps++; P.vy=JUMP*fl*.86; P.stretch=1; P.squashT=0; P.dblT=.4;
+    if(!playSample(R(1.2,1.45),.5)) fart({freq:R(300,360),dur:.13,flutter:30,cutoff:2100,gain:.26,type:'square'});
+    for(let i=0;i<12;i++){ const a=R(0,6.28);
+      particles.push(puff(P.x+Math.cos(a)*9,P.y+18+Math.sin(a)*4,Math.cos(a)*R(60,140),R(50,130))); }
+    clouds.push({x:P.x,y:P.y+22,r:14,life:.6,maxLife:.6});
+    addShake(3,.08);
+  }
+}
 // 💨 FART BACK — costs GAS. Blocks whatever is already above you, then sends a rising
 // wall of gas up the screen that eats bananas and gasses monkeys it drifts into.
 function doFart(){ if((st!==ST.PLAY&&st!==ST.BOSS)||P.slipT>0)return;
@@ -599,9 +617,9 @@ function update(dt){
       if(Math.random()<.6)particles.push(puff(P.x+R(-9,9),P.y+22,R(-40,40),R(40,110)));
     }
     P.vy+=GRAV*(P.hover?.35:1)*dt; P.y+=P.vy*dt;
-    if(P.y>=PLAYER_GY){P.y=PLAYER_GY;P.vy=0;P.onGround=true;P.hover=false;P.squashT=.18;for(let i=0;i<5;i++)particles.push(puff(P.x+R(-10,10),PLAYER_GY+20,R(-60,60),R(-10,30)));}
+    if(P.y>=PLAYER_GY){P.y=PLAYER_GY;P.vy=0;P.onGround=true;P.hover=false;P.jumps=0;P.squashT=.18;for(let i=0;i<5;i++)particles.push(puff(P.x+R(-10,10),PLAYER_GY+20,R(-60,60),R(-10,30)));}
   }
-  if(P.squashT>0)P.squashT-=dt; if(P.stretch>0)P.stretch=Math.max(0,P.stretch-dt*3);
+  if(P.squashT>0)P.squashT-=dt; if(P.stretch>0)P.stretch=Math.max(0,P.stretch-dt*3); if(P.dblT>0)P.dblT-=dt;
   if(P.inv){P.invT-=dt;P.blinkT+=dt;if(P.invT<=0)P.inv=false;}
   if(P.faceT>0){P.faceT-=dt;if(P.faceT<=0)P.face=0;}
   if(P.blastFlash>0)P.blastFlash-=dt; if(P.barrierT>0)P.barrierT-=dt; if(P.slipT>0)P.slipT-=dt; if(P.mushT>0)P.mushT-=dt;
@@ -1027,6 +1045,8 @@ function drawPlayer(){
   if(P.shieldT>0 && !(P.shieldT<1.2&&Math.floor(P.shieldT*8)%2===0)){ ctx.globalAlpha=.14; ctx.fillStyle=PU_COLORS.mask; ctx.beginPath(); ctx.arc(P.x,P.y,27,0,6.28); ctx.fill(); ctx.globalAlpha=.5; ctx.strokeStyle=PU_COLORS.mask; ctx.lineWidth=2.5; ctx.beginPath(); ctx.arc(P.x,P.y,27,0,6.28); ctx.stroke(); ctx.globalAlpha=1; }
   if(P.x2T>0){ ctx.fillStyle=PU_COLORS.gold; ctx.font=T.hudFont(13); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('×2',P.x+22,P.y-22); }
   if(P.freeFartT>0){ ctx.globalAlpha=.5+.3*Math.sin(P.freeFartT*22); ctx.strokeStyle=PU_COLORS.bean; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(P.x,P.y+6,28,0,6.28); ctx.stroke(); ctx.globalAlpha=.5; ctx.fillStyle=PU_COLORS.bean; for(let k=0;k<3;k++){const a=P.freeFartT*10+k*2.1;ctx.beginPath();ctx.arc(P.x+Math.cos(a)*26,P.y+6+Math.sin(a)*26,4,0,6.28);ctx.fill();} ctx.globalAlpha=1; }
+  if(P.dblT>0){ const a=P.dblT/.4, rr2=(1-a)*46+10; ctx.globalAlpha=a*.75; ctx.strokeStyle=fartCol(); ctx.lineWidth=4*a+1;
+    ctx.beginPath(); ctx.ellipse(P.x,P.y+20,rr2,rr2*.5,0,0,6.28); ctx.stroke(); ctx.globalAlpha=1; }
   if(P.magnetT>0){ const a=.28+.22*Math.sin(P.magnetT*9); ctx.globalAlpha=a; ctx.strokeStyle=PU_COLORS.magnet; ctx.lineWidth=2.5;
     ctx.setLineDash([6,7]); ctx.beginPath(); ctx.arc(P.x,P.y-8,42,0,6.28); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1; }
   if(megaRingT>0){ const a=megaRingT/.6, rr2=(1-a)*300+20; ctx.globalAlpha=a*.7; ctx.strokeStyle=fartCol(); ctx.lineWidth=10*a+2; ctx.beginPath(); ctx.arc(P.x,P.y,rr2,0,6.28); ctx.stroke(); ctx.globalAlpha=1; }
@@ -1243,8 +1263,9 @@ function drawControls(){
   ctx.fillStyle='rgba(0,0,0,.32)'; ctx.fillRect(0,CTRL_TOP,W,H-CTRL_TOP);
   const pr=roles(), fartReady=P.gas>=BLAST_COST||P.freeFartT>0, throwReady=P.bananas>0;
   if(controlStyle==='buttons'){
+    const jumpReady=P.onGround||P.jumps<MAX_JUMPS;
     for(const b of BTN){ const act=b.id==='FART'||b.id==='THROW';
-      drawBtn(b.cx,b.cy,b.r,b.glyph,act?28:24,pr.includes(b.id),b.id==='FART'?fartReady:b.id==='THROW'?throwReady:true,act);
+      drawBtn(b.cx,b.cy,b.r,b.glyph,act?28:24,pr.includes(b.id),b.id==='FART'?fartReady:b.id==='THROW'?throwReady:b.id==='JUMP'?jumpReady:true,act);
       if(b.id==='THROW')drawAmmoPips(b.cx,b.cy+b.r+9); }
   } else {
     ctx.strokeStyle='rgba(255,255,255,.14)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(W/2,CTRL_TOP+4); ctx.lineTo(W/2,H-6); ctx.stroke();

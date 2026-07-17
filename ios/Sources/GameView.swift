@@ -20,6 +20,7 @@ private final class Player {
     var bananas: Int = 3, throwT: CGFloat = 0
     var magnetT: CGFloat = 0
     var hover = false
+    var jumps = 0; var dblT: CGFloat = 0   // double jump
 }
 private final class Monkey {
     var x: CGFloat, y: CGFloat, bx: CGFloat, by: CGFloat
@@ -256,6 +257,7 @@ final class GameView: UIView {
     // true burn rate: a full tank buys ~3s. HOVER_MIN stops it stuttering at empty.
     private let HOVER_GAS: CGFloat = 32, HOVER_MIN: CGFloat = 6, HOVER_VY: CGFloat = 52
     private let COCO_R: CGFloat = 15, COCO_WARN: CGFloat = 1.0
+    private let MAX_JUMPS = 2   // ground jump + one mid-air parp
     private var FCLOUD_RISE: CGFloat { -((PLAYER_GY - 110 - 60)/FCLOUD_T) }
     // Sniper Chimp: laser tracks you for (AIM_T - LOCK_T), then LOCKS and turns red.
     private let AIM_T: CGFloat = 1.15, LOCK_T: CGFloat = 0.4, SNIPE_SPD: CGFloat = 640
@@ -513,7 +515,7 @@ final class GameView: UIView {
         P.x = LW/2; P.y = PLAYER_GY; P.vy = 0; P.onGround = true; P.inv = true; P.invT = inv; P.blinkT = 0
         P.gas = GAS_MAX; P.squashT = 0; P.blastFlash = 0; P.barrierT = 0; P.face = 0; P.faceT = 0; P.mushT = 0
         P.slipT = 0; P.shieldT = 0; P.x2T = 0; P.slowT = 0; P.freeFartT = 0; megaRingT = 0
-        P.bananas = AMMO_START; P.throwT = 0; P.magnetT = 0
+        P.bananas = AMMO_START; P.throwT = 0; P.magnetT = 0; P.jumps = 0; P.dblT = 0
     }
     private func startGame() {
         st = .play; lives = D.lives; score = 0; combo = 0; comboBestRun = 0; gameT = 0; tipT = 3.5; hitstop = 0; flashT = 0
@@ -555,11 +557,25 @@ final class GameView: UIView {
     private func sfxJump() { let s = T.sJump; audio.fart(freq: s.freq*Double(R(0.9, 1.1)), dur: s.dur, flutter: s.flutter, cutoff: s.cutoff, gain: s.gain, square: true) }
     private func sfxBlast() { let s = T.sBlast; audio.fart(freq: s.freq*Double(R(0.9, 1.1)), dur: s.dur, flutter: s.flutter, cutoff: s.cutoff, gain: s.gain) }
     private func doJump() {
-        guard st == .play || st == .boss, P.onGround, P.slipT <= 0 else { return }
-        P.vy = JUMP * (dailyOfDay().id == "floaty" ? 1.24 : 1); P.onGround = false
-        sfxJump()
-        for _ in 0..<7 { particles.append(puff(P.x + R(-8, 8), PLAYER_GY + 20, R(-40, 40), R(20, 90))) }
-        clouds.append(Cloud(x: P.x, y: PLAYER_GY + 22, r: 12, life: 0.7))
+        guard st == .play || st == .boss, P.slipT <= 0 else { return }
+        let fl: CGFloat = dailyOfDay().id == "floaty" ? 1.24 : 1
+        if P.onGround {
+            P.vy = JUMP*fl; P.onGround = false; P.jumps = 1
+            sfxJump()
+            for _ in 0..<7 { particles.append(puff(P.x + R(-8, 8), PLAYER_GY + 20, R(-40, 40), R(20, 90))) }
+            clouds.append(Cloud(x: P.x, y: PLAYER_GY + 22, r: 12, life: 0.7))
+        } else if P.jumps < MAX_JUMPS {
+            // DOUBLE JUMP — a second parp in mid-air. FREE on purpose: it's a movement verb
+            // for a 6-year-old, not a resource to ration. Hover is what spends gas.
+            // Fires on a fresh PRESS only, so holding still means hover, not a re-jump.
+            P.jumps += 1; P.vy = JUMP*fl*0.86; P.dblT = 0.4; P.squashT = 0
+            audio.fart(freq: Double(R(300, 360)), dur: 0.13, flutter: 30, cutoff: 2100, gain: 0.26, square: true)
+            haptic(.bonk)
+            for _ in 0..<12 { let a = R(0, 6.28)
+                particles.append(puff(P.x + cos(a)*9, P.y + 18 + sin(a)*4, cos(a)*R(60, 140), R(50, 130))) }
+            clouds.append(Cloud(x: P.x, y: P.y + 22, r: 14, life: 0.6))
+            addShake(3, 0.08)
+        }
     }
     /// 💨 FART BACK — costs GAS. Blocks what's already above you, then sends up a rising cloud.
     private func doFart() {
@@ -810,9 +826,10 @@ final class GameView: UIView {
                 if CGFloat.random(in: 0...1) < 0.6 { particles.append(puff(P.x + R(-9, 9), P.y+22, R(-40, 40), R(40, 110))) }
             }
             P.vy += GRAV*(P.hover ? 0.35 : 1)*dt; P.y += P.vy*dt
-            if P.y >= PLAYER_GY { P.y = PLAYER_GY; P.vy = 0; P.onGround = true; P.hover = false; P.squashT = 0.18
+            if P.y >= PLAYER_GY { P.y = PLAYER_GY; P.vy = 0; P.onGround = true; P.hover = false; P.jumps = 0; P.squashT = 0.18
                 for _ in 0..<5 { particles.append(puff(P.x + R(-10, 10), PLAYER_GY+20, R(-60, 60), R(-10, 30))) } } }
         if P.squashT > 0 { P.squashT -= dt }
+        if P.dblT > 0 { P.dblT -= dt }
         if P.inv { P.invT -= dt; P.blinkT += dt; if P.invT <= 0 { P.inv = false } }
         if P.faceT > 0 { P.faceT -= dt; if P.faceT <= 0 { P.face = 0 } }
         if P.blastFlash > 0 { P.blastFlash -= dt }; if P.barrierT > 0 { P.barrierT -= dt }; if P.mushT > 0 { P.mushT -= dt }
@@ -1486,6 +1503,11 @@ final class GameView: UIView {
             cg.setAlpha(0.5); cg.setStrokeColor(cMask.cgColor); cg.setLineWidth(2.5); cg.strokeEllipse(in: CGRect(x: P.x-27, y: P.y-27, width: 54, height: 54)); cg.setAlpha(1)
         }
         if P.x2T > 0 { text("x2", P.x+22, P.y-22, 13, cGold) }
+        if P.dblT > 0 {   // the ring that sells the second parp
+            let a = P.dblT/0.4, rr2 = (1-a)*46 + 10
+            cg.setAlpha(a*0.75); cg.setStrokeColor(fartCol().cgColor); cg.setLineWidth(4*a + 1)
+            cg.strokeEllipse(in: CGRect(x: P.x-rr2, y: P.y+20-rr2*0.5, width: rr2*2, height: rr2)); cg.setAlpha(1)
+        }
         if P.magnetT > 0 {
             cg.setAlpha(0.28 + 0.22*sin(P.magnetT*9)); cg.setStrokeColor(cMagnet.cgColor); cg.setLineWidth(2.5)
             cg.setLineDash(phase: 0, lengths: [6, 7])
@@ -1816,7 +1838,9 @@ final class GameView: UIView {
         if controlStyle == "buttons" {
             for b in buttons {
                 let act = b.id == "FART" || b.id == "THROW"
-                let ready = b.id == "FART" ? fartReady : (b.id == "THROW" ? throwReady : true)
+                // JUMP dims once both jumps are spent, so the second one is visibly gone
+                let jumpReady = P.onGround || P.jumps < MAX_JUMPS
+                let ready = b.id == "FART" ? fartReady : (b.id == "THROW" ? throwReady : (b.id == "JUMP" ? jumpReady : true))
                 drawBtn(b.cx, b.cy, b.r, b.glyph, act ? 28 : 24, held.contains(b.id), ready, act)
                 if b.id == "THROW" { drawAmmoPips(b.cx, b.cy + b.r + 9) }
             }
