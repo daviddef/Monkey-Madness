@@ -193,20 +193,16 @@ beyond what iOS itself does.
 
 ## 7 · Screenshots
 
-**Required:** iPhone 6.9" (1320×2868). **Also required because you ship iPad**
-(`TARGETED_DEVICE_FAMILY = 1,2`): iPad 13" (2064×2752). Other sizes auto-scale from these.
+**Done — 5 shots uploaded and live on the listing**, all verified by eye first:
+Loud!, Doodle, Inkwell and Plasticine gameplay, plus King Kong-a-Toot.
 
-**Status: not done — this is the one blocker I couldn't clear.** I captured a set from the
-Simulator and threw them away, because another project's simulator session was running
-concurrently on the same device and kept launching its app over ours: one "screenshot of
-Doodle" was actually a completely different app's title screen. Four plausible-looking wrong
-files are worse than none, so they're deleted.
+Only iPhone 6.9" (1320×2868) is needed now; **iPad support was dropped** in build 12, so
+the iPad requirement is gone. Other sizes auto-scale from the 6.9" set.
 
-Easiest fix is to take them by hand on your own iPhone from the TestFlight build
-(Volume Up + Side button) — that also has the happy side effect of making you play it.
-Or say the word and I'll retry on a freshly-created, uncontested simulator.
+Two API quirks worth remembering: the 6.9" bucket is still called `APP_IPHONE_67` (there is
+no `APP_IPHONE_69`), and it accepts 1320×2868 without complaint.
 
-Suggested order, so the four art styles are the first thing anyone sees:
+Order, so the four art styles are the first thing anyone sees:
 
 1. **Loud!** mid-barrage — the hook
 2. **Doodle** — a completely different-looking game
@@ -242,13 +238,15 @@ fart-and-banana slapstick; nothing is harmed on screen.
 - [x] Bundle id, team, version wired through from `project.yml`
 - [x] `ITSAppUsesNonExemptEncryption=false`
 - [x] 1024×1024 icon, opaque RGB, no alpha
-- [x] Portrait only, iPhone + iPad
-- [x] Name, subtitle, description, keywords, promo text, What's New — §1/§3
+- [x] Portrait only, **iPhone only** (iPad dropped in build 12 — see §7)
+- [x] Name, subtitle, categories, description, keywords, promo text, support URL — **all
+      pushed live to App Store Connect via the API and read back to confirm**
 - [x] Privacy policy written, published, and verified live at the URL in §1
-- [ ] **Screenshots** — see §7, not done, needs a real device or a clean simulator
-- [ ] **You:** answer the age-rating questionnaire (§5)
+- [x] Screenshots — 5 uploaded, all `COMPLETE` (§7)
+- [x] Build 2.0 (12) uploaded and attached to the version
+- [ ] **You:** answer the age-rating questionnaire (§5) — a legal declaration, yours to make
 - [ ] **You:** confirm "Data Not Collected" in App Privacy (§4)
-- [ ] **You:** upload screenshots + paste copy, then Submit
+- [ ] **You:** press Submit
 
 ## Before you press Submit
 
