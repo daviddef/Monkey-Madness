@@ -25,9 +25,8 @@ yours to click. Everything else below is done.
 
 "Monkey Madness" alone was already taken; store names are globally unique.
 
-**Privacy Policy URL** — required, and it now exists. [`docs/privacy.html`](docs/privacy.html)
-is written and committed. Turn on GitHub Pages (repo → Settings → Pages → Deploy from
-branch → `main` → `/docs`) and the URL is:
+**Privacy Policy URL** — done and **verified live** (HTTP 200, serving
+[`docs/privacy.html`](docs/privacy.html) via GitHub Pages). Paste this straight in:
 
 ```
 https://daviddef.github.io/Monkey-Madness/privacy.html
@@ -240,9 +239,8 @@ fart-and-banana slapstick; nothing is harmed on screen.
 - [x] 1024×1024 icon, opaque RGB, no alpha
 - [x] Portrait only, iPhone + iPad
 - [x] Name, subtitle, description, keywords, promo text, What's New — §1/§3
-- [x] Privacy policy written — `docs/privacy.html`
+- [x] Privacy policy written, published, and verified live at the URL in §1
 - [ ] **Screenshots** — see §7, not done, needs a real device or a clean simulator
-- [ ] **You:** enable GitHub Pages so the privacy URL resolves
 - [ ] **You:** answer the age-rating questionnaire (§5)
 - [ ] **You:** confirm "Data Not Collected" in App Privacy (§4)
 - [ ] **You:** upload screenshots + paste copy, then Submit
