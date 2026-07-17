@@ -1,11 +1,14 @@
 # App Store submission — Monkey Fart Madness
 
-Everything App Store Connect will ask for, written out and ready to paste.
-Fields are in the order the form presents them.
+**Status: everything in §1–§3 is already entered in App Store Connect**, pushed via the
+App Store Connect API and read back to verify. Kept here as the source of truth.
 
 **I can't submit this for you, and shouldn't.** The age rating and privacy sections are
 legal declarations made in your name, and submission publishes to the store. Those are
 yours to click. Everything else below is done.
+
+App id `6791465306` · primary locale **en-AU** (not en-US — metadata lives on that locale)
+· version record **2.0** with build **11** attached.
 
 - Bundle id `com.daviddef.monkeymadness` · Team `L9SAXP2E2W` · Version **2.0** build **11**
 - Facts below were read out of the shipped archive and the source, not from memory.
@@ -18,8 +21,7 @@ yours to click. Everything else below is done.
 |---|---|
 | **Name** (30) | `Monkey Fart Madness` |
 | **Subtitle** (30) | `Dodge bananas. Fart them back.` |
-| **Primary category** | Games → **Arcade** |
-| **Secondary category** | Games → **Family** |
+| **Category** | Games → **Action**, second subcategory **Family** |
 | **Content rights** | Contains no third-party content ✔ |
 | **Age rating** | See §5 — **read that one before you answer** |
 
@@ -97,7 +99,10 @@ funny,silly,kids,arcade,jump,family,cartoon,comedy,gross,toilet,humor,ape,jungle
 Deliberately excludes *monkey*, *fart*, *madness*, *dodge* and *banana* — Apple already
 indexes the name and subtitle, so repeating them there is wasted space.
 
-### What's New in 2.0
+### What's New — *not applicable to this release*
+
+App Store Connect rejects `whatsNew` on a first release (409, "cannot be edited at this
+time") — a debut listing has no "What's New" section. Hold this for the 2.1 update:
 
 ```
 • NEW: DOUBLE JUMP — parp again in mid-air to go higher
