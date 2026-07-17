@@ -179,7 +179,7 @@ function withTheme(id,fn){ const sT=themeId,sH=patHalftone,sG=patGrain;
 // ============================================================
 // STATE
 // ============================================================
-const ST={START:0,PLAY:1,LEVELDONE:2,BOSS:3,WIN:4,OVER:5,PAUSE:6,SPLASH:7,SHOP:8};
+const ST={START:0,PLAY:1,LEVELDONE:2,BOSS:3,WIN:4,OVER:5,PAUSE:6,SPLASH:7,SHOP:8,SETTINGS:9};
 let pauseFrom=ST.PLAY;   // so RESUME returns you to PLAY or BOSS, whichever you paused from
 let splashT=0; const SPLASH_LEN=3.4;   // auto-advances; tap skips
 const LEVELS=[{secs:9,monkeys:1},{secs:10,monkeys:1},{secs:11,monkeys:1},{secs:12,monkeys:2},{secs:12,monkeys:2},{secs:13,monkeys:2},{secs:13,monkeys:3},{secs:14,monkeys:3},{secs:15,monkeys:3},{secs:16,monkeys:4}];
@@ -350,7 +350,8 @@ function toCanvas(e){const r=canvas.getBoundingClientRect();return {x:(e.clientX
 // nearest-wins, so the tighter 5-button spacing can't hand a tap to the wrong neighbour
 function btnAt(x,y){let best=null,bd=1e9;for(const b of BTN){const dx=x-b.cx,dy=y-b.cy,d=dx*dx+dy*dy;if(d<=(b.r+10)*(b.r+10)&&d<bd){bd=d;best=b.id;}}return best;}
 function inRound(z,x,y){const dx=x-z.cx,dy=y-z.cy;return dx*dx+dy*dy<=(z.r+10)*(z.r+10);}
-function ctrlChips(){ const w=126,h=32,gap=12,y=H-186,tot=2*w+gap,x0=(W-tot)/2; return [{id:'buttons',label:'👆 Buttons',x:x0,y,w,h},{id:'zones',label:'🖐 Zones',x:x0+w+gap,y,w,h}]; }
+// These live on the SETTINGS screen now — off the main menu, which was doing too much.
+function ctrlChips(){ const w=132,h=40,gap=12,y=Math.round(H*0.34),tot=2*w+gap,x0=(W-tot)/2; return [{id:'buttons',label:'👆 Buttons',x:x0,y,w,h},{id:'zones',label:'🖐 Zones',x:x0+w+gap,y,w,h}]; }
 function ctrlChipAt(x,y){ for(const c of ctrlChips()){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h)return c.id; } return null; }
 const roles=()=>{ const a=[]; for(const r of pointers.values())a.push(r.role); return a; };
 
@@ -364,11 +365,15 @@ canvas.addEventListener('pointerdown',e=>{
   // only PLAY starts. Otherwise choosing a world would launch a run at the same time.
   if(st===ST.SHOP){ const c=shopCellAt(x,y); if(c){ shopTap(c); return; }
     if(inShopBack(x,y)){ st=ST.START; sfx.pick(); } return; }
-  if(st!==ST.PLAY&&st!==ST.BOSS){
+  if(st===ST.SETTINGS){
     const cc=ctrlChipAt(x,y); if(cc){ setControlStyle(cc); sfx.pick(); return; }
     const dc=diffChipAt(x,y); if(dc){ setDiff(dc); sfx.pick(); return; }
     if(inMusicChip(x,y)){ setMusic(!musicOn); sfx.pick(); return; }
-    if(inShopBtn(x,y)){ st=ST.SHOP; sfx.pick(); return; }
+    if(inShopBack(x,y)){ st=ST.START; sfx.pick(); } return; }
+  if(st!==ST.PLAY&&st!==ST.BOSS){
+    const mb=menuBtnAt(x,y);
+    if(mb==='shop'){ st=ST.SHOP; sfx.pick(); return; }
+    if(mb==='settings'){ st=ST.SETTINGS; sfx.pick(); return; }
     if(inPlayBtn(x,y)){ startGame(); return; }
     const lane=laneAt(x); if(lane&&lane!==themeId){ setTheme(lane); sfx.pick(); }
     return;
@@ -396,13 +401,14 @@ window.addEventListener('keydown',e=>{ if([' ','ArrowUp','ArrowDown','ArrowLeft'
   if(st===ST.SPLASH){ if(!e.repeat) st=ST.START; return; }
   if(st===ST.PAUSE){ if(!e.repeat){ if(e.key==='Escape'||e.key==='p'||e.key==='P'){ st=pauseFrom; sfx.pick(); } else if(e.key==='m'||e.key==='M'){ toMenu(); } } return; }
   if((st===ST.PLAY||st===ST.BOSS)&&!e.repeat&&(e.key==='Escape'||e.key==='p'||e.key==='P')){ pauseGame(); return; }
-  if(st===ST.SHOP){ if(!e.repeat&&(e.key==='Escape'||e.key==='b'||e.key==='B')){ st=ST.START; sfx.pick(); } return; }
+  if(st===ST.SHOP||st===ST.SETTINGS){ if(!e.repeat&&(e.key==='Escape'||e.key==='b'||e.key==='B')){ st=ST.START; sfx.pick(); } return; }
   if(st===ST.LEVELDONE){ if(!e.repeat)nextLevel(); return; }
   if(st!==ST.PLAY&&st!==ST.BOSS){ if(!e.repeat){
     if(e.key==='t'||e.key==='T'){ const i=THEME_ORDER.indexOf(themeId); setTheme(THEME_ORDER[(i+1)%THEME_ORDER.length]); sfx.pick(); }
     else if(e.key==='c'||e.key==='C'){ setControlStyle(controlStyle==='buttons'?'zones':'buttons'); sfx.pick(); }
     else if(e.key==='e'||e.key==='E'){ setDiff(diffId==='easy'?'normal':'easy'); sfx.pick(); }
     else if(e.key==='s'||e.key==='S'){ st=ST.SHOP; sfx.pick(); }
+    else if(e.key==='o'||e.key==='O'){ st=ST.SETTINGS; sfx.pick(); }
     else if(e.key==='m'||e.key==='M'){ setMusic(!musicOn); sfx.pick(); }
     else startGame(); } return; }
   if(e.repeat)return; if(e.key===' '||e.key==='ArrowUp'||e.key==='w')doJump();
@@ -438,7 +444,6 @@ const RANKS=[ {at:0,name:'Fart Cadet',icon:'🥚'}, {at:60,name:'Parp Private',i
   {at:800,name:'Blast Captain',icon:'💥'}, {at:1400,name:'Methane Major',icon:'🔥'},
   {at:2400,name:'Gas Guardian',icon:'👑'} ];
 function rankFor(n){ let r=RANKS[0]; for(const x of RANKS) if(n>=x.at) r=x; return r; }
-function rankNext(n){ for(const x of RANKS) if(n<x.at) return x; return null; }
 let rankUpTo=null;   // set when a run pushes you over a threshold; celebrated on game over
 
 // Cosmetics. Hats draw on the player's head; skins tint your gas.
@@ -567,6 +572,7 @@ function doFlash(col,amt){flashT=Math.max(flashT,amt);flashCol=col;}
 function update(dt){
   if(st===ST.PAUSE)return;   // freeze everything, particles included
   if(st===ST.SPLASH){ splashT+=dt; if(splashT>=SPLASH_LEN) st=ST.START; return; }
+  if(st===ST.SETTINGS)return;
   if(st===ST.SHOP){ pops=pops.filter(p=>{p.life-=dt;p.y-=12*dt;return p.life>0;});
     floaters=floaters.filter(f=>{f.y+=f.vy*dt;f.vy+=60*dt;f.life-=dt;return f.life>0;}); if(flashT>0)flashT-=dt*2.6; return; }
   for(const s of stars)s.tw+=dt;
@@ -1080,6 +1086,38 @@ function drawPops(){ ctx.textAlign='center'; ctx.textBaseline='middle';
 // The camera never moves here — only the player does, across a fixed screen — so depth
 // has to come from how much each layer slides against YOU. Too shallow and it's invisible.
 const PARA_FAR=0.10, PARA_NEAR=0.24;
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function burstShape(cx,cy,r){ ctx.beginPath(); const n=11; for(let i=0;i<n*2;i++){const a=i*Math.PI/n;const rr2=i%2?r*.55:r;ctx.lineTo(cx+Math.cos(a)*rr2,cy+Math.sin(a)*rr2);} ctx.closePath(); }
+function tape(cx,cy,deg){ ctx.save(); ctx.translate(cx,cy); ctx.rotate(deg*Math.PI/180); ctx.fillStyle='rgba(240,214,96,.55)'; ctx.fillRect(-17,-7,34,14); ctx.strokeStyle='rgba(180,150,40,.5)'; ctx.lineWidth=1; ctx.strokeRect(-17,-7,34,14); ctx.restore(); }
+function panel(x,y,w,h){
+  if(T.stickers){                    // LOUD — comic panel
+    ctx.fillStyle=T.panel; rr(x,y,w,h,16); ctx.fill();
+    ctx.lineWidth=6; ctx.strokeStyle='#000'; ctx.lineJoin='round'; rr(x,y,w,h,16); ctx.stroke();
+    ctx.lineWidth=2.5; ctx.strokeStyle=T.accent; rr(x+6,y+6,w-12,h-12,11); ctx.stroke();
+    [[x+10,y+8,'#ff3d7f'],[x+w-10,y+8,'#17d1e8']].forEach(([bx,by,col],i)=>{
+      ctx.fillStyle='#000'; burstShape(bx,by,26); ctx.fill();
+      ctx.fillStyle=col; burstShape(bx,by,22); ctx.fill();
+      ctx.fillStyle='#000'; ctx.font='900 9px "Arial Black",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.save(); ctx.translate(bx,by); ctx.rotate((i?12:-12)*Math.PI/180); ctx.fillText(i?'POW!':'PBBT!',0,0); ctx.restore(); });
+  } else if(T.wobble){               // DOODLE — hand-drawn sketch box
+    ctx.fillStyle=T.panel; rr(x,y,w,h,14); ctx.fill();
+    ctx.strokeStyle=T.border; ctx.lineWidth=2.5; rr(x,y,w,h,14); ctx.stroke();
+    ctx.strokeStyle=T.outline; ctx.lineWidth=1.4; rr(x+3,y+2.5,w-6,h-5,12); ctx.stroke();
+    tape(x+22,y,-13); tape(x+w-22,y,13);
+  } else if(T.grain){                // INKWELL — old-timey title card
+    ctx.fillStyle=T.panel; rr(x,y,w,h,10); ctx.fill();
+    ctx.save(); rr(x,y,w,h,10); ctx.clip();
+    const g=ctx.createRadialGradient(x+w/2,y+72,8,x+w/2,y+72,w*.75); g.addColorStop(0,'rgba(215,165,44,.2)'); g.addColorStop(1,'transparent');
+    ctx.fillStyle=g; ctx.fillRect(x,y,w,h); ctx.restore();
+    ctx.strokeStyle=T.border; ctx.lineWidth=3; rr(x+5,y+5,w-10,h-10,7); ctx.stroke();
+    ctx.lineWidth=1; rr(x+10,y+10,w-20,h-20,5); ctx.stroke();
+    ctx.fillStyle=T.border; [[x+10,y+10],[x+w-10,y+10],[x+10,y+h-10],[x+w-10,y+h-10]].forEach(([dx,dy])=>{ctx.save();ctx.translate(dx,dy);ctx.rotate(.785);ctx.fillRect(-3.5,-3.5,7,7);ctx.restore();});
+  } else {                           // PLASTICINE — clay slab
+    ctx.save(); ctx.shadowColor='rgba(50,34,18,.55)'; ctx.shadowBlur=20; ctx.shadowOffsetY=9; ctx.fillStyle=T.panel; rr(x,y,w,h,22); ctx.fill(); ctx.restore();
+    ctx.fillStyle='rgba(255,255,255,.4)'; rr(x+12,y+9,w-24,9,5); ctx.fill();
+    ctx.lineWidth=4; ctx.strokeStyle=T.border; rr(x,y,w,h,22); ctx.stroke();
+  }
+}
 function drawParallax(){
   const p=T.para; if(!p)return;
   const ox=P.x-W/2, gy=GROUND_Y;
@@ -1223,56 +1261,6 @@ function drawControls(){
 function drawAmmoPips(cx,cy){ const n=AMMO_MAX, gap=8, x0=cx-(n-1)*gap/2;
   for(let i=0;i<n;i++){ ctx.beginPath(); ctx.arc(x0+i*gap,cy,2.6,0,6.28);
     ctx.fillStyle=i<P.bananas?T.banana:'rgba(255,255,255,.22)'; ctx.fill(); } }
-function drawCtrlToggle(){ ctx.textAlign='center'; ctx.textBaseline='middle';
-  // Dark backing: this row sits over four different (and dimmed) lanes now, so it can't
-  // lean on T.text — Inkwell's cream label was nearly invisible against them.
-  const cs=ctrlChips(), x0=cs[0].x-12, x1=cs[1].x+cs[1].w+12;
-  ctx.fillStyle='rgba(0,0,0,.55)'; rr(x0,cs[0].y-24,x1-x0,cs[0].h+34,14); ctx.fill();
-  for(const c of cs){ const active=c.id===controlStyle;
-    ctx.fillStyle=active?T.border:'rgba(255,255,255,.10)'; rr(c.x,c.y,c.w,c.h,9); ctx.fill();
-    ctx.strokeStyle=active?T.accent:'rgba(255,255,255,.3)'; ctx.lineWidth=active?2.5:1.5; rr(c.x,c.y,c.w,c.h,9); ctx.stroke();
-    ctx.fillStyle=active?'#fff':'rgba(255,255,255,.75)'; ctx.font=T.hudFont(13); ctx.fillText(c.label,c.x+c.w/2,c.y+c.h/2); }
-  ctx.fillStyle='#fff'; ctx.globalAlpha=.7; ctx.font='700 10px system-ui,sans-serif';
-  ctx.fillText('CONTROLS',W/2,cs[0].y-13); ctx.globalAlpha=1; }
-function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
-
-
-// ============================================================
-// SCREENS
-// ============================================================
-function burstShape(cx,cy,r){ ctx.beginPath(); const n=11; for(let i=0;i<n*2;i++){const a=i*Math.PI/n;const rr2=i%2?r*.55:r;ctx.lineTo(cx+Math.cos(a)*rr2,cy+Math.sin(a)*rr2);} ctx.closePath(); }
-function tape(cx,cy,deg){ ctx.save(); ctx.translate(cx,cy); ctx.rotate(deg*Math.PI/180); ctx.fillStyle='rgba(240,214,96,.55)'; ctx.fillRect(-17,-7,34,14); ctx.strokeStyle='rgba(180,150,40,.5)'; ctx.lineWidth=1; ctx.strokeRect(-17,-7,34,14); ctx.restore(); }
-
-// Per-theme screen frame — each world gets bespoke menu chrome.
-function panel(x,y,w,h){
-  if(T.stickers){                    // LOUD — comic panel
-    ctx.fillStyle=T.panel; rr(x,y,w,h,16); ctx.fill();
-    ctx.lineWidth=6; ctx.strokeStyle='#000'; ctx.lineJoin='round'; rr(x,y,w,h,16); ctx.stroke();
-    ctx.lineWidth=2.5; ctx.strokeStyle=T.accent; rr(x+6,y+6,w-12,h-12,11); ctx.stroke();
-    [[x+10,y+8,'#ff3d7f'],[x+w-10,y+8,'#17d1e8']].forEach(([bx,by,col],i)=>{
-      ctx.fillStyle='#000'; burstShape(bx,by,26); ctx.fill();
-      ctx.fillStyle=col; burstShape(bx,by,22); ctx.fill();
-      ctx.fillStyle='#000'; ctx.font='900 9px "Arial Black",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.save(); ctx.translate(bx,by); ctx.rotate((i?12:-12)*Math.PI/180); ctx.fillText(i?'POW!':'PBBT!',0,0); ctx.restore(); });
-  } else if(T.wobble){               // DOODLE — hand-drawn sketch box
-    ctx.fillStyle=T.panel; rr(x,y,w,h,14); ctx.fill();
-    ctx.strokeStyle=T.border; ctx.lineWidth=2.5; rr(x,y,w,h,14); ctx.stroke();
-    ctx.strokeStyle=T.outline; ctx.lineWidth=1.4; rr(x+3,y+2.5,w-6,h-5,12); ctx.stroke();
-    tape(x+22,y,-13); tape(x+w-22,y,13);
-  } else if(T.grain){                // INKWELL — old-timey title card
-    ctx.fillStyle=T.panel; rr(x,y,w,h,10); ctx.fill();
-    ctx.save(); rr(x,y,w,h,10); ctx.clip();
-    const g=ctx.createRadialGradient(x+w/2,y+72,8,x+w/2,y+72,w*.75); g.addColorStop(0,'rgba(215,165,44,.2)'); g.addColorStop(1,'transparent');
-    ctx.fillStyle=g; ctx.fillRect(x,y,w,h); ctx.restore();
-    ctx.strokeStyle=T.border; ctx.lineWidth=3; rr(x+5,y+5,w-10,h-10,7); ctx.stroke();
-    ctx.lineWidth=1; rr(x+10,y+10,w-20,h-20,5); ctx.stroke();
-    ctx.fillStyle=T.border; [[x+10,y+10],[x+w-10,y+10],[x+10,y+h-10],[x+w-10,y+h-10]].forEach(([dx,dy])=>{ctx.save();ctx.translate(dx,dy);ctx.rotate(.785);ctx.fillRect(-3.5,-3.5,7,7);ctx.restore();});
-  } else {                           // PLASTICINE — clay slab
-    ctx.save(); ctx.shadowColor='rgba(50,34,18,.55)'; ctx.shadowBlur=20; ctx.shadowOffsetY=9; ctx.fillStyle=T.panel; rr(x,y,w,h,22); ctx.fill(); ctx.restore();
-    ctx.fillStyle='rgba(255,255,255,.4)'; rr(x+12,y+9,w-24,9,5); ctx.fill();
-    ctx.lineWidth=4; ctx.strokeStyle=T.border; rr(x,y,w,h,22); ctx.stroke();
-  }
-}
 
 // Themed title lettering.
 function drawTitle(text,x,y,size,color){
@@ -1288,7 +1276,9 @@ function drawTitle(text,x,y,size,color){
 // SHARED by the splash and the menu, so they read as the same screen. On the menu the
 // lanes ARE the theme picker: tap a lane, that world lights up and the rest dim.
 const LANE_N=THEME_ORDER.length, LANE_W=()=>W/LANE_N;
-function laneAt(x){ const i=Math.floor(x/LANE_W()); return THEME_ORDER[Math.max(0,Math.min(LANE_N-1,i))]; }
+// NaN-guarded: Math.min/max let NaN through and it silently resolved to lane 0, so a
+// garbage coord could reset your theme. Same class as the moveZoneAt NaN bug.
+function laneAt(x){ if(!(x>=0)&&!(x<W))return null; const i=Math.floor(x/LANE_W()); return THEME_ORDER[Math.max(0,Math.min(LANE_N-1,i))]; }
 function laneNameY(){ return Math.round(H*0.665); }
 function drawLanes(t,opts){
   const cw=LANE_W(), wipe=opts.wipe, dim=opts.dim;
@@ -1448,98 +1438,116 @@ function drawPlayBtn(label){
   ctx.textBaseline='alphabetic';
 }
 // The menu IS the splash, still on its lanes — you just get to touch it now.
+// The menu had ten stacked groups over four animated lanes. It's now five things:
+// title, one status line, PLAY, two small buttons, and the lanes as the picker.
+// Everything adjustable moved behind SETTINGS.
 function drawStart(){
   const t=(Date.now()%100000)/1000;
   drawLanes(t,{wipe:null,dim:true});
-  // title
-  ctx.save(); ctx.translate(W/2,Math.round(H*0.20));
-  ctx.fillStyle='rgba(0,0,0,.72)'; rr(-198,-58,396,116,18); ctx.fill();
-  ctx.strokeStyle=T.accent; ctx.lineWidth=4; rr(-198,-58,396,116,18); ctx.stroke();
+  // title — two lines, not three
+  ctx.save(); ctx.translate(W/2,Math.round(H*0.205));
+  ctx.fillStyle='rgba(0,0,0,.74)'; rr(-186,-48,372,96,18); ctx.fill();
+  ctx.strokeStyle=T.accent; ctx.lineWidth=3.5; rr(-186,-48,372,96,18); ctx.stroke();
   ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-  ctx.font='900 italic 44px "Arial Black",Impact,sans-serif';
-  ctx.lineWidth=8; ctx.strokeStyle='#000'; ctx.strokeText('FART BACK!',0,0);
-  ctx.fillStyle='#ffe022'; ctx.fillText('FART BACK!',0,0);
-  ctx.font='900 15px "Arial Black",Impact,sans-serif'; ctx.fillStyle='#fff';
-  ctx.fillText('MONKEY FART MADNESS',0,26);
-  ctx.font='700 12px system-ui,sans-serif'; ctx.fillStyle='#7CFF5A';
-  ctx.fillText('dodge · fart back · throw bananas',0,48);
+  ctx.font='900 italic 42px "Arial Black",Impact,sans-serif';
+  ctx.lineWidth=8; ctx.strokeStyle='#000'; ctx.strokeText('FART BACK!',0,4);
+  ctx.fillStyle='#ffe022'; ctx.fillText('FART BACK!',0,4);
+  ctx.font='900 13px "Arial Black",Impact,sans-serif'; ctx.fillStyle='rgba(255,255,255,.8)';
+  ctx.fillText('MONKEY FART MADNESS',0,30);
   ctx.restore();
-  drawRankStrip(Math.round(H*0.316));
-  drawDailyBanner(Math.round(H*0.374));
+  drawStatusLine(Math.round(H*0.30));
   drawPlayBtn('▶ PLAY');
-  drawShopBtn();
-  // tells you the lanes are the picker
+  drawMenuButtons();
+  drawDailyLine(Math.round(H*0.615));
+}
+/// Rank · purse · best, on ONE line. The old strip had a progress bar and a sub-label
+/// competing with everything else; the rank name is the part you actually care about.
+function drawStatusLine(y){
+  const rk=rankFor(lifetime);
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillStyle='rgba(0,0,0,.6)'; rr(W/2-118,laneNameY()-46,236,24,12); ctx.fill();
-  ctx.fillStyle='#fff'; ctx.font='700 12px system-ui,sans-serif';
-  ctx.fillText('👆 tap a lane to change the look',W/2,laneNameY()-34);
-  if(best>0){ ctx.fillStyle='rgba(0,0,0,.6)'; rr(W/2-52,H-42,104,20,10); ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font='700 10px system-ui,sans-serif'; ctx.fillText('best '+best,W/2,H-32); }
+  ctx.font='700 13px system-ui,sans-serif';
+  const txt=rk.icon+' '+rk.name+'   ·   🍌 '+coins+(best>0?('   ·   best '+best):'');
+  const w=Math.max(240,ctx.measureText(txt).width+34);
+  ctx.fillStyle='rgba(0,0,0,.62)'; rr(W/2-w/2,y-15,w,30,15); ctx.fill();
+  ctx.strokeStyle='rgba(255,217,61,.4)'; ctx.lineWidth=1; rr(W/2-w/2,y-15,w,30,15); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.fillText(txt,W/2,y);
   ctx.textBaseline='alphabetic';
-  drawCtrlToggle(); drawDiffToggle(); drawMusicChip();
+}
+/// One quiet line, not a bordered banner shouting for attention.
+function drawDailyLine(y){
+  const d=dailyOfDay(), done=dailyDone();
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.globalAlpha=done?.5:.9;
+  ctx.font='700 11px system-ui,sans-serif'; ctx.fillStyle=done?'#fff':'#7CFF5A';
+  ctx.fillText(d.icon+'  '+d.name+(done?'':'  ·  +25 🍌 today'),W/2,y);
+  ctx.globalAlpha=1; ctx.textBaseline='alphabetic';
+}
+// SHOP + SETTINGS, side by side and secondary — PLAY is the only loud thing.
+function menuBtns(){ const w=132,h=44,gap=14,y=Math.round(H*0.535),x0=W/2-(2*w+gap)/2;
+  return [{id:'shop',label:'🛍  Shop',x:x0,y,w,h},{id:'settings',label:'⚙  Settings',x:x0+w+gap,y,w,h}]; }
+function menuBtnAt(x,y){ for(const b of menuBtns()){ if(x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h)return b.id; } return null; }
+function drawMenuButtons(){
+  const canBuy=HATS.concat(SKINS).some(i=>!owned.includes(i.id)&&coins>=i.cost);
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  for(const b of menuBtns()){
+    const hot=(b.id==='shop'&&canBuy);
+    ctx.fillStyle='rgba(0,0,0,.62)'; rr(b.x,b.y,b.w,b.h,13); ctx.fill();
+    ctx.strokeStyle=hot?'#ffd93d':'rgba(255,255,255,.32)'; ctx.lineWidth=hot?2.5:1.5; rr(b.x,b.y,b.w,b.h,13); ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.font='700 14px system-ui,sans-serif'; ctx.fillText(b.label,b.x+b.w/2,b.y+b.h/2);
+    if(hot){ ctx.fillStyle='#ffd93d'; ctx.beginPath(); ctx.arc(b.x+b.w-7,b.y+7,5.5,0,6.28); ctx.fill(); }
+  }
+  ctx.textBaseline='alphabetic';
+}
+// ---------- settings ----------
+// Everything adjustable, in one place, with room to breathe.
+function drawSettings(){
+  const t=(Date.now()%100000)/1000;
+  drawLanes(t,{wipe:null,dim:true,pills:false});
+  ctx.fillStyle='rgba(0,0,0,.62)'; ctx.fillRect(0,0,W,H);
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.save(); ctx.translate(W/2,Math.round(H*0.16));
+  ctx.fillStyle='rgba(0,0,0,.8)'; rr(-150,-30,300,60,15); ctx.fill();
+  ctx.strokeStyle=T.accent; ctx.lineWidth=3.5; rr(-150,-30,300,60,15); ctx.stroke();
+  ctx.font='900 italic 27px "Arial Black",Impact,sans-serif';
+  ctx.lineWidth=6; ctx.strokeStyle='#000'; ctx.strokeText('SETTINGS',0,0);
+  ctx.fillStyle=T.accent; ctx.fillText('SETTINGS',0,0);
+  ctx.restore();
+  const sect=(label,y)=>{ ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font='700 10px system-ui,sans-serif';
+    ctx.fillText(label,W/2,y); };
+  sect('CONTROLS',ctrlChips()[0].y-16);
+  for(const c of ctrlChips()){ const on=c.id===controlStyle;
+    ctx.fillStyle=on?T.border:'rgba(255,255,255,.10)'; rr(c.x,c.y,c.w,c.h,11); ctx.fill();
+    ctx.strokeStyle=on?T.accent:'rgba(255,255,255,.3)'; ctx.lineWidth=on?2.5:1.5; rr(c.x,c.y,c.w,c.h,11); ctx.stroke();
+    ctx.fillStyle=on?'#fff':'rgba(255,255,255,.75)'; ctx.font='700 14px system-ui,sans-serif';
+    ctx.fillText(c.label,c.x+c.w/2,c.y+c.h/2); }
+  sect('DIFFICULTY  ·  '+DIFFS[diffId].lives+' lives',diffChips()[0].y-16);
+  for(const c of diffChips()){ const on=c.id===diffId;
+    ctx.fillStyle=on?T.border:'rgba(255,255,255,.10)'; rr(c.x,c.y,c.w,c.h,11); ctx.fill();
+    ctx.strokeStyle=on?T.accent:'rgba(255,255,255,.3)'; ctx.lineWidth=on?2.5:1.5; rr(c.x,c.y,c.w,c.h,11); ctx.stroke();
+    ctx.fillStyle=on?'#fff':'rgba(255,255,255,.75)'; ctx.font='700 14px system-ui,sans-serif';
+    ctx.fillText(c.label,c.x+c.w/2,c.y+c.h/2); }
+  sect('MUSIC',musicChip().y-16);
+  drawMusicChip();
+  const b=shopBack();
+  ctx.fillStyle=T.border; rr(b.x,b.y,b.w,b.h,14); ctx.fill();
+  ctx.strokeStyle=T.accent; ctx.lineWidth=3; rr(b.x,b.y,b.w,b.h,14); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font=T.titleFont(20); ctx.fillText('◀ BACK',b.x+b.w/2,b.y+b.h/2+1);
+  ctx.textBaseline='alphabetic';
 }
 // Rank + purse, one strip. Rank is LIFETIME coins, so it only ever goes up —
 // nothing you buy can demote you.
-function drawRankStrip(y){
-  const rk=rankFor(lifetime), nx=rankNext(lifetime);
-  ctx.textBaseline='middle';
-  ctx.fillStyle='rgba(0,0,0,.68)'; rr(W/2-186,y-23,372,46,21); ctx.fill();
-  ctx.strokeStyle='rgba(255,217,61,.5)'; ctx.lineWidth=1.5; rr(W/2-186,y-23,372,46,21); ctx.stroke();
-  ctx.textAlign='left'; ctx.font='700 13px system-ui,sans-serif'; ctx.fillStyle='#ffd93d';
-  ctx.fillText(rk.icon+'  '+rk.name,W/2-174,y-10);
-  ctx.textAlign='right'; ctx.fillStyle='#fff'; ctx.font='700 14px system-ui,sans-serif';
-  ctx.fillText('🍌 '+coins,W/2+174,y-10);
-  const bw=340, bx=W/2-bw/2, by=y+5;
-  ctx.fillStyle='rgba(255,255,255,.16)'; rr(bx,by,bw,7,3.5); ctx.fill();
-  if(nx){ const a=(lifetime-rk.at)/(nx.at-rk.at);
-    ctx.fillStyle='#ffd93d'; rr(bx,by,bw*Math.max(.02,Math.min(1,a)),7,3.5); ctx.fill();
-    ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,.72)'; ctx.font='700 8px system-ui,sans-serif';
-    ctx.fillText((nx.at-lifetime)+' 🍌 to '+nx.icon+' '+nx.name,W/2,y+17);
-  } else { ctx.fillStyle='#ffd93d'; rr(bx,by,bw,7,3.5); ctx.fill();
-    ctx.textAlign='center'; ctx.fillStyle='#ffd93d'; ctx.font='700 8px system-ui,sans-serif'; ctx.fillText('MAX RANK — you are the Gas Guardian',W/2,y+17); }
-}
-function drawDailyBanner(y){
-  const d=dailyOfDay(), done=dailyDone();
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillStyle=done?'rgba(0,0,0,.5)':'rgba(124,255,90,.16)'; rr(W/2-160,y-14,320,28,14); ctx.fill();
-  ctx.strokeStyle=done?'rgba(255,255,255,.2)':'#7CFF5A'; ctx.lineWidth=1.5; rr(W/2-160,y-14,320,28,14); ctx.stroke();
-  ctx.font='700 11px system-ui,sans-serif'; ctx.fillStyle=done?'rgba(255,255,255,.55)':'#fff';
-  ctx.fillText(d.icon+'  TODAY: '+d.name+' — '+d.blurb+(done?'':'  (+25 🍌)'),W/2,y);
-}
-function shopBtn(){ const w=150,h=44; return {x:W/2-w/2,y:Math.round(H*0.545),w,h}; }
-function inShopBtn(x,y){ const b=shopBtn(); return x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h; }
-function drawShopBtn(){
-  const b=shopBtn(), canBuy=HATS.concat(SKINS).some(i=>!owned.includes(i.id)&&coins>=i.cost);
-  ctx.fillStyle='rgba(0,0,0,.62)'; rr(b.x,b.y,b.w,b.h,13); ctx.fill();
-  ctx.strokeStyle=canBuy?'#ffd93d':'rgba(255,255,255,.35)'; ctx.lineWidth=canBuy?3:1.5; rr(b.x,b.y,b.w,b.h,13); ctx.stroke();
-  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#fff'; ctx.font='700 15px system-ui,sans-serif';
-  ctx.fillText('🛍  SHOP',b.x+b.w/2,b.y+b.h/2);
-  if(canBuy){ ctx.fillStyle='#ffd93d'; ctx.beginPath(); ctx.arc(b.x+b.w-7,b.y+7,6,0,6.28); ctx.fill();
-    ctx.fillStyle='#000'; ctx.font='700 9px system-ui,sans-serif'; ctx.fillText('!',b.x+b.w-7,b.y+8); }
-}
-function diffChips(){ const w=118,h=30,gap=10,y=H-110,tot=2*w+gap,x0=(W-tot)/2;
+function diffChips(){ const w=132,h=40,gap=12,y=Math.round(H*0.50),tot=2*w+gap,x0=(W-tot)/2;
   return [{id:'easy',label:DIFFS.easy.label,x:x0,y,w,h},{id:'normal',label:DIFFS.normal.label,x:x0+w+gap,y,w,h}]; }
 // Music toggle lives with the other parent-facing switches, and reads its own state
 // plainly — no mystery speaker glyph that could mean on OR off.
-function musicChip(){ const w=104,h=26; return {x:W/2-w/2,y:H-152,w,h}; }
+function musicChip(){ const w=180,h=40; return {x:W/2-w/2,y:Math.round(H*0.645),w,h}; }
 function inMusicChip(x,y){ const c=musicChip(); return x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h; }
 function drawMusicChip(){ const c=musicChip();
-  ctx.fillStyle=musicOn?T.border:'rgba(0,0,0,.55)'; rr(c.x,c.y,c.w,c.h,13); ctx.fill();
-  ctx.strokeStyle=musicOn?T.accent:'rgba(255,255,255,.3)'; ctx.lineWidth=musicOn?2.5:1.5; rr(c.x,c.y,c.w,c.h,13); ctx.stroke();
+  ctx.fillStyle=musicOn?T.border:'rgba(255,255,255,.10)'; rr(c.x,c.y,c.w,c.h,11); ctx.fill();
+  ctx.strokeStyle=musicOn?T.accent:'rgba(255,255,255,.3)'; ctx.lineWidth=musicOn?2.5:1.5; rr(c.x,c.y,c.w,c.h,11); ctx.stroke();
   ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle=musicOn?'#fff':'rgba(255,255,255,.75)';
-  ctx.font='700 11px system-ui,sans-serif'; ctx.fillText(musicOn?'🎵 MUSIC ON':'🔇 MUSIC OFF',c.x+c.w/2,c.y+c.h/2); }
+  ctx.font='700 14px system-ui,sans-serif'; ctx.fillText(musicOn?'🎵 Music On':'🔇 Music Off',c.x+c.w/2,c.y+c.h/2); }
 function diffChipAt(x,y){ for(const c of diffChips()){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h)return c.id; } return null; }
-function drawDiffToggle(){
-  const cs=diffChips(), x0=cs[0].x-12, x1=cs[1].x+cs[1].w+12;
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillStyle='rgba(0,0,0,.55)'; rr(x0,cs[0].y-22,x1-x0,cs[0].h+32,14); ctx.fill();
-  for(const c of cs){ const on=c.id===diffId;
-    ctx.fillStyle=on?T.border:'rgba(255,255,255,.10)'; rr(c.x,c.y,c.w,c.h,9); ctx.fill();
-    ctx.strokeStyle=on?T.accent:'rgba(255,255,255,.3)'; ctx.lineWidth=on?2.5:1.5; rr(c.x,c.y,c.w,c.h,9); ctx.stroke();
-    ctx.fillStyle=on?'#fff':'rgba(255,255,255,.75)'; ctx.font='700 12px system-ui,sans-serif'; ctx.fillText(c.label,c.x+c.w/2,c.y+c.h/2); }
-  ctx.fillStyle='#fff'; ctx.globalAlpha=.7; ctx.font='700 10px system-ui,sans-serif';
-  ctx.fillText('DIFFICULTY  ·  '+DIFFS[diffId].lives+' lives',W/2,cs[0].y-11); ctx.globalAlpha=1;
-}
 // Same lanes, same PLAY button — game over is the menu with your score on it.
 function drawOver(){
   const t=(Date.now()%100000)/1000;
@@ -1576,13 +1584,7 @@ function drawOver(){
     ctx.globalAlpha=1;
   }
   drawPlayBtn('▶ AGAIN');
-  drawShopBtn();
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillStyle='rgba(0,0,0,.6)'; rr(W/2-118,laneNameY()-46,236,24,12); ctx.fill();
-  ctx.fillStyle='#fff'; ctx.font='700 12px system-ui,sans-serif';
-  ctx.fillText('👆 tap a lane to change the look',W/2,laneNameY()-34);
-  ctx.textBaseline='alphabetic';
-  drawCtrlToggle(); drawDiffToggle(); drawMusicChip();
+  drawMenuButtons();
 }
 function drawBoss(){ const x=boss.bx,y=boss.by; const col=boss.hitFlash>0?'#ffffff':T.monkeyBody;
   const roar=boss.roarT>0, weak=boss.weakT>0, dying=boss.deathT>0;
@@ -1632,6 +1634,7 @@ function draw(){
   ctx.clearRect(0,0,W,H);
   if(st===ST.SPLASH){drawSplash();return;}
   if(st===ST.SHOP){drawShop();return;}
+  if(st===ST.SETTINGS){drawSettings();return;}
   if(st===ST.START){drawStart();return;}
   if(st===ST.OVER){drawOver();return;}
   if(st===ST.WIN){drawWin();return;}

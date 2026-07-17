@@ -19,6 +19,7 @@ private final class Player {
     var shieldT: CGFloat = 0, x2T: CGFloat = 0, slowT: CGFloat = 0, freeFartT: CGFloat = 0
     var bananas: Int = 3, throwT: CGFloat = 0
     var magnetT: CGFloat = 0
+    var hover = false
 }
 private final class Monkey {
     var x: CGFloat, y: CGFloat, bx: CGFloat, by: CGFloat
@@ -201,6 +202,9 @@ private let DAILIES = [
 ]
 
 /// A 🍌 coin — drops off a bonked monkey, falls, and waits to be walked over.
+/// A 🥥 coconut — always telegraphed by a growing ground shadow before it drops.
+private final class Coco { var x, y, vy, warn, spin: CGFloat
+    init(x: CGFloat) { self.x = x; y = -20; vy = 0; warn = 1.0; spin = R(0, 6.28) } }
 private final class Coin { var x, y, vx, vy, life, spin: CGFloat; var landed = false
     init(x: CGFloat, y: CGFloat) { self.x = x; self.y = y; vx = R(-50, 50); vy = R(-120, -40); life = 9; spin = R(0, 6.28) } }
 
@@ -241,6 +245,10 @@ final class GameView: UIView {
     // clear, unlike the auto-aimed throw. (Hard-coded, it can't reach a tall field.)
     private let AMMO_MAX = 6, AMMO_START = 3
     private let FCLOUD_LIFE: CGFloat = 2.6, FCLOUD_DRAG: CGFloat = 10, GBAN_LIFE: CGFloat = 6, FCLOUD_T: CGFloat = 1.5
+    // Gas does NOT recharge while you hold jump in the air (see update), so this is the
+    // true burn rate: a full tank buys ~3s. HOVER_MIN stops it stuttering at empty.
+    private let HOVER_GAS: CGFloat = 32, HOVER_MIN: CGFloat = 6, HOVER_VY: CGFloat = 52
+    private let COCO_R: CGFloat = 15, COCO_WARN: CGFloat = 1.0
     private var FCLOUD_RISE: CGFloat { -((PLAYER_GY - 110 - 60)/FCLOUD_T) }
     // Sniper Chimp: laser tracks you for (AIM_T - LOCK_T), then LOCKS and turns red.
     private let AIM_T: CGFloat = 1.15, LOCK_T: CGFloat = 0.4, SNIPE_SPD: CGFloat = 640
@@ -370,6 +378,8 @@ final class GameView: UIView {
     private var fartClouds: [FartCloud] = []
     private var groundBananas: [GroundBanana] = []
     private var coinsOnGround: [Coin] = []
+    private var cocos: [Coco] = []
+    private var cocoT: CGFloat = 6
 
     // input — MOVE on the left thumb, ACTIONS on the right (JUMP · THROW · FART)
     private struct Btn { let id: String; let cx: CGFloat; let cy: CGFloat; let r: CGFloat; let glyph: String }
@@ -415,6 +425,7 @@ final class GameView: UIView {
         st = .start; monkeys.removeAll(); boss = nil
         bananas.removeAll(); particles.removeAll(); clouds.removeAll(); floaters.removeAll()
         pops.removeAll(); peels.removeAll(); powerups.removeAll(); fartClouds.removeAll(); groundBananas.removeAll(); coinsOnGround.removeAll()
+        cocos.removeAll(); cocoT = 6
         audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24)
     }
 
@@ -667,7 +678,7 @@ final class GameView: UIView {
         lives -= 1; combo = 0; P.inv = true; P.invT = 1.8; P.blinkT = 0; P.face = 1; P.faceT = 1
         burstFx(bx, by, 10); addShake(type == "black" ? 14 : 12, 0.3); doFlash(hex("ff5a5a"), 0.32); hitstop = max(hitstop, 0.08); haptic(.hurt)
         audio.fart(freq: 270, dur: 0.5, flutter: 22, cutoff: 1300, gain: 0.4)
-        addPop(P.x, P.y-46, type == "black" ? "BLECH!" : "OUCH!", hex("ff5a5a"))
+        addPop(P.x, P.y-46, type == "coco" ? "BONK!" : (type == "black" ? "BLECH!" : "OUCH!"), hex("ff5a5a"))
         if lives <= 0 { gameOver() }
     }
     private func gameOver() {
@@ -767,8 +778,17 @@ final class GameView: UIView {
             P.x += moveDir() * PSPEED*(P.mushT > 0 ? 0.45 : 1)*dt
         }
         P.x = max(24, min(LW-24, P.x))
-        if !P.onGround { P.vy += GRAV*dt; P.y += P.vy*dt
-            if P.y >= PLAYER_GY { P.y = PLAYER_GY; P.vy = 0; P.onGround = true; P.squashT = 0.18
+        if !P.onGround {
+            // MEGA-HOVER — hold jump on the way DOWN to ride your own gas. Costs gas, so it
+            // trades against farting; you can't hover and blast forever.
+            P.hover = false
+            if jumpHeld() && P.vy > 0 && P.slipT <= 0 && (P.gas > HOVER_MIN || P.freeFartT > 0) {
+                P.hover = true; P.vy = min(P.vy, HOVER_VY)
+                if P.freeFartT <= 0 { P.gas = max(0, P.gas - HOVER_GAS*dt) }
+                if CGFloat.random(in: 0...1) < 0.6 { particles.append(puff(P.x + R(-9, 9), P.y+22, R(-40, 40), R(40, 110))) }
+            }
+            P.vy += GRAV*(P.hover ? 0.35 : 1)*dt; P.y += P.vy*dt
+            if P.y >= PLAYER_GY { P.y = PLAYER_GY; P.vy = 0; P.onGround = true; P.hover = false; P.squashT = 0.18
                 for _ in 0..<5 { particles.append(puff(P.x + R(-10, 10), PLAYER_GY+20, R(-60, 60), R(-10, 30))) } } }
         if P.squashT > 0 { P.squashT -= dt }
         if P.inv { P.invT -= dt; P.blinkT += dt; if P.invT <= 0 { P.inv = false } }
@@ -777,7 +797,10 @@ final class GameView: UIView {
         if P.slipT > 0 { P.slipT -= dt }; if P.shieldT > 0 { P.shieldT -= dt }; if P.x2T > 0 { P.x2T -= dt }; if P.slowT > 0 { P.slowT -= dt }; if P.freeFartT > 0 { P.freeFartT -= dt }
         if P.throwT > 0 { P.throwT -= dt }
         if P.magnetT > 0 { P.magnetT -= dt }
-        P.gas = min(GAS_MAX, P.gas + GAS_RECHARGE*dt)
+        // Holding jump in the air keeps the valve OPEN: no recharge, hovering or not. Without
+        // this, gas refills the instant hover cuts out and you sputter along forever on empty.
+        let venting = !P.onGround && jumpHeld() && P.slipT <= 0
+        if !P.hover && !venting { P.gas = min(GAS_MAX, P.gas + GAS_RECHARGE*dt) }
 
         // monkeys
         for m in monkeys {
@@ -933,6 +956,25 @@ final class GameView: UIView {
             }
             return fc.life > 0 && fc.y > -50
         }
+        // 🥥 COCONUTS — the only thing that punishes standing still on the GROUND. Always
+        // telegraphed by a shadow that grows for a full second before impact: never a gotcha.
+        if level >= 5 || st == .boss {
+            cocoT -= dt
+            if cocoT <= 0 { cocoT = R(4.5, 8)*D.ivMul; cocos.append(Coco(x: R(40, LW-40))) }
+        }
+        cocos = cocos.filter { c in
+            c.spin += dt*3
+            if c.warn > 0 { c.warn -= dt; return true }          // hanging above, shadow growing
+            c.vy += GRAV*0.62*wdt; c.y += c.vy*wdt
+            for fc in fartClouds {                                // the gas is your umbrella
+                let dx = c.x - fc.x, dy = c.y - fc.y
+                if dx*dx + dy*dy < (fc.r+COCO_R)*(fc.r+COCO_R) { smashCoco(c); return false }
+            }
+            if P.barrierT > 0 && abs(c.x - P.x) < 64 && c.y - P.y > -74 && c.y - P.y < 14 { smashCoco(c); return false }
+            if !P.inv && P.slipT <= 0 && abs(c.x - P.x) < 24 && abs(c.y - P.y) < 28 { hitPlayer(c.x, c.y, "coco"); return false }
+            if c.y >= GROUND_Y-6 { smashCoco(c); return false }
+            return true
+        }
         // 🍌 coins — fall, land, get collected. The Magnet drags them in from across the screen.
         let magR: CGFloat = P.magnetT > 0 ? 170 : 30
         coinsOnGround = coinsOnGround.filter { c in
@@ -974,6 +1016,7 @@ final class GameView: UIView {
     }
 
     // Held-state, for lighting the buttons up.
+    private func jumpHeld() -> Bool { touchRecs.values.contains { $0.role == "JUMP" } }
     private func leftHeld() -> Bool { touchRecs.values.contains { $0.role == "L" || $0.role == "zoneL" } }
     private func rightHeld() -> Bool { touchRecs.values.contains { $0.role == "R" || $0.role == "zoneR" } }
     /// Which way you actually go. The NEWEST press wins: holding ◀ and then resting a
@@ -1138,6 +1181,8 @@ final class GameView: UIView {
         if let b = boss { drawBoss(b) }   // not `st == .boss`: it must stay drawn while paused
         for pe in peels { drawPeel(pe) }
         for g in groundBananas { drawGroundBanana(g) }
+        for c in coinsOnGround { drawCoin(c) }   // was never called — coins were invisible on iOS
+        for c in cocos { drawCoco(c) }
         for pu in powerups { drawPowerup(pu) }
         for b in bananas { drawBanana(b) }
         drawPlayer()
@@ -1511,6 +1556,36 @@ final class GameView: UIView {
             }
         default: break
         }
+    }
+    private func smashCoco(_ c: Coco) {
+        burstFx(c.x, c.y, 9); addShake(5, 0.14); score += 15
+        audio.tone(f0: 220, f1: 60, dur: 0.16, gain: 0.26); haptic(.bonk)
+        for _ in 0..<8 { particles.append(puff(c.x, c.y, R(-90, 90), R(-70, 40))) }
+        if CGFloat.random(in: 0...1) < 0.3 { spawnCoin(c.x, min(c.y, GROUND_Y-20), 1) }
+    }
+    // The shadow IS the warning — it grows as the coconut hangs, then the drop is fast.
+    private func drawCoco(_ c: Coco) {
+        if c.warn > 0 {
+            let t = 1 - c.warn/COCO_WARN, rx = 10+16*t, ry = 4+5*t
+            cg.setAlpha(0.18 + 0.32*t); cg.setFillColor(UIColor.black.cgColor)
+            cg.fillEllipse(in: CGRect(x: c.x-rx, y: GROUND_Y-4-ry, width: rx*2, height: ry*2))
+            cg.setAlpha(0.5 + 0.5*sin(c.warn*22)); cg.setStrokeColor(hex("ff5a5a").cgColor); cg.setLineWidth(2)
+            cg.strokeEllipse(in: CGRect(x: c.x-rx, y: GROUND_Y-4-ry, width: rx*2, height: ry*2))
+            cg.setAlpha(1)
+            text("!", c.x, BRANCH_Y+22, 13, hex("ff5a5a"))
+        } else {
+            let k = max(0, min(1, (c.y+40)/GROUND_Y)), rx = 10+14*k, ry = 4+4*k
+            cg.setAlpha(0.10 + 0.25*k); cg.setFillColor(UIColor.black.cgColor)
+            cg.fillEllipse(in: CGRect(x: c.x-rx, y: GROUND_Y-4-ry, width: rx*2, height: ry*2))
+            cg.setAlpha(1)
+        }
+        let y = c.warn > 0 ? BRANCH_Y+16 : c.y
+        cg.saveGState(); cg.translateBy(x: c.x, y: y); cg.rotate(by: c.spin)
+        fillCircle(0, 0, COCO_R, hex("6b4423"))
+        if T.outlineW > 0 { cg.setStrokeColor(T.outline.cgColor); cg.setLineWidth(T.outlineW*0.6)
+            cg.strokeEllipse(in: CGRect(x: -COCO_R, y: -COCO_R, width: COCO_R*2, height: COCO_R*2)) }
+        for (dx, dy) in [(-5.0, -4.0), (4.0, -5.0), (0.0, 4.0)] { fillCircle(CGFloat(dx), CGFloat(dy), 2.4, hex("4a2d15")) }
+        cg.restoreGState()
     }
     private func drawGroundBanana(_ g: GroundBanana) {
         let a: CGFloat = g.life < 1.2 ? abs(sin(g.life*14)) : 1

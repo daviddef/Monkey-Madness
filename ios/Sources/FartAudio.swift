@@ -87,6 +87,77 @@ final class FartAudio {
         players[i].scheduleBuffer(buf, at: nil, options: [], completionHandler: nil)
     }
 
+    // MARK: - Music
+    // Synthesised, not sampled: no licensing, no download, and each world gets its own
+    // key/tempo/voice for free. AVAudioEngine can't schedule oscillators the way Web Audio
+    // can, so we RENDER one bar into a buffer and loop it — one node, no timer jitter.
+    private var musicPlayer: AVAudioPlayerNode?
+    private var musicMixer: AVAudioMixerNode?
+    private var musicPlaying = false
+
+    private func renderBar(root: Double, bpm: Double, scale: [Int], wave: String, lead: String) -> AVAudioPCMBuffer? {
+        let beat = 60.0/bpm/2.0                 // eighth notes
+        let steps = 16
+        let n = Int(sr*beat*Double(steps))
+        guard let buf = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(n)) else { return nil }
+        buf.frameLength = AVAudioFrameCount(n)
+        guard let out = buf.floatChannelData?[0] else { return nil }
+        for i in 0..<n { out[i] = 0 }
+
+        func osc(_ type: String, _ phase: Double) -> Double {
+            switch type {
+            case "square":   return sin(phase) >= 0 ? 1 : -1
+            case "sawtooth": return phase.truncatingRemainder(dividingBy: 2*Double.pi)/Double.pi - 1
+            case "triangle": return 2*abs(phase.truncatingRemainder(dividingBy: 2*Double.pi)/Double.pi - 1) - 1
+            default:         return sin(phase)
+            }
+        }
+        func add(freq: Double, at: Double, dur: Double, type: String, gain: Double) {
+            let start = Int(at*sr), len = Int(dur*sr)
+            var phase = 0.0
+            for k in 0..<len {
+                let idx = start + k; if idx < 0 || idx >= n { continue }
+                phase += 2*Double.pi*freq/sr
+                let env = min(1.0, Double(k)/(sr*0.012)) * exp(-3.2*Double(k)/Double(len))
+                out[idx] += Float(osc(type, phase) * env * gain)
+            }
+        }
+        for st in 0..<steps {
+            let t = Double(st)*beat
+            if st % 4 == 0 { add(freq: root/2, at: t, dur: beat*1.7, type: wave, gain: 0.34) }          // bass
+            if st % 2 == 0 { let d = scale[(st/2*3) % scale.count]                                       // arp
+                add(freq: root*pow(2, Double(d)/12), at: t, dur: beat*0.8, type: lead, gain: 0.15) }
+            if st % 8 == 6 { let d = scale[st % scale.count]                                             // turn-around
+                add(freq: root*2*pow(2, Double(d)/12), at: t, dur: beat*0.6, type: lead, gain: 0.10) }
+        }
+        // guard against clipping where voices overlap
+        var peak: Float = 0
+        for i in 0..<n { peak = max(peak, abs(out[i])) }
+        if peak > 0.9 { let k = 0.9/peak; for i in 0..<n { out[i] *= k } }
+        return buf
+    }
+
+    /// Swap the loop to a theme's voice. Pass nil to stop.
+    func setMusic(root: Double?, bpm: Double = 120, scale: [Int] = [0,3,5,7,10], wave: String = "square", lead: String = "sawtooth", gain: Double = 0.16) {
+        guard ok else { return }
+        guard let root else {
+            musicPlayer?.stop(); musicPlaying = false; return
+        }
+        if musicMixer == nil {
+            let mx = AVAudioMixerNode(); engine.attach(mx); engine.connect(mx, to: engine.mainMixerNode, format: format); musicMixer = mx
+        }
+        if musicPlayer == nil {
+            let p = AVAudioPlayerNode(); engine.attach(p); engine.connect(p, to: musicMixer!, format: format); musicPlayer = p
+        }
+        guard let p = musicPlayer, let mx = musicMixer else { return }
+        p.stop()
+        mx.outputVolume = Float(gain)
+        guard let bar = renderBar(root: root, bpm: bpm, scale: scale, wave: wave, lead: lead) else { return }
+        p.scheduleBuffer(bar, at: nil, options: [.loops], completionHandler: nil)   // seamless, no timer
+        p.play(); musicPlaying = true
+    }
+    func stopMusic() { musicPlayer?.stop(); musicPlaying = false }
+
     /// A clean pitch-sweep tone (stun sparkle / deflect boing / pickup) — always synth.
     func tone(f0: Double, f1: Double, dur: Double, gain: Double) {
         guard ok else { return }
