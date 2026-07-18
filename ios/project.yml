@@ -13,8 +13,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.daviddef.monkeymadness
-        MARKETING_VERSION: "2.0"
-        CURRENT_PROJECT_VERSION: "12"
+        MARKETING_VERSION: "2.1"
+        CURRENT_PROJECT_VERSION: "13"
         # iPhone only. The game is portrait and phone-shaped, and has never been run on an
         # iPad — shipping a device nobody has played it on invites a rejection for being a
         # stretched phone app. iPad can come back as a real, tested update.
