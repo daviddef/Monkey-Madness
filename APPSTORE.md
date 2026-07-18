@@ -8,9 +8,11 @@ legal declarations made in your name, and submission publishes to the store. Tho
 yours to click. Everything else below is done.
 
 App id `6791465306` · primary locale **en-AU** (not en-US — metadata lives on that locale)
-· version record **2.0** with build **11** attached.
+· version record **2.1** with build **13** attached (VALID).
 
-- Bundle id `com.daviddef.monkeymadness` · Team `L9SAXP2E2W` · Version **2.0** build **11**
+- Bundle id `com.daviddef.monkeymadness` · Team `L9SAXP2E2W` · Version **2.1** build **13**
+- 2.1 (13) adds Free Play + the zones-default controls; on TestFlight for Mateo now.
+  Screenshots were refreshed to show the zones layout that actually ships.
 - Facts below were read out of the shipped archive and the source, not from memory.
 
 ---
