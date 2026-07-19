@@ -2246,23 +2246,26 @@ final class GameView: UIView {
                       stroke: on ? cAccent : UIColor(white: 1, alpha: 0.3), lw: on ? 2.5 : 1.5)
             text(c.label, c.x + c.w/2, c.y + c.h/2, 14, on ? .white : UIColor(white: 1, alpha: 0.75), system: true)
         }
-        text("MUSIC", LW/2, mc.minY - 16, 10, UIColor(white: 1, alpha: 0.6), system: true)
+        let sc = sfxChip
+        text("SOUND", LW/2, soundRowY - 16, 10, UIColor(white: 1, alpha: 0.6), system: true)
         roundRect(mc.minX, mc.minY, mc.width, mc.height, 11, musicOn ? cBorder : UIColor(white: 1, alpha: 0.10),
                   stroke: musicOn ? cAccent : UIColor(white: 1, alpha: 0.3), lw: musicOn ? 2.5 : 1.5)
         text(musicOn ? "\u{1F3B5} Music On" : "\u{1F507} Music Off", mc.midX, mc.midY, 14,
              musicOn ? .white : UIColor(white: 1, alpha: 0.75), system: true)
-        let sc = sfxChip
-        text("SOUND", LW/2, sc.minY - 16, 10, UIColor(white: 1, alpha: 0.6), system: true)
         roundRect(sc.minX, sc.minY, sc.width, sc.height, 11, sfxOn ? cBorder : UIColor(white: 1, alpha: 0.10),
                   stroke: sfxOn ? cAccent : UIColor(white: 1, alpha: 0.3), lw: sfxOn ? 2.5 : 1.5)
-        text(sfxOn ? "\u{1F4A8} Fart Noises On" : "\u{1F507} Fart Noises Off", sc.midX, sc.midY, 14,
+        text(sfxOn ? "\u{1F4A8} Farts On" : "\u{1F507} Farts Off", sc.midX, sc.midY, 14,
              sfxOn ? .white : UIColor(white: 1, alpha: 0.75), system: true)
         let b = shopBack
         roundRect(b.minX, b.minY, b.width, b.height, 14, T.border, stroke: T.accent, lw: 3)
         text("\u{25C0} BACK", b.midX, b.midY, 20, .white)
     }
-    private var musicChip: CGRect { CGRect(x: LW/2-90, y: (LH*0.615).rounded(), width: 180, height: 40) }
-    private var sfxChip: CGRect { CGRect(x: LW/2-90, y: (LH*0.73).rounded(), width: 180, height: 40) }
+    // Music and Farts sit side by side under ONE "SOUND" header — two switches for one
+    // concept shouldn't be two sections. Each still says its own state in words rather than
+    // relying on a glyph that could mean on OR off.
+    private var soundRowY: CGFloat { (LH*0.645).rounded() }
+    private var musicChip: CGRect { CGRect(x: LW/2-157, y: soundRowY, width: 150, height: 40) }
+    private var sfxChip: CGRect { CGRect(x: LW/2+7, y: soundRowY, width: 150, height: 40) }
     private func diffChips() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
         let w: CGFloat = 132, h: CGFloat = 40, gap: CGFloat = 12, y = (LH*0.50).rounded(), tot = 2*w + gap, x0 = LW/2 - tot/2
         return [("easy", DIFFS["easy"]!.label, x0, y, w, h), ("normal", DIFFS["normal"]!.label, x0+w+gap, y, w, h)]

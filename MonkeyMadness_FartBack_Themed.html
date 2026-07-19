@@ -1657,10 +1657,8 @@ function drawSettings(){
     ctx.strokeStyle=on?T.accent:'rgba(255,255,255,.3)'; ctx.lineWidth=on?2.5:1.5; rr(c.x,c.y,c.w,c.h,11); ctx.stroke();
     ctx.fillStyle=on?'#fff':'rgba(255,255,255,.75)'; ctx.font='700 14px system-ui,sans-serif';
     ctx.fillText(c.label,c.x+c.w/2,c.y+c.h/2); }
-  sect('MUSIC',musicChip().y-16);
-  drawMusicChip();
-  sect('SOUND',sfxChip().y-16);
-  drawSfxChip();
+  sect('SOUND',soundRowY()-16);
+  drawMusicChip(); drawSfxChip();
   const b=shopBack();
   ctx.fillStyle=T.border; rr(b.x,b.y,b.w,b.h,14); ctx.fill();
   ctx.strokeStyle=T.accent; ctx.lineWidth=3; rr(b.x,b.y,b.w,b.h,14); ctx.stroke();
@@ -1673,20 +1671,25 @@ function diffChips(){ const w=132,h=40,gap=12,y=Math.round(H*0.50),tot=2*w+gap,x
   return [{id:'easy',label:DIFFS.easy.label,x:x0,y,w,h},{id:'normal',label:DIFFS.normal.label,x:x0+w+gap,y,w,h}]; }
 // Music toggle lives with the other parent-facing switches, and reads its own state
 // plainly — no mystery speaker glyph that could mean on OR off.
-function musicChip(){ const w=180,h=40; return {x:W/2-w/2,y:Math.round(H*0.615),w,h}; }
+// Music and Farts sit side by side under ONE "SOUND" header — two switches for one
+// concept shouldn't be two sections. Each still says its own state in words rather than
+// relying on a glyph that could mean on OR off.
+const SND_W=150, SND_H=40, SND_GAP=14;
+function soundRowY(){ return Math.round(H*0.645); }
+function musicChip(){ return {x:W/2-SND_W-SND_GAP/2,y:soundRowY(),w:SND_W,h:SND_H}; }
 function inMusicChip(x,y){ const c=musicChip(); return x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h; }
 function drawMusicChip(){ const c=musicChip();
   ctx.fillStyle=musicOn?T.border:'rgba(255,255,255,.10)'; rr(c.x,c.y,c.w,c.h,11); ctx.fill();
   ctx.strokeStyle=musicOn?T.accent:'rgba(255,255,255,.3)'; ctx.lineWidth=musicOn?2.5:1.5; rr(c.x,c.y,c.w,c.h,11); ctx.stroke();
   ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle=musicOn?'#fff':'rgba(255,255,255,.75)';
-  ctx.font='700 14px system-ui,sans-serif'; ctx.fillText(musicOn?'🎵 Music On':'🔇 Music Off',c.x+c.w/2,c.y+c.h/2); }
-function sfxChip(){ const w=180,h=40; return {x:W/2-w/2,y:Math.round(H*0.73),w,h}; }
+  ctx.font='700 14px system-ui,sans-serif'; ctx.fillText(musicOn?'\u{1F3B5} Music On':'\u{1F507} Music Off',c.x+c.w/2,c.y+c.h/2); }
+function sfxChip(){ return {x:W/2+SND_GAP/2,y:soundRowY(),w:SND_W,h:SND_H}; }
 function inSfxChip(x,y){ const c=sfxChip(); return x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h; }
 function drawSfxChip(){ const c=sfxChip();
   ctx.fillStyle=sfxOn?T.border:'rgba(255,255,255,.10)'; rr(c.x,c.y,c.w,c.h,11); ctx.fill();
   ctx.strokeStyle=sfxOn?T.accent:'rgba(255,255,255,.3)'; ctx.lineWidth=sfxOn?2.5:1.5; rr(c.x,c.y,c.w,c.h,11); ctx.stroke();
   ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle=sfxOn?'#fff':'rgba(255,255,255,.75)';
-  ctx.font='700 14px system-ui,sans-serif'; ctx.fillText(sfxOn?'\u{1F4A8} Fart Noises On':'\u{1F507} Fart Noises Off',c.x+c.w/2,c.y+c.h/2); }
+  ctx.font='700 14px system-ui,sans-serif'; ctx.fillText(sfxOn?'\u{1F4A8} Farts On':'\u{1F507} Farts Off',c.x+c.w/2,c.y+c.h/2); }
 function diffChipAt(x,y){ for(const c of diffChips()){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h)return c.id; } return null; }
 // Same lanes, same PLAY button — game over is the menu with your score on it.
 function drawOver(){
