@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Monkey Fart Madness — dodge bananas, fart them back</title>
+<meta name="description" content="Monkeys fart bananas at you. Fart them right back. A big, silly dodge game for kids and the adults laughing next to them. No ads, no in-app purchases, ever.">
+<meta property="og:title" content="Monkey Fart Madness">
+<meta property="og:description" content="Monkeys fart bananas at you. Fart them right back. Four hand-drawn worlds. No ads, no in-app purchases, ever.">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --bg:#160f1e; --panel:rgba(30,22,40,.6); --ink:#f3f1e7; --muted:#a9a291;
+    --fart:#93e552; --banana:#ffe234; --grape:#b06bff; --pink:#ff3d7f; --cyan:#25d4e8;
+    --line:rgba(147,229,82,.16);
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Rounded","Segoe UI",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme:light){
+    :root{ --bg:#fdf9ef; --panel:#fff; --ink:#1a220f; --muted:#57634a; --line:rgba(30,60,20,.14); }
+  }
+  :root[data-theme="light"]{ --bg:#fdf9ef; --panel:#fff; --ink:#1a220f; --muted:#57634a; --line:rgba(30,60,20,.14); }
+  :root[data-theme="dark"]{ --bg:#160f1e; --panel:rgba(30,22,40,.6); --ink:#f3f1e7; --muted:#a9a291; --line:rgba(147,229,82,.16); }
+
+  *{box-sizing:border-box} body{margin:0}
+  body{
+    font-family:var(--sans); color:var(--ink); line-height:1.6;
+    background:
+      radial-gradient(820px 520px at 82% -6%, color-mix(in srgb,var(--grape) 20%,transparent), transparent 62%),
+      radial-gradient(760px 480px at 8% 2%, color-mix(in srgb,var(--fart) 14%,transparent), transparent 58%),
+      var(--bg);
+    min-height:100vh; -webkit-font-smoothing:antialiased;
+  }
+  .shell{max-width:900px; margin:0 auto; padding:0 clamp(18px,5vw,40px) 4rem}
+
+  header{padding:clamp(3rem,9vw,5.5rem) 0 1.5rem; text-align:center}
+  .mark{font-size:clamp(3rem,11vw,5rem); line-height:1; margin-bottom:.6rem}
+  h1{font-size:clamp(2.1rem,7vw,3.5rem); line-height:1.02; letter-spacing:-.02em; margin:0 0 .5rem; font-weight:800; text-wrap:balance}
+  h1 .y{color:var(--banana)} h1 .g{color:var(--fart)}
+  .tag{font-size:clamp(1.05rem,2.6vw,1.3rem); color:var(--muted); max-width:34ch; margin:0 auto 1.4rem; text-wrap:balance}
+  .pills{display:flex; gap:.5rem; justify-content:center; flex-wrap:wrap; margin-bottom:1.6rem}
+  .pill{font-size:.72rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+        padding:.42rem .85rem; border-radius:999px; border:1px solid var(--line); color:var(--fart)}
+  .cta{display:inline-block; background:var(--pink); color:#fff; font-weight:800; font-size:1.05rem;
+       padding:.9rem 2rem; border-radius:16px; text-decoration:none; border:3px solid var(--banana);
+       box-shadow:0 14px 34px -16px rgba(0,0,0,.7)}
+  .cta:hover{filter:brightness(1.07)}
+  .soon{display:block; font-size:.8rem; color:var(--muted); margin-top:.7rem; font-weight:600}
+
+  section{padding:2.2rem 0; border-top:1px solid var(--line)}
+  h2{font-size:clamp(1.4rem,4vw,2rem); font-weight:800; margin:.2rem 0 .5rem; letter-spacing:-.01em}
+  .lead{color:var(--muted); max-width:62ch; margin:0 0 1.4rem}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:.9rem}
+  @media(max-width:660px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:1.05rem 1.2rem}
+  .card .ic{font-size:1.6rem; line-height:1}
+  .card b{display:block; margin:.4rem 0 .15rem; font-size:1rem}
+  .card p{margin:0; font-size:.9rem; color:var(--muted)}
+
+  .worlds{display:grid; grid-template-columns:repeat(4,1fr); gap:.7rem}
+  @media(max-width:660px){.worlds{grid-template-columns:1fr 1fr}}
+  .world{border-radius:14px; padding:1rem .8rem; text-align:center; border:1px solid var(--line)}
+  .world .n{font-weight:800; font-size:.95rem; margin-top:.4rem}
+  .world .d{font-size:.76rem; color:var(--muted)}
+  .w1{background:linear-gradient(160deg,color-mix(in srgb,var(--grape) 30%,transparent),transparent)}
+  .w2{background:linear-gradient(160deg,color-mix(in srgb,var(--cyan) 26%,transparent),transparent)}
+  .w3{background:linear-gradient(160deg,rgba(140,120,80,.3),transparent)}
+  .w4{background:linear-gradient(160deg,color-mix(in srgb,var(--banana) 30%,transparent),transparent)}
+
+  .promise{background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--fart);
+           border-radius:14px; padding:1.2rem 1.35rem}
+  .promise b{color:var(--fart)}
+  .promise ul{margin:.6rem 0 0; padding-left:1.1rem; color:var(--muted); font-size:.92rem}
+  .promise li{margin:.3rem 0}
+
+  footer{border-top:1px solid var(--line); margin-top:1rem; padding-top:1.4rem; color:var(--muted); font-size:.85rem; text-align:center}
+  footer a{color:var(--fart)}
+  .heart{color:var(--pink)}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <div class="mark">🐒💨🍌</div>
+    <h1>Monkey <span class="y">Fart</span> <span class="g">Madness</span></h1>
+    <p class="tag">Monkeys fart bananas at you. Fart them right back.</p>
+    <div class="pills">
+      <span class="pill">No ads</span>
+      <span class="pill">No in-app purchases</span>
+      <span class="pill">No tracking</span>
+    </div>
+    <a class="cta" href="https://apps.apple.com/app/id6791465306">Get it on the App&nbsp;Store</a>
+    <span class="soon">iPhone &amp; iPad · free · nothing to buy, ever</span>
+  </header>
+
+  <section>
+    <h2>The whole game in one sentence</h2>
+    <p class="lead">A branch full of monkeys moons you and parps bananas in your direction. Don't get hit — and get them back. It's a dodge game built belly-laughs first, for kids and the adults laughing next to them.</p>
+    <div class="grid">
+      <div class="card"><div class="ic">💨</div><b>Fart back</b><p>Costs gas. A rising cloud that eats bananas on the way up and gasses any monkey it drifts into. Slow and wide — you aim it by standing under them.</p></div>
+      <div class="card"><div class="ic">🍌</div><b>Throw a banana</b><p>Costs ammo. Fast, auto-aimed, a reliable bonk. And the ammo comes from them: bananas that land in one piece become pickups.</p></div>
+      <div class="card"><div class="ic">⤒</div><b>Jump, double jump, hover</b><p>Tap to fart-jump. Tap again mid-air to double jump. Or hold as you fall and ride your own gas down.</p></div>
+      <div class="card"><div class="ic">🛡️</div><b>Earn it, don't buy it</b><p>Bonk monkeys for Banana Coins, spend them on hats, fart colours and power-ups. Every unlock is earned by playing.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Four worlds, one tap apart</h2>
+    <p class="lead">Each has its own art, its own fonts, its own music — and its own fart voices.</p>
+    <div class="worlds">
+      <div class="world w1"><div class="ic">💥</div><div class="n">Loud!</div><div class="d">Maximalist chaos</div></div>
+      <div class="world w2"><div class="ic">🖍️</div><div class="n">Doodle</div><div class="d">Crayon sketchbook</div></div>
+      <div class="world w3"><div class="ic">🎩</div><div class="n">Inkwell</div><div class="d">1930s rubber-hose</div></div>
+      <div class="world w4"><div class="ic">🟤</div><div class="n">Plasticine</div><div class="d">Handmade claymation</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Know your monkeys</h2>
+    <div class="grid">
+      <div class="card"><b>Machine-Gun Marmoset</b><p>Rapid bursts of tiny bananas.</p></div>
+      <div class="card"><b>Boomer Baboon</b><p>Charges up, then a wide black blast.</p></div>
+      <div class="card"><b>Sniper Chimp</b><p>A laser that tracks you, then locks red. Move!</p></div>
+      <div class="card"><b>Balloon Monkey</b><p>Floats out in the open. One hit and it POPS.</p></div>
+      <div class="card"><b>Baby Monkey</b><p>Tiny, squeaky, worth double bananas.</p></div>
+      <div class="card"><b>King Kong-a-Toot</b><p>The boss, in three telegraphed phases.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Built for a six-year-old</h2>
+    <div class="promise">
+      <b>A promise, not a marketing line.</b>
+      <ul>
+        <li><b>No ads.</b> Not banners, not videos, not "watch to continue".</li>
+        <li><b>No in-app purchases.</b> Nothing in this game costs real money, and nothing ever will.</li>
+        <li><b>No accounts, no sign-in, no chat</b> — and no links out of the app.</li>
+        <li><b>No tracking or analytics.</b> The app has no networking code at all; your progress never leaves the device. See the <a href="privacy.html">privacy policy</a>.</li>
+        <li><b>Free Play mode</b> — a no-fail sandbox where nothing can go wrong, for when a small player just wants to mess about.</li>
+        <li><b>Two control styles</b> and an Easy mode with a genuinely gentler barrage, not just extra hearts.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <p>Made for Mateo. <span class="heart">♥</span></p>
+    <p>
+      <a href="privacy.html">Privacy</a> ·
+      <a href="https://github.com/daviddef/Monkey-Madness">Source &amp; support</a> ·
+      <a href="mailto:david.defranceski@gmail.com">Contact</a>
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>
