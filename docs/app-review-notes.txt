@@ -1,9 +1,8 @@
 Thank you for the review. Responses to each item below.
 
 2. DEVICES AND OS TESTED
-- iPhone (physical device) via TestFlight, iOS 26 - played by hand through the
-  full game including the boss
-- iPhone 17 Pro Max, iOS 26 (Simulator)
+- iPhone 17 Pro (physical device), iOS 26 - played by hand via TestFlight
+- iPhone 17 Pro Max (physical device), iOS 26 - played by hand via TestFlight
 - iPad Air 11-inch M4 and iPad Air 13-inch M4, iPadOS 26 (Simulator)
 Minimum supported OS is iOS 16.0. Portrait only, iPhone and iPad.
 
