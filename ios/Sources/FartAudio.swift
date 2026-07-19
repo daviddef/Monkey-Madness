@@ -55,8 +55,10 @@ final class FartAudio {
     }
 
     /// A fart — uses a real sample when available (pitch scaled from `freq`), else the synth.
+    /// Master switch for fart/SFX noises only — music has its own toggle and its own player.
+    var sfxEnabled = true
     func fart(freq: Double, dur: Double, flutter: Double, cutoff: Double, gain: Double, square: Bool = false) {
-        guard ok else { return }
+        guard ok, sfxEnabled else { return }
         if !samples.isEmpty {
             let rate = Float(min(1.7, max(0.6, freq / 150.0)))   // jump=high squeak, blast/boss=low & beefy
             playSample(rate: rate, gain: Float(min(1.0, gain * 1.5)))
@@ -160,7 +162,7 @@ final class FartAudio {
 
     /// A clean pitch-sweep tone (stun sparkle / deflect boing / pickup) — always synth.
     func tone(f0: Double, f1: Double, dur: Double, gain: Double) {
-        guard ok else { return }
+        guard ok, sfxEnabled else { return }
         let n = max(1, Int(sr * dur))
         guard let buf = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(n)) else { return }
         buf.frameLength = AVAudioFrameCount(n)

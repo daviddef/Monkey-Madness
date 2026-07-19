@@ -189,7 +189,7 @@ let st=ST.SPLASH, lives, score, best=0, combo, comboBestRun, gameT, tipT, lastTs
 // ---------- save data ----------
 const SAVE={ best:'fartback_best', coins:'mm_coins', life:'mm_lifetime', owned:'mm_owned',
              hat:'mm_hat', skin:'mm_skin', diff:'mm_diff', daily:'mm_daily', music:'mm_music',
-             power:'mm_power' };
+             power:'mm_power', sfx:'mm_sfx' };
 function load(k,d){ try{ const v=localStorage.getItem(k); return v===null?d:v; }catch(e){ return d; } }
 function save(k,v){ try{ localStorage.setItem(k,String(v)); }catch(e){} }
 function loadInt(k,d){ const n=parseInt(load(k,''),10); return Number.isFinite(n)?n:d; }
@@ -222,6 +222,10 @@ let megaRingT=0;
 // key/tempo/voice for free. Defaults OFF — a parent is sitting next to this, and an
 // autoplaying loop is the fastest way to get an app deleted.
 let musicOn=(load(SAVE.music,'0')==='1'), musicGain=null, musicTimer=null, musicStep=0;
+// Fart/SFX noises, separate from music. ON by default — the farts ARE the game — but a
+// parent sitting next to this deserves a switch. Music has its own toggle and is unaffected.
+let sfxOn=(load(SAVE.sfx,'1')==='1');
+function setSfx(on){ sfxOn=on; save(SAVE.sfx,on?'1':'0'); }
 const SCALE={ // semitones from the root, per world's mood
   loud:  [0,3,5,7,10],   // minor pentatonic — brash
   doodle:[0,2,4,7,9],    // major pentatonic — playful
@@ -277,7 +281,7 @@ function initAudio(){
   if(AC&&musicOn&&!musicTimer)startMusic();
   loadSamples();
 }
-function fart(cfg){
+function fart(cfg){ if(!sfxOn)return;
   if(!AC)return; const {freq=110,dur=.3,flutter=20,cutoff=1200,gain=.5,type='sawtooth'}=cfg;
   const t0=AC.currentTime;
   const osc=AC.createOscillator(); osc.type=type;
@@ -292,15 +296,15 @@ function fart(cfg){
   osc.start(t0); lfo.start(t0); trem.start(t0); const e=t0+dur+.05; osc.stop(e); lfo.stop(e); trem.stop(e);
   if(cfg.wet) squelch(gain*.6);
 }
-function tone(cfg){ if(!AC)return; const {f0=300,f1=600,dur=.18,gain=.25,type='sine'}=cfg; const t0=AC.currentTime;
+function tone(cfg){ if(!sfxOn||!AC)return; const {f0=300,f1=600,dur=.18,gain=.25,type='sine'}=cfg; const t0=AC.currentTime;
   const o=AC.createOscillator(); o.type=type; o.frequency.setValueAtTime(f0,t0); o.frequency.exponentialRampToValueAtTime(Math.max(30,f1),t0+dur);
   const g=AC.createGain(); g.gain.setValueAtTime(.0001,t0); g.gain.exponentialRampToValueAtTime(gain,t0+.015); g.gain.exponentialRampToValueAtTime(.0001,t0+dur);
   o.connect(g); g.connect(master); o.start(t0); o.stop(t0+dur+.05); }
-function squelch(gain){ if(!AC||!noiseBuf)return; const t0=AC.currentTime; const src=AC.createBufferSource(); src.buffer=noiseBuf;
+function squelch(gain){ if(!sfxOn||!AC||!noiseBuf)return; const t0=AC.currentTime; const src=AC.createBufferSource(); src.buffer=noiseBuf;
   const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.setValueAtTime(1600,t0); lp.frequency.exponentialRampToValueAtTime(300,t0+.25);
   const g=AC.createGain(); g.gain.setValueAtTime(gain||.3,t0); g.gain.exponentialRampToValueAtTime(.0001,t0+.28);
   src.connect(lp); lp.connect(g); g.connect(master); src.start(t0); src.stop(t0+.3); }
-function airhorn(){ if(!AC)return; const t0=AC.currentTime; [380,560].forEach((f,i)=>{ const o=AC.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
+function airhorn(){ if(!sfxOn||!AC)return; const t0=AC.currentTime; [380,560].forEach((f,i)=>{ const o=AC.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
   const g=AC.createGain(); g.gain.setValueAtTime(.0001,t0); g.gain.exponentialRampToValueAtTime(.18,t0+.03); g.gain.setValueAtTime(.18,t0+.18); g.gain.exponentialRampToValueAtTime(.0001,t0+.28);
   o.connect(g); g.connect(master); o.start(t0); o.stop(t0+.3); }); }
 // ---- real fart samples (fall back to the synth if none load) ----
@@ -308,7 +312,7 @@ const SAMPLE_URLS=['assets/sounds/fart_01.wav','assets/sounds/fart_02.wav','asse
 let sampleBuffers=[], samplesTried=false;
 function loadSamples(){ if(!AC||samplesTried)return; samplesTried=true;
   SAMPLE_URLS.forEach(url=>{ fetch(url).then(r=>r.ok?r.arrayBuffer():Promise.reject()).then(b=>AC.decodeAudioData(b)).then(buf=>sampleBuffers.push(buf)).catch(()=>{}); }); }
-function playSample(rate,gain){ if(!AC||!sampleBuffers.length)return false; const buf=sampleBuffers[Math.floor(Math.random()*sampleBuffers.length)];
+function playSample(rate,gain){ if(!sfxOn||!AC||!sampleBuffers.length)return false; const buf=sampleBuffers[Math.floor(Math.random()*sampleBuffers.length)];
   const src=AC.createBufferSource(); src.buffer=buf; src.playbackRate.value=rate||1; const g=AC.createGain(); g.gain.value=gain||.7; src.connect(g); g.connect(master); src.start(); return true; }
 const sfx={
   throw:()=>{ if(!playSample(R(.92,1.12),.6)) fart(T.sound.throw); },
@@ -328,7 +332,14 @@ const keys=new Set();
 const ZONE_TOP=CTRL_TOP-170;   // in Zones mode, touches below this drive movement
 // Default is Zones, not the ◀▶ buttons: touch a side to steer, tap to jump. Easier for a
 // small thumb than five little targets. A saved choice still wins (Settings can pick Buttons).
-let controlStyle='zones'; try{const c=localStorage.getItem('mm_ctrl'); if(c==='buttons'||c==='zones')controlStyle=c;}catch(e){}
+// One-time move to Zones. The default flipped to Zones, but a value saved by an older build
+// (or one stray tap in Settings) always beats a default — so existing installs kept booting
+// into Buttons. Migrate once, then an explicit choice sticks forever after.
+let controlStyle='zones';
+try{
+  if(localStorage.getItem('mm_ctrl_v2')!=='1'){ localStorage.setItem('mm_ctrl','zones'); localStorage.setItem('mm_ctrl_v2','1'); }
+  const c=localStorage.getItem('mm_ctrl'); if(c==='buttons'||c==='zones')controlStyle=c;
+}catch(e){}
 function setControlStyle(s){ controlStyle=s; try{localStorage.setItem('mm_ctrl',s);}catch(e){} }
 // Free Play: a no-fail sandbox for young players — no life ever lost, no game-over, no boss,
 // and a gentle mix capped low. It still earns coins, so messing about isn't a dead end.
@@ -388,6 +399,7 @@ canvas.addEventListener('pointerdown',e=>{
     const cc=ctrlChipAt(x,y); if(cc){ setControlStyle(cc); sfx.pick(); return; }
     const dc=diffChipAt(x,y); if(dc){ setDiff(dc); sfx.pick(); return; }
     if(inMusicChip(x,y)){ setMusic(!musicOn); sfx.pick(); return; }
+    if(inSfxChip(x,y)){ setSfx(!sfxOn); sfx.pick(); return; }
     if(inShopBack(x,y)){ st=ST.START; sfx.pick(); } return; }
   if(st!==ST.PLAY&&st!==ST.BOSS){
     const mc=modeChipAt(x,y); if(mc){ setFreePlay(mc==='free'); sfx.pick(); return; }
@@ -1647,6 +1659,8 @@ function drawSettings(){
     ctx.fillText(c.label,c.x+c.w/2,c.y+c.h/2); }
   sect('MUSIC',musicChip().y-16);
   drawMusicChip();
+  sect('SOUND',sfxChip().y-16);
+  drawSfxChip();
   const b=shopBack();
   ctx.fillStyle=T.border; rr(b.x,b.y,b.w,b.h,14); ctx.fill();
   ctx.strokeStyle=T.accent; ctx.lineWidth=3; rr(b.x,b.y,b.w,b.h,14); ctx.stroke();
@@ -1659,13 +1673,20 @@ function diffChips(){ const w=132,h=40,gap=12,y=Math.round(H*0.50),tot=2*w+gap,x
   return [{id:'easy',label:DIFFS.easy.label,x:x0,y,w,h},{id:'normal',label:DIFFS.normal.label,x:x0+w+gap,y,w,h}]; }
 // Music toggle lives with the other parent-facing switches, and reads its own state
 // plainly — no mystery speaker glyph that could mean on OR off.
-function musicChip(){ const w=180,h=40; return {x:W/2-w/2,y:Math.round(H*0.645),w,h}; }
+function musicChip(){ const w=180,h=40; return {x:W/2-w/2,y:Math.round(H*0.615),w,h}; }
 function inMusicChip(x,y){ const c=musicChip(); return x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h; }
 function drawMusicChip(){ const c=musicChip();
   ctx.fillStyle=musicOn?T.border:'rgba(255,255,255,.10)'; rr(c.x,c.y,c.w,c.h,11); ctx.fill();
   ctx.strokeStyle=musicOn?T.accent:'rgba(255,255,255,.3)'; ctx.lineWidth=musicOn?2.5:1.5; rr(c.x,c.y,c.w,c.h,11); ctx.stroke();
   ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle=musicOn?'#fff':'rgba(255,255,255,.75)';
   ctx.font='700 14px system-ui,sans-serif'; ctx.fillText(musicOn?'🎵 Music On':'🔇 Music Off',c.x+c.w/2,c.y+c.h/2); }
+function sfxChip(){ const w=180,h=40; return {x:W/2-w/2,y:Math.round(H*0.73),w,h}; }
+function inSfxChip(x,y){ const c=sfxChip(); return x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h; }
+function drawSfxChip(){ const c=sfxChip();
+  ctx.fillStyle=sfxOn?T.border:'rgba(255,255,255,.10)'; rr(c.x,c.y,c.w,c.h,11); ctx.fill();
+  ctx.strokeStyle=sfxOn?T.accent:'rgba(255,255,255,.3)'; ctx.lineWidth=sfxOn?2.5:1.5; rr(c.x,c.y,c.w,c.h,11); ctx.stroke();
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle=sfxOn?'#fff':'rgba(255,255,255,.75)';
+  ctx.font='700 14px system-ui,sans-serif'; ctx.fillText(sfxOn?'\u{1F4A8} Fart Noises On':'\u{1F507} Fart Noises Off',c.x+c.w/2,c.y+c.h/2); }
 function diffChipAt(x,y){ for(const c of diffChips()){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h)return c.id; } return null; }
 // Same lanes, same PLAY button — game over is the menu with your score on it.
 function drawOver(){

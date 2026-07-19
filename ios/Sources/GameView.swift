@@ -170,7 +170,7 @@ private let THEMES: [String: Theme] = [
 private enum SK {   // UserDefaults keys
     static let best = "fartback_best", coins = "mm_coins", life = "mm_lifetime"
     static let owned = "mm_owned", hat = "mm_hat", skin = "mm_skin", diff = "mm_diff", daily = "mm_daily", music = "mm_music"
-    static let power = "mm_power"
+    static let power = "mm_power", sfx = "mm_sfx"
 }
 private struct Diff { let label: String, lives: Int; let ivMul, flightAdd, aimMul, blackMul, coinMul: CGFloat }
 // Easy isn't just more lives: the whole barrage relaxes. Mateo is 6.
@@ -331,6 +331,11 @@ final class GameView: UIView {
     // Defaults OFF — a parent sits next to this, and an autoplaying loop is how an app
     // gets deleted. Opt-in, remembered.
     private var musicOn = UserDefaults.standard.bool(forKey: SK.music)
+    // Fart/SFX noises, separate from music. ON by default — the farts ARE the game — but a
+    // parent sitting next to this deserves a switch.
+    private lazy var sfxOn: Bool = { ud.object(forKey: SK.sfx) == nil ? true : ud.bool(forKey: SK.sfx) }()
+    private func applySfx() { audio.sfxEnabled = sfxOn }
+    private func setSfx(_ on: Bool) { sfxOn = on; ud.set(on, forKey: SK.sfx); applySfx() }
     private func applyMusic() {
         if musicOn { audio.setMusic(root: T.mRoot, bpm: T.mBpm, scale: T.mScale, wave: T.mWave, lead: T.mLead, gain: T.mGain) }
         else { audio.stopMusic() }
@@ -478,7 +483,14 @@ final class GameView: UIView {
     private var ZONE_TOP: CGFloat { CTRL_TOP - 170 }
     // Default is Zones, not the ◀▶ buttons: touch a side to steer, tap to jump — easier for a
     // small thumb than five little targets. A saved choice still wins (Settings can pick Buttons).
-    private var controlStyle: String = { let c = UserDefaults.standard.string(forKey: "mm_ctrl"); return (c == "buttons" || c == "zones") ? c! : "zones" }()
+    // One-time move to Zones. The default flipped to Zones, but a value saved by an older build
+    // (or one stray tap in Settings) always beats a default — so existing installs kept booting
+    // into Buttons. Migrate once, then an explicit choice sticks forever after.
+    private var controlStyle: String = {
+        let ud = UserDefaults.standard
+        if ud.string(forKey: "mm_ctrl_v2") != "1" { ud.set("zones", forKey: "mm_ctrl"); ud.set("1", forKey: "mm_ctrl_v2") }
+        let c = ud.string(forKey: "mm_ctrl"); return (c == "buttons" || c == "zones") ? c! : "zones"
+    }()
     private func setControlStyle(_ s: String) { controlStyle = s; UserDefaults.standard.set(s, forKey: "mm_ctrl") }
     // Free Play: a no-fail sandbox — no life ever lost, no game-over, no boss, a gentle mix
     // capped low. Still earns coins, so messing about isn't a dead end.
@@ -547,6 +559,7 @@ final class GameView: UIView {
     func start() {
         stop()
         prepareHaptics()
+        applySfx()   // push the saved fart-noise preference into the audio engine on launch
         let l = CADisplayLink(target: self, selector: #selector(tick))
         l.add(to: .main, forMode: .common)
         link = l; lastTs = 0
@@ -1191,6 +1204,7 @@ final class GameView: UIView {
                 if let cc = ctrlChipAt(p.x, p.y) { setControlStyle(cc); return }
                 if let dc = diffChipAt(p.x, p.y) { setDiff(dc); return }
                 if musicChip.contains(CGPoint(x: p.x, y: p.y)) { setMusic(!musicOn); return }
+                if sfxChip.contains(CGPoint(x: p.x, y: p.y)) { setSfx(!sfxOn); haptic(.pick); return }
                 if shopBack.contains(CGPoint(x: p.x, y: p.y)) { st = .start; haptic(.pick) }
                 return
             }
@@ -2237,11 +2251,18 @@ final class GameView: UIView {
                   stroke: musicOn ? cAccent : UIColor(white: 1, alpha: 0.3), lw: musicOn ? 2.5 : 1.5)
         text(musicOn ? "\u{1F3B5} Music On" : "\u{1F507} Music Off", mc.midX, mc.midY, 14,
              musicOn ? .white : UIColor(white: 1, alpha: 0.75), system: true)
+        let sc = sfxChip
+        text("SOUND", LW/2, sc.minY - 16, 10, UIColor(white: 1, alpha: 0.6), system: true)
+        roundRect(sc.minX, sc.minY, sc.width, sc.height, 11, sfxOn ? cBorder : UIColor(white: 1, alpha: 0.10),
+                  stroke: sfxOn ? cAccent : UIColor(white: 1, alpha: 0.3), lw: sfxOn ? 2.5 : 1.5)
+        text(sfxOn ? "\u{1F4A8} Fart Noises On" : "\u{1F507} Fart Noises Off", sc.midX, sc.midY, 14,
+             sfxOn ? .white : UIColor(white: 1, alpha: 0.75), system: true)
         let b = shopBack
         roundRect(b.minX, b.minY, b.width, b.height, 14, T.border, stroke: T.accent, lw: 3)
         text("\u{25C0} BACK", b.midX, b.midY, 20, .white)
     }
-    private var musicChip: CGRect { CGRect(x: LW/2-90, y: (LH*0.645).rounded(), width: 180, height: 40) }
+    private var musicChip: CGRect { CGRect(x: LW/2-90, y: (LH*0.615).rounded(), width: 180, height: 40) }
+    private var sfxChip: CGRect { CGRect(x: LW/2-90, y: (LH*0.73).rounded(), width: 180, height: 40) }
     private func diffChips() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
         let w: CGFloat = 132, h: CGFloat = 40, gap: CGFloat = 12, y = (LH*0.50).rounded(), tot = 2*w + gap, x0 = LW/2 - tot/2
         return [("easy", DIFFS["easy"]!.label, x0, y, w, h), ("normal", DIFFS["normal"]!.label, x0+w+gap, y, w, h)]
