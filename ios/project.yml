@@ -14,7 +14,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.daviddef.monkeymadness
         MARKETING_VERSION: "2.2"
-        CURRENT_PROJECT_VERSION: "15"
+        CURRENT_PROJECT_VERSION: "16"
         # iPhone + iPad. iPad is back, and this time it's actually been run on one: the
         # canvas scales uniformly (min of the two axes), so the play field is a centred
         # portrait column with the theme's own background either side — scaled, never

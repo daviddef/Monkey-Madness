@@ -1,0 +1,71 @@
+Thank you for the review. Responses to each item below.
+
+2. DEVICES AND OS TESTED
+- iPhone (physical device) via TestFlight, iOS 26 - played by hand through the
+  full game including the boss
+- iPhone 17 Pro Max, iOS 26 (Simulator)
+- iPad Air 11-inch M4 and iPad Air 13-inch M4, iPadOS 26 (Simulator)
+Minimum supported OS is iOS 16.0. Portrait only, iPhone and iPad.
+
+3. PURPOSE AND TARGET AUDIENCE
+Monkey Fart Madness is a single-player arcade dodge game for children (roughly
+ages 5-10) and the adults playing alongside them. It was written for the
+developer's own six-year-old son.
+
+Gameplay: cartoon monkeys hang from a branch and throw bananas at the player.
+The player moves left and right to dodge, and fights back two ways - a rising
+gas cloud, or throwing a banana back. Ten levels and a boss.
+
+The value it provides is a genuinely child-appropriate arcade game with no ads,
+no in-app purchases, no accounts, no chat, no user-generated content and no data
+collection. Everything unlockable is earned by playing. There is nothing to buy
+and no way to spend real money anywhere in the app.
+
+4. HOW TO SET UP AND REACH EVERY FEATURE
+No login, account, credentials or sample files are required. The app opens
+directly into playable content. From the title screen:
+
+- Difficulty/mode: the row of three buttons above PLAY - "Free Play" (a no-fail
+  sandbox: the player cannot lose), "Easy" (6 lives), "Hard" (4 lives).
+- Start playing: tap the large PLAY button.
+- Art style: tap any of the four large world buttons across the bottom (Loud!,
+  Doodle, Inkwell, Plasticine). Each is a complete art and audio theme.
+- Shop: cosmetic hats, fart colours and a Shield power-up, bought with "Banana
+  Coins" earned by playing. These are NOT in-app purchases and cannot be bought
+  with money.
+- Settings: control style (Zones or Buttons), plus separate Music and sound
+  effect switches.
+- In-game controls (default "Zones"): hold the left or right side of the lower
+  screen to move - both touch areas are outlined with dotted lines. Tap either
+  side to jump, tap again mid-air to double jump. The banana button throws; the
+  cloud button releases gas. If a Shield has been bought, its button appears
+  beside them: single tap cycles the selected power-up, double tap activates it.
+- Pause/quit a run: the pause button, top-left.
+
+To reach the boss quickly, choose Easy and play through the ten levels.
+
+5. EXTERNAL SERVICES, TOOLS OR PLATFORMS
+None. The app uses no third-party services or SDKs of any kind. No data
+providers, authentication, payment processing, analytics, advertising or AI
+services.
+
+The app contains no networking code at all - no URLSession, no web view, no
+socket use anywhere in the binary - so it cannot send or receive data even in
+principle. It uses only Apple system frameworks (UIKit, Core Graphics,
+AVFoundation, CoreHaptics). All progress is stored locally in UserDefaults and
+never leaves the device. Hence the "Data Not Collected" privacy declaration.
+
+6. REGIONAL DIFFERENCES
+None. The app behaves identically in every region. No region-specific content,
+no server, no remote configuration, nothing that varies by locale. English only.
+
+7. REGULATED INDUSTRY OR THIRD-PARTY MATERIAL
+Not applicable. All content - artwork, code, music and sound - is original work
+by the developer. Artwork is drawn procedurally in code and music is synthesised
+at runtime. No licensed or third-party material is included.
+
+ADDITIONAL NOTES
+The humour is cartoon flatulence and slapstick. Nothing is harmed on screen;
+monkeys are briefly stunned and recover. There are no purpose strings because
+the app requests no permissions - no camera, microphone, location, contacts,
+photos or tracking.
