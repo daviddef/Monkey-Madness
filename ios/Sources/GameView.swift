@@ -1177,9 +1177,18 @@ final class GameView: UIView {
     }
     private func ctrlChipAt(_ x: CGFloat, _ y: CGFloat) -> String? { for c in ctrlChips() { if x >= c.x && x <= c.x+c.w && y >= c.y && y <= c.y+c.h { return c.id } }; return nil }
     // A quiet mode toggle just above PLAY — Levels (the real game) vs Free Play (no-fail sandbox).
+    // One row, three choices, straight on the front screen: the sandbox and the two
+    // difficulties. Difficulty used to hide in Settings, which meant the thing a parent most
+    // wants to change was two taps deep and invisible.
     private func modeChips() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
-        let w: CGFloat = 124, h: CGFloat = 34, gap: CGFloat = 10, y = (LH*0.375).rounded(), tot = 2*w + gap, x0 = LW/2 - tot/2
-        return [("levels", "\u{1F3AE} Levels", x0, y, w, h), ("free", "\u{1F308} Free Play", x0+w+gap, y, w, h)]
+        let w: CGFloat = 112, h: CGFloat = 38, gap: CGFloat = 10, y = (LH*0.375).rounded(), tot = 3*w + 2*gap, x0 = LW/2 - tot/2
+        return [("free", "\u{1F308} Free Play", x0, y, w, h),
+                ("easy", "\u{1F60C} Easy", x0+w+gap, y, w, h),
+                ("hard", "\u{1F525} Hard", x0+2*(w+gap), y, w, h)]
+    }
+    private func modeSel() -> String { freePlay ? "free" : (diffId == "easy" ? "easy" : "hard") }
+    private func pickMode(_ id: String) {
+        if id == "free" { setFreePlay(true) } else { setFreePlay(false); setDiff(id == "easy" ? "easy" : "normal") }
     }
     private func modeChipAt(_ x: CGFloat, _ y: CGFloat) -> String? { for c in modeChips() { if x >= c.x && x <= c.x+c.w && y >= c.y && y <= c.y+c.h { return c.id } }; return nil }
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -1202,14 +1211,13 @@ final class GameView: UIView {
             // "start" — only PLAY starts. Otherwise choosing a world would launch a run.
             if st == .settings {
                 if let cc = ctrlChipAt(p.x, p.y) { setControlStyle(cc); return }
-                if let dc = diffChipAt(p.x, p.y) { setDiff(dc); return }
                 if musicChip.contains(CGPoint(x: p.x, y: p.y)) { setMusic(!musicOn); return }
                 if sfxChip.contains(CGPoint(x: p.x, y: p.y)) { setSfx(!sfxOn); haptic(.pick); return }
                 if shopBack.contains(CGPoint(x: p.x, y: p.y)) { st = .start; haptic(.pick) }
                 return
             }
             if st != .play && st != .boss {
-                if let mc = modeChipAt(p.x, p.y) { setFreePlay(mc == "free"); haptic(.pick); return }
+                if let mc = modeChipAt(p.x, p.y) { pickMode(mc); haptic(.pick); return }
                 switch menuBtnAt(p.x, p.y) {
                 case "shop": st = .shop; haptic(.pick); return
                 case "settings": st = .settings; haptic(.pick); return
@@ -2001,7 +2009,9 @@ final class GameView: UIView {
         guard x.isFinite else { return nil }   // a garbage coord must not silently reset your theme
         let i = Int(x/LANE_W); return THEME_ORDER[max(0, min(THEME_ORDER.count-1, i))]
     }
-    private var laneNameY: CGFloat { (LH*0.665).rounded() }
+    // The world pills live at the very bottom now, and read as real buttons — they're the
+    // theme picker, so they shouldn't be a caption floating in the middle of the lane.
+    private var laneNameY: CGFloat { LH - 62 }
     private func drawLanes(_ t: CGFloat, wipe: CGFloat?, dim: Bool, pills: Bool = true, bananas showBananas: Bool = true) {
         let cw = LANE_W
         for (i, id) in THEME_ORDER.enumerated() {
@@ -2049,10 +2059,20 @@ final class GameView: UIView {
             guard pills, let th = THEMES[id] else { continue }   // shop: lanes are backdrop, not a picker
             let nx = fi*cw + cw/2, ny = dim ? laneNameY : GROUND_Y - 22
             let label = th.icon + "  " + th.name
-            let pw = max(58, (label as NSString).size(withAttributes: [.font: themeFont(dim ? 12 : 11, .heavy)]).width + 16)
-            roundRect(nx - pw/2, ny - 12, pw, 24, 12, (dim && sel) ? th.border : UIColor(white: 0, alpha: 0.62),
-                      stroke: (dim && sel) ? th.accent : nil, lw: 2)
-            text(label, nx, ny, dim ? 12 : 11, (dim && !sel) ? UIColor(white: 1, alpha: 0.72) : .white)
+            let ph: CGFloat = dim ? 36 : 24
+            // The pill must stay INSIDE its own lane: the tap target is the lane, so a pill
+            // that spills over its neighbour would visually invite a tap picking the wrong
+            // world. Step the size down until the widest name ("Plasticine") fits its column.
+            var fs: CGFloat = dim ? 16 : 11, pw: CGFloat = 0
+            for cand in (dim ? [16, 15, 14, 13, 12] as [CGFloat] : [11]) {
+                pw = max(dim ? 86 : 58, (label as NSString).size(withAttributes: [.font: themeFont(cand, .heavy)]).width + (dim ? 22 : 16))
+                fs = cand
+                if pw <= cw - 8 { break }
+            }
+            pw = min(pw, cw - 8)
+            roundRect(nx - pw/2, ny - ph/2, pw, ph, ph/2, (dim && sel) ? th.border : UIColor(white: 0, alpha: 0.62),
+                      stroke: (dim && sel) ? th.accent : nil, lw: 3)
+            text(label, nx, ny, fs, (dim && !sel) ? UIColor(white: 1, alpha: 0.72) : .white)
         }
     }
     // ---------- shop ----------
@@ -2180,7 +2200,7 @@ final class GameView: UIView {
     // Levels vs Free Play — the lit chip is the mode PLAY will start.
     private func drawModeChips() {
         for c in modeChips() {
-            let on = (c.id == "free") == freePlay
+            let on = c.id == modeSel()
             roundRect(c.x, c.y, c.w, c.h, 12, on ? cAccent : UIColor(white: 0, alpha: 0.5),
                       stroke: on ? cAccent : UIColor(white: 1, alpha: 0.26), lw: on ? 2 : 1.2)
             text(c.label, c.x + c.w/2, c.y + c.h/2, 12, on ? hex("0c1207") : UIColor(white: 1, alpha: 0.8), system: true)
@@ -2191,10 +2211,10 @@ final class GameView: UIView {
     private func drawStatusLine(_ y: CGFloat) {
         let rk = rankFor(lifetime)
         let txt = "\(rk.icon) \(rk.name)   \u{00B7}   \u{1F34C} \(coins)" + (best > 0 ? "   \u{00B7}   best \(best)" : "")
-        let w = max(240, (txt as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 13, weight: .bold)]).width + 34)
-        roundRect(LW/2-w/2, y-15, w, 30, 15, UIColor(white: 0, alpha: 0.62),
-                  stroke: UIColor(red: 1, green: 0.85, blue: 0.24, alpha: 0.4), lw: 1)
-        text(txt, LW/2, y, 13, .white, system: true)
+        let w = min(LW-16, max(280, (txt as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 17, weight: .heavy)]).width + 36))
+        roundRect(LW/2-w/2, y-20, w, 40, 20, UIColor(white: 0, alpha: 0.68),
+                  stroke: UIColor(red: 1, green: 0.85, blue: 0.24, alpha: 0.55), lw: 1.5)
+        text(txt, LW/2, y, 17, .white, weight: .heavy, system: true)
     }
     /// One quiet line, not a bordered banner shouting for attention.
     private func drawDailyLine(_ y: CGFloat) {
@@ -2239,13 +2259,6 @@ final class GameView: UIView {
                       stroke: on ? cAccent : UIColor(white: 1, alpha: 0.3), lw: on ? 2.5 : 1.5)
             text(c.label, c.x + c.w/2, c.y + c.h/2, 14, on ? .white : UIColor(white: 1, alpha: 0.75), system: true)
         }
-        text("DIFFICULTY  \u{00B7}  \(D.lives) lives", LW/2, ds[0].y - 16, 10, UIColor(white: 1, alpha: 0.6), system: true)
-        for c in ds {
-            let on = c.id == diffId
-            roundRect(c.x, c.y, c.w, c.h, 11, on ? cBorder : UIColor(white: 1, alpha: 0.10),
-                      stroke: on ? cAccent : UIColor(white: 1, alpha: 0.3), lw: on ? 2.5 : 1.5)
-            text(c.label, c.x + c.w/2, c.y + c.h/2, 14, on ? .white : UIColor(white: 1, alpha: 0.75), system: true)
-        }
         let sc = sfxChip
         text("SOUND", LW/2, soundRowY - 16, 10, UIColor(white: 1, alpha: 0.6), system: true)
         roundRect(mc.minX, mc.minY, mc.width, mc.height, 11, musicOn ? cBorder : UIColor(white: 1, alpha: 0.10),
@@ -2263,7 +2276,7 @@ final class GameView: UIView {
     // Music and Farts sit side by side under ONE "SOUND" header — two switches for one
     // concept shouldn't be two sections. Each still says its own state in words rather than
     // relying on a glyph that could mean on OR off.
-    private var soundRowY: CGFloat { (LH*0.645).rounded() }
+    private var soundRowY: CGFloat { (LH*0.50).rounded() }
     private var musicChip: CGRect { CGRect(x: LW/2-157, y: soundRowY, width: 150, height: 40) }
     private var sfxChip: CGRect { CGRect(x: LW/2+7, y: soundRowY, width: 150, height: 40) }
     private func diffChips() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {

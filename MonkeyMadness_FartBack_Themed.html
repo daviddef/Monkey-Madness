@@ -380,8 +380,15 @@ function ctrlChips(){ const w=132,h=40,gap=12,y=Math.round(H*0.34),tot=2*w+gap,x
 function ctrlChipAt(x,y){ for(const c of ctrlChips()){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h)return c.id; } return null; }
 // A quiet mode toggle just above PLAY — Levels (the real game) vs Free Play (no-fail sandbox).
 // Not a mode-select wall: two chips, then the same PLAY button starts whichever is lit.
-function modeChips(){ const w=124,h=34,gap=10,y=Math.round(H*0.375),tot=2*w+gap,x0=(W-tot)/2;
-  return [{id:'levels',label:'🎮 Levels',x:x0,y,w,h},{id:'free',label:'🌈 Free Play',x:x0+w+gap,y,w,h}]; }
+// One row, three choices, straight on the front screen: the sandbox and the two
+// difficulties. Difficulty used to hide in Settings, which meant the thing a parent most
+// wants to change was two taps deep and invisible.
+function modeChips(){ const w=112,h=38,gap=10,y=Math.round(H*0.375),tot=3*w+2*gap,x0=(W-tot)/2;
+  return [{id:'free',label:'🌈 Free Play',x:x0,y,w,h},
+          {id:'easy',label:'😌 Easy',x:x0+w+gap,y,w,h},
+          {id:'hard',label:'🔥 Hard',x:x0+2*(w+gap),y,w,h}]; }
+function modeSel(){ return freePlay?'free':(diffId==='easy'?'easy':'hard'); }
+function pickMode(id){ if(id==='free'){ setFreePlay(true); } else { setFreePlay(false); setDiff(id==='easy'?'easy':'normal'); } }
 function modeChipAt(x,y){ for(const c of modeChips()){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h)return c.id; } return null; }
 const roles=()=>{ const a=[]; for(const r of pointers.values())a.push(r.role); return a; };
 
@@ -397,12 +404,11 @@ canvas.addEventListener('pointerdown',e=>{
     if(inShopBack(x,y)){ st=ST.START; sfx.pick(); } return; }
   if(st===ST.SETTINGS){
     const cc=ctrlChipAt(x,y); if(cc){ setControlStyle(cc); sfx.pick(); return; }
-    const dc=diffChipAt(x,y); if(dc){ setDiff(dc); sfx.pick(); return; }
     if(inMusicChip(x,y)){ setMusic(!musicOn); sfx.pick(); return; }
     if(inSfxChip(x,y)){ setSfx(!sfxOn); sfx.pick(); return; }
     if(inShopBack(x,y)){ st=ST.START; sfx.pick(); } return; }
   if(st!==ST.PLAY&&st!==ST.BOSS){
-    const mc=modeChipAt(x,y); if(mc){ setFreePlay(mc==='free'); sfx.pick(); return; }
+    const mc=modeChipAt(x,y); if(mc){ pickMode(mc); sfx.pick(); return; }
     const mb=menuBtnAt(x,y);
     if(mb==='shop'){ st=ST.SHOP; sfx.pick(); return; }
     if(mb==='settings'){ st=ST.SETTINGS; sfx.pick(); return; }
@@ -1395,7 +1401,9 @@ const LANE_N=THEME_ORDER.length, LANE_W=()=>W/LANE_N;
 // NaN-guarded: Math.min/max let NaN through and it silently resolved to lane 0, so a
 // garbage coord could reset your theme. Same class as the moveZoneAt NaN bug.
 function laneAt(x){ if(!(x>=0)&&!(x<W))return null; const i=Math.floor(x/LANE_W()); return THEME_ORDER[Math.max(0,Math.min(LANE_N-1,i))]; }
-function laneNameY(){ return Math.round(H*0.665); }
+// The world pills live at the very bottom now, and read as real buttons — they're the
+// theme picker, so they shouldn't be a caption floating in the middle of the lane.
+function laneNameY(){ return H-62; }
 function drawLanes(t,opts){
   const cw=LANE_W(), wipe=opts.wipe, dim=opts.dim;
   for(let i=0;i<LANE_N;i++){
@@ -1435,10 +1443,18 @@ function drawLanes(t,opts){
     // background and vanishes. The pill reads in every palette.
     if(opts.pills===false) continue;   // shop: the lanes are backdrop, not a picker
     const th=THEMES[id], nx=i*cw+cw/2, ny=dim?laneNameY():GROUND_Y-22;
-    ctx.font=th.hudFont(dim?12:11); ctx.textAlign='center'; ctx.textBaseline='middle';
-    const label=th.icon+'  '+th.name, pw=Math.max(58,ctx.measureText(label).width+16);
-    ctx.fillStyle=(dim&&sel)?th.border:'rgba(0,0,0,.62)'; rr(nx-pw/2,ny-12,pw,24,12); ctx.fill();
-    if(dim&&sel){ ctx.strokeStyle=th.accent; ctx.lineWidth=2; rr(nx-pw/2,ny-12,pw,24,12); ctx.stroke(); }
+    const label=th.icon+'  '+th.name, ph=dim?36:24;
+    // The pill must stay INSIDE its own lane: the tap target is the lane, so a pill that
+    // spills over its neighbour would visually invite a tap that picks the wrong world.
+    // Step the size down until the widest name ("Plasticine") fits its column.
+    let fs=dim?16:11, pw=0;
+    for(const cand of (dim?[16,15,14,13,12]:[11])){ ctx.font=th.hudFont(cand);
+      pw=Math.max(dim?86:58,ctx.measureText(label).width+(dim?22:16));
+      fs=cand; if(pw<=cw-8)break; }
+    pw=Math.min(pw,cw-8); ctx.font=th.hudFont(fs);
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle=(dim&&sel)?th.border:'rgba(0,0,0,.62)'; rr(nx-pw/2,ny-ph/2,pw,ph,ph/2); ctx.fill();
+    if(dim&&sel){ ctx.strokeStyle=th.accent; ctx.lineWidth=3; rr(nx-pw/2,ny-ph/2,pw,ph,ph/2); ctx.stroke(); }
     ctx.fillStyle=(dim&&!sel)?'rgba(255,255,255,.72)':'#fff'; ctx.fillText(label,nx,ny);
     ctx.textBaseline='alphabetic';
   }
@@ -1586,7 +1602,7 @@ function drawStart(){
 }
 // Levels vs Free Play — the lit chip is the mode PLAY will start.
 function drawModeChips(){ ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='700 12px system-ui,sans-serif';
-  for(const c of modeChips()){ const on=(c.id==='free')===freePlay;
+  for(const c of modeChips()){ const on=c.id===modeSel();
     ctx.fillStyle=on?T.accent:'rgba(0,0,0,.5)'; rr(c.x,c.y,c.w,c.h,12); ctx.fill();
     ctx.strokeStyle=on?T.accent:'rgba(255,255,255,.26)'; ctx.lineWidth=on?2:1.2; rr(c.x,c.y,c.w,c.h,12); ctx.stroke();
     ctx.fillStyle=on?'#0c1207':'rgba(255,255,255,.8)'; ctx.fillText(c.label,c.x+c.w/2,c.y+c.h/2); }
@@ -1596,11 +1612,11 @@ function drawModeChips(){ ctx.textAlign='center'; ctx.textBaseline='middle'; ctx
 function drawStatusLine(y){
   const rk=rankFor(lifetime);
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.font='700 13px system-ui,sans-serif';
+  ctx.font='800 17px system-ui,sans-serif';
   const txt=rk.icon+' '+rk.name+'   ·   🍌 '+coins+(best>0?('   ·   best '+best):'');
-  const w=Math.max(240,ctx.measureText(txt).width+34);
-  ctx.fillStyle='rgba(0,0,0,.62)'; rr(W/2-w/2,y-15,w,30,15); ctx.fill();
-  ctx.strokeStyle='rgba(255,217,61,.4)'; ctx.lineWidth=1; rr(W/2-w/2,y-15,w,30,15); ctx.stroke();
+  const w=Math.min(W-16,Math.max(280,ctx.measureText(txt).width+36));
+  ctx.fillStyle='rgba(0,0,0,.68)'; rr(W/2-w/2,y-20,w,40,20); ctx.fill();
+  ctx.strokeStyle='rgba(255,217,61,.55)'; ctx.lineWidth=1.5; rr(W/2-w/2,y-20,w,40,20); ctx.stroke();
   ctx.fillStyle='#fff'; ctx.fillText(txt,W/2,y);
   ctx.textBaseline='alphabetic';
 }
@@ -1651,12 +1667,6 @@ function drawSettings(){
     ctx.strokeStyle=on?T.accent:'rgba(255,255,255,.3)'; ctx.lineWidth=on?2.5:1.5; rr(c.x,c.y,c.w,c.h,11); ctx.stroke();
     ctx.fillStyle=on?'#fff':'rgba(255,255,255,.75)'; ctx.font='700 14px system-ui,sans-serif';
     ctx.fillText(c.label,c.x+c.w/2,c.y+c.h/2); }
-  sect('DIFFICULTY  ·  '+DIFFS[diffId].lives+' lives',diffChips()[0].y-16);
-  for(const c of diffChips()){ const on=c.id===diffId;
-    ctx.fillStyle=on?T.border:'rgba(255,255,255,.10)'; rr(c.x,c.y,c.w,c.h,11); ctx.fill();
-    ctx.strokeStyle=on?T.accent:'rgba(255,255,255,.3)'; ctx.lineWidth=on?2.5:1.5; rr(c.x,c.y,c.w,c.h,11); ctx.stroke();
-    ctx.fillStyle=on?'#fff':'rgba(255,255,255,.75)'; ctx.font='700 14px system-ui,sans-serif';
-    ctx.fillText(c.label,c.x+c.w/2,c.y+c.h/2); }
   sect('SOUND',soundRowY()-16);
   drawMusicChip(); drawSfxChip();
   const b=shopBack();
@@ -1675,7 +1685,7 @@ function diffChips(){ const w=132,h=40,gap=12,y=Math.round(H*0.50),tot=2*w+gap,x
 // concept shouldn't be two sections. Each still says its own state in words rather than
 // relying on a glyph that could mean on OR off.
 const SND_W=150, SND_H=40, SND_GAP=14;
-function soundRowY(){ return Math.round(H*0.645); }
+function soundRowY(){ return Math.round(H*0.50); }
 function musicChip(){ return {x:W/2-SND_W-SND_GAP/2,y:soundRowY(),w:SND_W,h:SND_H}; }
 function inMusicChip(x,y){ const c=musicChip(); return x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h; }
 function drawMusicChip(){ const c=musicChip();
