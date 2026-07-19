@@ -8,11 +8,11 @@ legal declarations made in your name, and submission publishes to the store. Tho
 yours to click. Everything else below is done.
 
 App id `6791465306` · primary locale **en-AU** (not en-US — metadata lives on that locale)
-· version record **2.1** with build **13** attached (VALID).
+· version record **2.2** with build **14** attached (VALID).
 
-- Bundle id `com.daviddef.monkeymadness` · Team `L9SAXP2E2W` · Version **2.1** build **13**
-- 2.1 (13) adds Free Play + the zones-default controls; on TestFlight for Mateo now.
-  Screenshots were refreshed to show the zones layout that actually ships.
+- Bundle id `com.daviddef.monkeymadness` · Team `L9SAXP2E2W` · Version **2.2** build **14**
+- 2.2 (14) adds carried power-ups (Shield) and **restores iPad support** — this time
+  actually run on an iPad first. Screenshots show the zones layout that ships.
 - Facts below were read out of the shipped archive and the source, not from memory.
 
 ---
@@ -25,6 +25,7 @@ App id `6791465306` · primary locale **en-AU** (not en-US — metadata lives on
 | **Subtitle** (30) | `Dodge bananas. Fart them back.` |
 | **Category** | Games → **Action**, second subcategory **Family** |
 | **Content rights** | Contains no third-party content ✔ |
+| **Devices** | iPhone **and iPad** (`TARGETED_DEVICE_FAMILY 1,2`) |
 | **Age rating** | See §5 — **read that one before you answer** |
 
 "Monkey Madness" alone was already taken; store names are globally unique.
@@ -38,6 +39,9 @@ https://daviddef.github.io/Monkey-Madness/privacy.html
 
 **Support URL** — `https://github.com/daviddef/Monkey-Madness`
 
+**Marketing URL** — set and live: `https://daviddef.github.io/Monkey-Madness/`
+(the landing page, built from `docs/index.html`)
+
 ---
 
 ## 2 · Pricing & Availability
@@ -46,7 +50,7 @@ Free. No in-app purchases. All territories.
 
 ---
 
-## 3 · Version Information (2.0)
+## 3 · Version Information (2.2)
 
 ### Promotional text (170 — editable any time without review)
 
@@ -104,7 +108,8 @@ indexes the name and subtitle, so repeating them there is wasted space.
 ### What's New — *not applicable to this release*
 
 App Store Connect rejects `whatsNew` on a first release (409, "cannot be edited at this
-time") — a debut listing has no "What's New" section. Hold this for the 2.1 update:
+time") — a debut listing has no "What's New" section. Hold this for the first *update*
+after launch:
 
 ```
 • NEW: DOUBLE JUMP — parp again in mid-air to go higher
