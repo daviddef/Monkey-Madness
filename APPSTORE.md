@@ -1,11 +1,17 @@
 # App Store submission — Monkey Fart Madness
 
-**Status: everything in §1–§3 is already entered in App Store Connect**, pushed via the
-App Store Connect API and read back to verify. Kept here as the source of truth.
+**Status: SUBMITTED — 2.2 (14) is `WAITING_FOR_REVIEW`.** Everything in §1–§3 is entered
+in App Store Connect, pushed via the API and read back to verify. Kept here as the record.
 
-**I can't submit this for you, and shouldn't.** The age rating and privacy sections are
-legal declarations made in your name, and submission publishes to the store. Those are
-yours to click. Everything else below is done.
+**Do not edit the listing while it's in review** — Apple locks the attached build, and the
+API refuses build changes with *"cannot be removed from this appStoreVersions in its
+current appStoreState"*. That's expected, not an error.
+
+**Build 2.2 (15) is uploaded and waiting for the first update** — see §9. It has the
+Zones-migration fix and the fart-noise toggle, neither of which is in the submitted 14.
+The Zones issue does **not** affect App Store users: a fresh install has no saved
+preference, so 14 already defaults to Zones. It only bit devices carrying a stale value
+from an older TestFlight build.
 
 App id `6791465306` · primary locale **en-AU** (not en-US — metadata lives on that locale)
 · version record **2.2** with build **14** attached (VALID).
@@ -267,3 +273,25 @@ fart-and-banana slapstick; nothing is harmed on screen.
    check licensing before shipping commercially — §1 declares no third-party content.
 4. The home-screen label still truncates to "Monkey Fart…". Fixable in a minute if it bugs
    you (`CFBundleDisplayName` → something shorter like "Fart Madness").
+
+
+---
+
+## 9 · Queued for the first update (after 2.2 is approved)
+
+Build **2.2 (15)** is already uploaded, VALID and on TestFlight. Once 2.2 is approved and
+released, create the next version, attach build 15 (or a newer one), and paste this — the
+`whatsNew` field only accepts content once there's a released version to update *from*.
+
+```
+• NEW: Fart Noises can now be switched off in Settings — music has its own switch too
+• NEW: Free Play — a no-fail mode where nothing can go wrong
+• NEW: Power-ups in the Banana Shop — buy a Shield, double-tap to use it
+• NEW: Plays on iPad
+• Controls now default to Zones: touch either side to steer, tap to jump
+• FIXED: the control setting could get stuck on Buttons from an older version
+```
+
+Also worth doing at that point: refresh the screenshots if the art has moved on, and
+consider whether the description needs the new features (it already mentions Free Play,
+the Shield and iPad).
