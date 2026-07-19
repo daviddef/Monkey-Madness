@@ -170,6 +170,7 @@ private let THEMES: [String: Theme] = [
 private enum SK {   // UserDefaults keys
     static let best = "fartback_best", coins = "mm_coins", life = "mm_lifetime"
     static let owned = "mm_owned", hat = "mm_hat", skin = "mm_skin", diff = "mm_diff", daily = "mm_daily", music = "mm_music"
+    static let power = "mm_power"
 }
 private struct Diff { let label: String, lives: Int; let ivMul, flightAdd, aimMul, blackMul, coinMul: CGFloat }
 // Easy isn't just more lives: the whole barrage relaxes. Mateo is 6.
@@ -198,6 +199,13 @@ private let SKINS = [
     Cosmetic(id: "blue", name: "Deep Freeze", cost: 140, icon: "\u{1F9CA}", col: hex("5ad6ff")),
     Cosmetic(id: "gold", name: "Golden Gas", cost: 260, icon: "\u{1F31F}", col: hex("ffd93d")),
     Cosmetic(id: "purple", name: "Toxic", cost: 380, icon: "\u{2620}", col: hex("c07aff")),
+]
+// Carried power-ups: bought once with coins, then RE-ARMED every level (one charge each).
+// Unlike the drops that fall from stunned monkeys, these are yours on demand — the point is
+// a clutch save a kid can reach for. Add to this list to add a power-up; everything else
+// (shop row, the rotate button, charges) is driven off it.
+private let POWERS = [
+    Cosmetic(id: "shield", name: "Shield", cost: 150, icon: "\u{1F6E1}", col: hex("25d4e8")),
 ]
 private struct Daily { let id: String, name: String, blurb: String, icon: String }
 // Kept FUN, never punishing: a kid shouldn't lose to the calendar.
@@ -351,6 +359,48 @@ final class GameView: UIView {
     /// Your gas colour — the equipped skin overrides the theme's fart colour.
     private func fartCol() -> UIColor { SKINS.first { $0.id == skinId }?.col ?? T.fart }
 
+    // ---------- carried power-ups ----------
+    /// The power-ups you actually own, in list order — the rotation ring.
+    private func ownedPowers() -> [Cosmetic] { POWERS.filter { owned.contains($0.id) } }
+    private lazy var powerId: String? = {
+        let s = ud.string(forKey: SK.power) ?? ""
+        if POWERS.contains(where: { $0.id == s }) && owned.contains(s) { return s }
+        return ownedPowers().first?.id
+    }()
+    private func setPower(_ id: String?) { powerId = id; ud.set(id ?? "", forKey: SK.power) }
+    private var powerUses: [String: Int] = [:]        // id -> charges left this level
+    private var lastPowerTap: CFTimeInterval = -1     // double-tap detection (see powerTap)
+    private var powerCycleT: CGFloat = 0
+    private let POWER_DBL: CGFloat = 0.30             // s — a second tap inside this means "use it"
+    /// One charge per power-up, re-armed at the start of every level.
+    private func armPowers() { powerUses = [:]; for p in ownedPowers() { powerUses[p.id] = 1 } }
+    // ONE button, two jobs: a single tap rotates which power-up is loaded, a double tap fires it.
+    // The cycle is deferred by POWER_DBL so a double tap doesn't rotate first and then fire the
+    // wrong thing — firing is instant on the second tap, rotating waits to see if one is coming.
+    private func powerTap() {
+        let now = CACurrentMediaTime()
+        if lastPowerTap > 0 && now - lastPowerTap < Double(POWER_DBL) {
+            lastPowerTap = -1; powerCycleT = 0; activatePower()
+        } else { lastPowerTap = now; powerCycleT = POWER_DBL }
+    }
+    private func cyclePower() {
+        let list = ownedPowers(); guard !list.isEmpty else { return }
+        let i = max(0, list.firstIndex { $0.id == powerId } ?? 0)
+        let next = list[(i+1) % list.count]
+        setPower(next.id); audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24); haptic(.pick)
+        if list.count > 1 { addFloat(P.x, P.y-58, next.name, next.col ?? cAccent, 15) }
+    }
+    private func activatePower() {
+        guard let p = POWERS.first(where: { $0.id == powerId }) else { return }
+        if (powerUses[p.id] ?? 0) <= 0 {
+            audio.tone(f0: 300, f1: 150, dur: 0.12, gain: 0.14)
+            addFloat(P.x, P.y-58, "used up!", hex("ff8a8a"), 14); return
+        }
+        powerUses[p.id] = (powerUses[p.id] ?? 1) - 1
+        if p.id == "shield" { P.shieldT = PU_SHIELD; addPop(P.x, P.y-52, "SHIELD!", cMask); doFlash(cMask, 0.2) }
+        audio.tone(f0: 520, f1: 1200, dur: 0.22, gain: 0.28); haptic(.boss); addShake(4, 0.12)
+    }
+
     // ---------- the daily ----------
     private func todayKey() -> String {
         let c = Calendar.current.dateComponents([.year, .month, .day], from: Date())
@@ -437,6 +487,13 @@ final class GameView: UIView {
     private func setFreePlay(_ v: Bool) { freePlay = v; UserDefaults.standard.set(v ? "1" : "0", forKey: "mm_free") }
     private var zFart: (cx: CGFloat, cy: CGFloat, r: CGFloat) { (LW/2 + 64, LH-62, 50) }
     private var zThrow: (cx: CGFloat, cy: CGFloat, r: CGFloat) { (LW/2 - 64, LH-62, 46) }
+    // The power-up button only exists once you've BOUGHT one — no dead control for a new player,
+    // and it keeps the already-tight Buttons strip clear until there's a reason for it. In Zones
+    // there's room in the action row; in Buttons the row is full, so it sits just above it.
+    private func powerBtn() -> (cx: CGFloat, cy: CGFloat, r: CGFloat)? {
+        guard !ownedPowers().isEmpty else { return nil }
+        return controlStyle == "zones" ? (LW/2 + 170, LH-62, 34) : (LW - 44, CTRL_TOP - 32, 30)
+    }
     private var pauseBtn: (cx: CGFloat, cy: CGFloat, r: CGFloat) { (26, 24, 16) }   // top-left, away from both thumbs
     private func pauseChoices() -> [(id: String, label: String, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat)] {
         let w: CGFloat = 232, h: CGFloat = 56, x0 = LW/2 - w/2, y = LH/2 - 4
@@ -535,15 +592,16 @@ final class GameView: UIView {
         level = 1; levelT = 0; boss = nil
         runCoins = 0; rankUpTo = nil
         resetForLevel(1.2); setMonkeyCount(LEVELS[0].monkeys); applyDaily()
+        armPowers(); lastPowerTap = -1; powerCycleT = 0
     }
     private func completeLevel() {
         awardCoins(5, P.x, P.y-40)
         // Free Play never meets the boss — it just rolls into another gentle wave.
         if !freePlay && level >= 10 { startBoss() } else { st = .leveldone; levelT = 0; burstFx(P.x, P.y, 14); audio.tone(f0: 520, f1: 120, dur: 0.3, gain: 0.24) }
     }
-    private func nextLevel() { level = freePlay ? min(level+1, FREEPLAY_CAP) : level + 1; levelT = 0; resetForLevel(1.0); setMonkeyCount(LEVELS[level-1].monkeys); st = .play }
+    private func nextLevel() { level = freePlay ? min(level+1, FREEPLAY_CAP) : level + 1; levelT = 0; resetForLevel(1.0); setMonkeyCount(LEVELS[level-1].monkeys); armPowers(); st = .play }
     private func startBoss() {
-        st = .boss; levelT = 0; resetForLevel(1.6); boss = Boss()
+        st = .boss; levelT = 0; resetForLevel(1.6); boss = Boss(); armPowers()
         addPop(LW/2, 168, "KING KONG-A-TOOT!", hex("ff5a5a")); doFlash(hex("ff5a5a"), 0.4); addShake(14, 0.6)
         audio.fart(freq: 90, dur: 1.0, flutter: 6, cutoff: 700, gain: 0.5)
     }
@@ -849,6 +907,8 @@ final class GameView: UIView {
         if P.faceT > 0 { P.faceT -= dt; if P.faceT <= 0 { P.face = 0 } }
         if P.blastFlash > 0 { P.blastFlash -= dt }; if P.barrierT > 0 { P.barrierT -= dt }; if P.mushT > 0 { P.mushT -= dt }
         if P.slipT > 0 { P.slipT -= dt }; if P.shieldT > 0 { P.shieldT -= dt }; if P.x2T > 0 { P.x2T -= dt }; if P.slowT > 0 { P.slowT -= dt }; if P.freeFartT > 0 { P.freeFartT -= dt }
+        // deferred single-tap: fires only if no second tap arrived inside POWER_DBL
+        if powerCycleT > 0 { powerCycleT -= dt; if powerCycleT <= 0 { powerCycleT = 0; cyclePower() } }
         if P.throwT > 0 { P.throwT -= dt }
         if P.magnetT > 0 { P.magnetT -= dt }
         // Holding jump in the air keeps the valve OPEN: no recharge, hovering or not. Without
@@ -1146,6 +1206,7 @@ final class GameView: UIView {
                 return
             }
             if inRound(pauseBtn, p.x, p.y) { pauseGame(); return }
+            if let pb = powerBtn(), inRound(pb, p.x, p.y) { powerTap(); return }   // before steering
             if controlStyle == "buttons" {
                 if let id = btnAt(p.x, p.y) ?? moveZoneAt(p.x, p.y) {   // fall back to the wide steering zone
                     touchRecs[ObjectIdentifier(t)] = TouchRec(role: id, seq: pressSeq); pressSeq += 1
@@ -1885,6 +1946,24 @@ final class GameView: UIView {
             let zt2 = zThrow; drawBtn(zt2.cx, zt2.cy, zt2.r, "\u{1F34C}", 30, held.contains("THROW"), throwReady, true); drawAmmoPips(zt2.cx, zt2.cy + zt2.r + 9)
             let z = zFart; drawBtn(z.cx, z.cy, z.r, "\u{1F4A8}", 32, held.contains("FART"), fartReady, true)
         }
+        drawPowerBtn()
+    }
+    /// The loaded power-up. Dims when its charge is spent; a ring shows it's ready to fire.
+    private func drawPowerBtn() {
+        guard let pb = powerBtn() else { return }
+        guard let p = POWERS.first(where: { $0.id == powerId }) ?? ownedPowers().first else { return }
+        let ready = (powerUses[p.id] ?? 0) > 0
+        drawBtn(pb.cx, pb.cy, pb.r, p.icon, pb.r - 8, false, ready, true)
+        if ready {
+            cg.setAlpha(0.9); cg.setStrokeColor((p.col ?? cAccent).cgColor); cg.setLineWidth(2.5)
+            cg.addEllipse(in: CGRect(x: pb.cx-pb.r-4, y: pb.cy-pb.r-4, width: (pb.r+4)*2, height: (pb.r+4)*2))
+            cg.strokePath(); cg.setAlpha(1)
+        }
+        text(ready ? "READY" : "USED", pb.cx, pb.cy + pb.r + 10, 9,
+             ready ? (p.col ?? cAccent) : UIColor(white: 1, alpha: 0.35), system: true)
+        if ownedPowers().count > 1 {
+            text("tap \u{27F3}", pb.cx, pb.cy - pb.r - 10, 9, UIColor(white: 1, alpha: 0.5), system: true)
+        }
     }
 
     // MARK: - Screens
@@ -1968,12 +2047,14 @@ final class GameView: UIView {
     private struct ShopCell { let row: Int; let it: Cosmetic; let x, y, w, h: CGFloat; let eq: String }
     private func shopCells() -> [ShopCell] {
         var cells: [ShopCell] = []
-        let cw = min(88, (LW-40)/6), ch: CGFloat = 76, y0 = (LH*0.30).rounded()
-        for (ri, row) in [(HATS, hatId), (SKINS, skinId)].enumerated() {
+        // Three rows now (hats · colours · power-ups), so the gap tightened from 58 to 40 and the
+        // block starts higher — at 0.30/58 the third row ran straight through the footer hint.
+        let cw = min(88, (LW-40)/6), ch: CGFloat = 76, y0 = (LH*0.265).rounded()
+        for (ri, row) in [(HATS, hatId), (SKINS, skinId), (POWERS, powerId ?? "")].enumerated() {
             let items = row.0, eq = row.1
             let n = CGFloat(items.count), tot = n*cw + (n-1)*6, x0 = (LW-tot)/2
             for (i, it) in items.enumerated() {
-                cells.append(ShopCell(row: ri, it: it, x: x0 + CGFloat(i)*(cw+6), y: y0 + CGFloat(ri)*(ch+58), w: cw, h: ch, eq: eq))
+                cells.append(ShopCell(row: ri, it: it, x: x0 + CGFloat(i)*(cw+6), y: y0 + CGFloat(ri)*(ch+40), w: cw, h: ch, eq: eq))
             }
         }
         return cells
@@ -1985,13 +2066,18 @@ final class GameView: UIView {
     /// Buy if you can afford it, equip if you own it. One tap does the obvious thing.
     private func shopTap(_ c: ShopCell) {
         let id = c.it.id
+        func equip() {
+            if c.row == 0 { hatId = id; ud.set(id, forKey: SK.hat) }
+            else if c.row == 1 { skinId = id; ud.set(id, forKey: SK.skin) }
+            else { setPower(id) }
+        }
         if owned.contains(id) {
-            if c.row == 0 { hatId = id; ud.set(id, forKey: SK.hat) } else { skinId = id; ud.set(id, forKey: SK.skin) }
+            equip()
             audio.tone(f0: 400, f1: 1100, dur: 0.16, gain: 0.24); haptic(.pick); return
         }
         if coins >= c.it.cost {
             coins -= c.it.cost; ud.set(coins, forKey: SK.coins); owned.append(id); ud.set(owned, forKey: SK.owned)
-            if c.row == 0 { hatId = id; ud.set(id, forKey: SK.hat) } else { skinId = id; ud.set(id, forKey: SK.skin) }
+            equip()
             audio.tone(f0: 520, f1: 1200, dur: 0.22, gain: 0.3); haptic(.boss)
             addPop(LW/2, LH*0.24, "UNLOCKED!", hex("ffd93d")); doFlash(hex("ffd93d"), 0.22)
         } else {
@@ -2008,7 +2094,7 @@ final class GameView: UIView {
         text("\u{1F34C} \(coins)", 0, 20, 18, .white, system: true)
         cg.restoreGState()
         let cells = shopCells()
-        for (ri, title) in ["HATS", "FART COLOUR"].enumerated() {
+        for (ri, title) in ["HATS", "FART COLOUR", "POWER-UPS"].enumerated() {
             guard let y = cells.first(where: { $0.row == ri })?.y else { continue }
             roundRect(LW/2-70, y-30, 140, 22, 11, UIColor(white: 0, alpha: 0.6), stroke: nil, lw: 0)
             text(title, LW/2, y-19, 11, .white, system: true)
@@ -2020,7 +2106,8 @@ final class GameView: UIView {
             cg.setAlpha(own ? 1 : (afford ? 0.85 : 0.4))
             text(c.it.icon, c.x + c.w/2, c.y + 24, 24, .white, system: true)
             text(c.it.name, c.x + c.w/2, c.y + 46, 10, .white, system: true)
-            let lbl = eq ? "EQUIPPED" : (own ? "tap to wear" : "\u{1F34C} \(c.it.cost)")
+            let pw = (c.row == 2)
+            let lbl = eq ? (pw ? "LOADED" : "EQUIPPED") : (own ? (pw ? "tap to load" : "tap to wear") : "\u{1F34C} \(c.it.cost)")
             text(lbl, c.x + c.w/2, c.y + 63, 11, eq ? hex("ffd93d") : (own ? hex("7CFF5A") : (afford ? hex("ffd93d") : hex("ff8a8a"))), system: true)
             cg.setAlpha(1)
         }

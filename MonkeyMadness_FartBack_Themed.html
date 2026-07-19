@@ -188,7 +188,8 @@ let st=ST.SPLASH, lives, score, best=0, combo, comboBestRun, gameT, tipT, lastTs
 
 // ---------- save data ----------
 const SAVE={ best:'fartback_best', coins:'mm_coins', life:'mm_lifetime', owned:'mm_owned',
-             hat:'mm_hat', skin:'mm_skin', diff:'mm_diff', daily:'mm_daily', music:'mm_music' };
+             hat:'mm_hat', skin:'mm_skin', diff:'mm_diff', daily:'mm_daily', music:'mm_music',
+             power:'mm_power' };
 function load(k,d){ try{ const v=localStorage.getItem(k); return v===null?d:v; }catch(e){ return d; } }
 function save(k,v){ try{ localStorage.setItem(k,String(v)); }catch(e){} }
 function loadInt(k,d){ const n=parseInt(load(k,''),10); return Number.isFinite(n)?n:d; }
@@ -339,6 +340,11 @@ const BTN=[{id:'L',cx:46,cy:H-62,r:40,glyph:'◀'},{id:'R',cx:132,cy:H-62,r:40,g
   {id:'JUMP',cx:232,cy:H-62,r:38,glyph:'⤒'},{id:'THROW',cx:330,cy:H-62,r:40,glyph:'🍌'},
   {id:'FART',cx:428,cy:H-64,r:44,glyph:'💨'}];
 const ZFART={cx:W/2+64,cy:H-62,r:50},ZTHROW={cx:W/2-64,cy:H-62,r:46};  // Zones mode action buttons
+// The power-up button only exists once you've BOUGHT one — no dead control for a new player,
+// and it keeps the already-tight Buttons strip clear until there's a reason for it. In Zones
+// there's room in the action row; in Buttons the row is full, so it sits just above it.
+function powerBtn(){ if(ownedPowers().length===0)return null;
+  return controlStyle==='zones' ? {cx:W/2+170,cy:H-62,r:34} : {cx:W-44,cy:CTRL_TOP-32,r:30}; }
 const PAUSE_BTN={cx:26,cy:24,r:16};   // top-left, away from both thumbs
 function pauseChoices(){ const w=232,h=56,x0=W/2-w/2,y=H/2-4;
   return [{id:'resume',label:'▶  RESUME',x:x0,y,w,h},{id:'menu',label:'🏠  MAIN MENU',x:x0,y:y+70,w,h}]; }
@@ -393,6 +399,8 @@ canvas.addEventListener('pointerdown',e=>{
     return;
   }
   if(inRound(PAUSE_BTN,x,y)){ pauseGame(); return; }
+  const pb=powerBtn();
+  if(pb&&inRound(pb,x,y)){ powerTap(); return; }   // before steering, so it can't be eaten by a zone
   if(controlStyle==='buttons'){
     const id=btnAt(x,y)||moveZoneAt(x,y);   // fall back to the wide steering zone
     if(id){ pointers.set(e.pointerId,{role:id,seq:pressSeq++}); if(id==='JUMP')doJump(); else if(id==='FART')doFart(); else if(id==='THROW')doThrow(); }
@@ -467,12 +475,47 @@ const HATS=[ {id:'none',name:'Bare',cost:0,icon:'🐵'}, {id:'cap',name:'Cap',co
 const SKINS=[ {id:'classic',name:'Classic',cost:0,col:null,icon:'💨'}, {id:'pink',name:'Bubblegum',cost:70,col:'#ff7ad5',icon:'🩷'},
   {id:'blue',name:'Deep Freeze',cost:140,col:'#5ad6ff',icon:'🧊'}, {id:'gold',name:'Golden Gas',cost:260,col:'#ffd93d',icon:'🌟'},
   {id:'purple',name:'Toxic',cost:380,col:'#c07aff',icon:'☠️'} ];
+// Carried power-ups: bought once with coins, then RE-ARMED every level (one charge each).
+// Unlike the drops that fall from stunned monkeys, these are yours on demand — the point is
+// a clutch save a kid can reach for. Add to this list to add a power-up; everything else
+// (shop row, the rotate button, charges) is driven off it.
+const POWERS=[ {id:'shield',name:'Shield',cost:150,icon:'🛡️',col:PU_COLORS.mask,dur:PU_SHIELD,blurb:'blocks a hit'} ];
 let owned=(()=>{ try{ const a=JSON.parse(load(SAVE.owned,'[]')); return Array.isArray(a)?a:[]; }catch(e){ return []; } })();
 if(!owned.includes('none'))owned.push('none'); if(!owned.includes('classic'))owned.push('classic');
 let hatId=owned.includes(load(SAVE.hat,'none'))?load(SAVE.hat,'none'):'none';
 let skinId=owned.includes(load(SAVE.skin,'classic'))?load(SAVE.skin,'classic'):'classic';
 function saveOwned(){ save(SAVE.owned,JSON.stringify(owned)); }
-function itemById(id){ return HATS.find(h=>h.id===id)||SKINS.find(s=>s.id===id)||null; }
+function itemById(id){ return HATS.find(h=>h.id===id)||SKINS.find(s=>s.id===id)||POWERS.find(p=>p.id===id)||null; }
+/// The power-ups you actually own, in list order — the rotation ring.
+function ownedPowers(){ return POWERS.filter(p=>owned.includes(p.id)); }
+let powerId=(()=>{ const s=load(SAVE.power,''); return POWERS.some(p=>p.id===s&&owned.includes(s))?s:(ownedPowers()[0]?ownedPowers()[0].id:null); })();
+function setPower(id){ powerId=id; save(SAVE.power,id||''); }
+let powerUses={};                      // id -> charges left this level
+let lastPowerTap=-1, powerCycleT=0;    // double-tap detection (see powerTap)
+const POWER_DBL=0.30;                  // s — a second tap inside this window means "use it"
+/// One charge per power-up, re-armed at the start of every level.
+function armPowers(){ powerUses={}; for(const p of ownedPowers())powerUses[p.id]=1; }
+// ONE button, two jobs: a single tap rotates which power-up is loaded, a double tap fires it.
+// The cycle is deferred by POWER_DBL so a double tap doesn't rotate first and then fire the
+// wrong thing — firing is instant on the second tap, rotating waits to see if one is coming.
+function powerTap(){
+  const now=performance.now()/1000;
+  if(lastPowerTap>0&&now-lastPowerTap<POWER_DBL){ lastPowerTap=-1; powerCycleT=0; activatePower(); }
+  else { lastPowerTap=now; powerCycleT=POWER_DBL; }
+}
+function cyclePower(){
+  const list=ownedPowers(); if(list.length===0)return;
+  const i=Math.max(0,list.findIndex(p=>p.id===powerId));
+  setPower(list[(i+1)%list.length].id); sfx.pick();
+  if(list.length>1)addFloat(P.x,P.y-58,itemById(powerId).name,itemById(powerId).col,15);
+}
+function activatePower(){
+  const p=POWERS.find(x=>x.id===powerId); if(!p)return;
+  if((powerUses[p.id]||0)<=0){ tone({f0:300,f1:150,dur:.12,gain:.14}); addFloat(P.x,P.y-58,'used up!','#ff8a8a',14); return; }
+  powerUses[p.id]--;
+  if(p.id==='shield'){ P.shieldT=p.dur; addPop(P.x,P.y-52,'SHIELD!',p.col); doFlash(p.col,.2); }
+  tone({f0:520,f1:1200,dur:.22,gain:.28,type:'square'}); addShake(4,.12);
+}
 /// Your gas colour — the skin overrides the theme's fart colour when equipped.
 function fartCol(){ const s=SKINS.find(s=>s.id===skinId); return (s&&s.col)?s.col:T.fart; }
 
@@ -508,13 +551,13 @@ function spawnCoin(x,y,n){ for(let i=0;i<(n||1);i++)
 function resetPlayer(inv){ P.x=W/2;P.y=PLAYER_GY;P.vy=0;P.onGround=true;P.inv=true;P.invT=inv||1.2;P.blinkT=0;P.gas=GAS_MAX;P.squashT=0;P.face=0;P.faceT=0;P.blastFlash=0;P.barrierT=0;P.slipT=0;P.mushT=0;P.shieldT=0;P.x2T=0;P.slowT=0;P.freeFartT=0;P.bananas=AMMO_START;P.throwT=0;P.magnetT=0;P.jumps=0;P.dblT=0; megaRingT=0; }
 function clearField(){ bananas=[];particles=[];clouds=[];floaters=[];pops=[];peels=[];powerups=[];fartClouds=[];groundBananas=[];coinsOnGround=[];cocos=[];flashT=0;hitstop=0; cocoT=6; }
 function startGame(){ st=ST.PLAY; lives=D.lives; score=0; combo=0; comboBestRun=0; gameT=0; level=1; levelT=0; boss=null; tipT=3.6;
-  runCoins=0; rankUpTo=null; applyDaily();
+  runCoins=0; rankUpTo=null; applyDaily(); armPowers(); lastPowerTap=-1; powerCycleT=0;
   clearField(); resetPlayer(1.2); monkeys=[]; setMonkeyCount(LEVELS[0].monkeys); }
 function completeLevel(){ awardCoins(5,P.x,P.y-40);
   // Free Play never meets the boss — it just rolls into another gentle wave.
   if(!freePlay&&level>=10){ startBoss(); } else { st=ST.LEVELDONE; levelT=0; burstFx(P.x,P.y,14); sfx.stun(); } }
-function nextLevel(){ level=freePlay?Math.min(level+1,FREEPLAY_CAP):level+1; levelT=0; clearField(); resetPlayer(1.0); monkeys=[]; setMonkeyCount(LEVELS[level-1].monkeys); st=ST.PLAY; }
-function startBoss(){ st=ST.BOSS; levelT=0; clearField(); resetPlayer(1.6); monkeys=[];
+function nextLevel(){ level=freePlay?Math.min(level+1,FREEPLAY_CAP):level+1; levelT=0; clearField(); resetPlayer(1.0); monkeys=[]; setMonkeyCount(LEVELS[level-1].monkeys); armPowers(); st=ST.PLAY; }
+function startBoss(){ st=ST.BOSS; levelT=0; clearField(); resetPlayer(1.6); monkeys=[]; armPowers();
   boss={x:W/2,bx:W/2,by:98,hp:100,maxHp:100,atkT:1.4,chargeT:0,phase:1,lastPhase:1,bobT:0,swingT:0,hitFlash:0,vx:46,roarT:1.4,weakT:0,slamT:0,slamHit:0,deathT:0,minionsSpawned:false,wob:0,tell:null,angryT:0};
   addPop(W/2,168,'KING KONG-A-TOOT!','#ff5a5a'); doFlash('#ff5a5a',.4); addShake(14,.6); tone({f0:90,f1:50,dur:1.0,gain:.5,type:'sawtooth'}); }
 function winGame(){ st=ST.WIN; sfx.pick(); for(let i=0;i<40;i++)particles.push({x:R(0,W),y:R(-40,H*.4),vx:R(-30,30),vy:R(60,180),kind:'star',life:R(1.5,3),maxLife:3,size:R(6,13)}); awardCoins(60); dailyPaid=false; endRun(); }
@@ -638,6 +681,8 @@ function update(dt){
   if(P.faceT>0){P.faceT-=dt;if(P.faceT<=0)P.face=0;}
   if(P.blastFlash>0)P.blastFlash-=dt; if(P.barrierT>0)P.barrierT-=dt; if(P.slipT>0)P.slipT-=dt; if(P.mushT>0)P.mushT-=dt;
   if(P.shieldT>0)P.shieldT-=dt; if(P.x2T>0)P.x2T-=dt; if(P.slowT>0)P.slowT-=dt; if(P.freeFartT>0)P.freeFartT-=dt; if(P.magnetT>0)P.magnetT-=dt;
+  // deferred single-tap: fires only if no second tap arrived inside POWER_DBL
+  if(powerCycleT>0){ powerCycleT-=dt; if(powerCycleT<=0){ powerCycleT=0; cyclePower(); } }
   if(P.throwT>0)P.throwT-=dt;
   // Holding jump in the air keeps the valve OPEN: no recharge, hovering or not. Without
   // this, gas refills the instant hover cuts out and you sputter along forever on empty.
@@ -1299,7 +1344,22 @@ function drawControls(){
     drawBtn(ZTHROW.cx,ZTHROW.cy,ZTHROW.r,'🍌',30,pr.includes('THROW'),throwReady,true); drawAmmoPips(ZTHROW.cx,ZTHROW.cy+ZTHROW.r+9);
     drawBtn(ZFART.cx,ZFART.cy,ZFART.r,'💨',32,pr.includes('FART'),fartReady,true);
   }
+  drawPowerBtn();
   ctx.globalAlpha=1;
+}
+/// The loaded power-up. Dims when its charge is spent; a ring shows it's ready to fire.
+function drawPowerBtn(){
+  const pb=powerBtn(); if(!pb)return;
+  const p=POWERS.find(x=>x.id===powerId)||ownedPowers()[0]; if(!p)return;
+  const ready=(powerUses[p.id]||0)>0;
+  drawBtn(pb.cx,pb.cy,pb.r,p.icon,pb.r-8,false,ready,true);
+  if(ready){ ctx.strokeStyle=p.col; ctx.lineWidth=2.5; ctx.globalAlpha=.9;
+    ctx.beginPath(); ctx.arc(pb.cx,pb.cy,pb.r+4,0,6.28); ctx.stroke(); ctx.globalAlpha=1; }
+  // a charge pip, and "2x" only when rotating actually does something
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='700 9px system-ui,sans-serif';
+  ctx.fillStyle=ready?p.col:'rgba(255,255,255,.35)';
+  ctx.fillText(ready?'READY':'USED',pb.cx,pb.cy+pb.r+10);
+  if(ownedPowers().length>1){ ctx.fillStyle='rgba(255,255,255,.5)'; ctx.fillText('tap ⟳',pb.cx,pb.cy-pb.r-10); }
 }
 // tiny ammo pips under the 🍌 button
 function drawAmmoPips(cx,cy){ const n=AMMO_MAX, gap=8, x0=cx-(n-1)*gap/2;
@@ -1399,12 +1459,15 @@ function drawSplash(){
 // ---------- shop ----------
 // Cosmetic only, and every price is paid in coins you EARNED. Nothing here costs money,
 // nothing is gated behind an ad, and nothing affects difficulty.
-function shopRows(){ return [ {title:'HATS',items:HATS,eq:hatId}, {title:'FART COLOUR',items:SKINS,eq:skinId} ]; }
+function shopRows(){ return [ {title:'HATS',items:HATS,eq:hatId}, {title:'FART COLOUR',items:SKINS,eq:skinId},
+                              {title:'POWER-UPS',items:POWERS,eq:powerId} ]; }
 function shopCells(){
-  const cells=[], cw=Math.min(88,(W-40)/6), ch=76, y0=Math.round(H*0.30);
+  // Three rows now (hats · colours · power-ups), so the gap tightened from 58 to 40 and the
+  // block starts higher — at 0.30/58 the third row ran straight through the footer hint.
+  const cells=[], cw=Math.min(88,(W-40)/6), ch=76, y0=Math.round(H*0.265);
   shopRows().forEach((row,ri)=>{
     const n=row.items.length, tot=n*cw+(n-1)*6, x0=(W-tot)/2;
-    row.items.forEach((it,i)=>cells.push({row:ri,it,x:x0+i*(cw+6),y:y0+ri*(ch+58),w:cw,h:ch,eq:row.eq}));
+    row.items.forEach((it,i)=>cells.push({row:ri,it,x:x0+i*(cw+6),y:y0+ri*(ch+40),w:cw,h:ch,eq:row.eq}));
   });
   return cells;
 }
@@ -1414,9 +1477,10 @@ function inShopBack(x,y){ const b=shopBack(); return x>=b.x&&x<=b.x+b.w&&y>=b.y&
 /// Buy if you can afford it, equip if you own it. One tap does the obvious thing.
 function shopTap(c){
   const id=c.it.id;
-  if(owned.includes(id)){ if(c.row===0){ hatId=id; save(SAVE.hat,id); } else { skinId=id; save(SAVE.skin,id); } sfx.pick(); return; }
+  const equip=()=>{ if(c.row===0){ hatId=id; save(SAVE.hat,id); } else if(c.row===1){ skinId=id; save(SAVE.skin,id); } else { setPower(id); } };
+  if(owned.includes(id)){ equip(); sfx.pick(); return; }
   if(coins>=c.it.cost){ coins-=c.it.cost; save(SAVE.coins,coins); owned.push(id); saveOwned();
-    if(c.row===0){ hatId=id; save(SAVE.hat,id); } else { skinId=id; save(SAVE.skin,id); }
+    equip();
     tone({f0:520,f1:1200,dur:.22,gain:.3,type:'square'}); addPop(W/2,H*0.24,'UNLOCKED!','#ffd93d'); doFlash('#ffd93d',.22);
   } else { tone({f0:300,f1:150,dur:.12,gain:.14}); addFloat(W/2,H*0.72,'not enough 🍌','#ff5a5a',15); }
 }
@@ -1453,7 +1517,8 @@ function drawShop(){
     ctx.font='700 10px system-ui,sans-serif'; ctx.fillStyle='#fff'; ctx.fillText(c.it.name,c.x+c.w/2,c.y+46);
     ctx.font='700 11px system-ui,sans-serif';
     ctx.fillStyle=eq?'#ffd93d':(own?'#7CFF5A':(afford?'#ffd93d':'#ff8a8a'));
-    ctx.fillText(eq?'EQUIPPED':(own?'tap to wear':'🍌 '+c.it.cost),c.x+c.w/2,c.y+63);
+    const pw=c.row===2;
+    ctx.fillText(eq?(pw?'LOADED':'EQUIPPED'):(own?(pw?'tap to load':'tap to wear'):'🍌 '+c.it.cost),c.x+c.w/2,c.y+63);
     ctx.globalAlpha=1;
   }
   // hint + back
