@@ -2159,20 +2159,27 @@ final class GameView: UIView {
         roundRect(b.minX, b.minY, b.width, b.height, 16, T.border, stroke: T.accent, lw: 4)
         text(label, b.midX, b.midY, 26, .white)
     }
+    // ONE title card, drawn in exactly the same place at exactly the same size on BOTH the
+    // splash and the menu. Moving from splash to menu should only ever ADD things — if the
+    // title shifts or resizes, the whole transition reads as two unrelated screens.
+    private func drawTitleCard(alpha: CGFloat = 1, scale: CGFloat = 1) {
+        cg.saveGState(); cg.translateBy(x: LW/2, y: (LH*0.205).rounded())
+        if scale != 1 { cg.scaleBy(x: scale, y: scale) }
+        if alpha < 1 { cg.setAlpha(alpha) }
+        roundRect(-186, -48, 372, 96, 18, UIColor(white: 0, alpha: 0.74), stroke: cAccent, lw: 3.5)
+        text("FART BACK!", 0, -12, 40, hex("ffe022"))
+        text("MONKEY FART MADNESS", 0, 22, 13, UIColor(white: 1, alpha: 0.8))
+        cg.restoreGState(); cg.setAlpha(1)
+    }
     private func drawSplash() {
         let t = splashT
-        drawLanes(t, wipe: t, dim: false)
-        // title lands once the lanes are in
+        // No pills on the splash — the worlds are being shown off, not chosen yet. They
+        // arrive with the rest of the menu furniture, so nothing has to move when it ends.
+        drawLanes(t, wipe: t, dim: false, pills: false)
+        // The title lands once the lanes are in, in its FINAL position — it pops in, then
+        // stays exactly where it is for the menu.
         let tt = max(0, min(1, (t - 0.75)/0.45))
-        if tt > 0 {
-            let pop = 1 + 0.12*sin(min(1, tt)*CGFloat.pi)
-            cg.saveGState(); cg.translateBy(x: LW/2, y: LH*0.42); cg.scaleBy(x: pop, y: pop); cg.setAlpha(tt)
-            roundRect(-198, -74, 396, 148, 18, UIColor(white: 0, alpha: 0.72), stroke: hex("ffe022"), lw: 4)
-            text("FART BACK!", 0, -14, 44, hex("ffe022"))
-            text("MONKEY FART MADNESS", 0, 26, 16, .white)
-            text("4 worlds \u{00B7} pick yours next", 0, 52, 12, hex("7CFF5A"))
-            cg.restoreGState(); cg.setAlpha(1)
-        }
+        if tt > 0 { drawTitleCard(alpha: tt, scale: 1 + 0.12*sin(min(1, tt)*CGFloat.pi)) }
         // sits over four different grounds, so it carries its own contrast
         if t > 1.9 && Int(t*2) % 2 == 0 {
             roundRect(LW/2-52, LH-56, 104, 26, 13, UIColor(white: 0, alpha: 0.55), stroke: nil, lw: 0)
@@ -2186,11 +2193,7 @@ final class GameView: UIView {
     // Everything adjustable moved behind SETTINGS.
     private func drawStart() {
         drawLanes(menuT, wipe: nil, dim: true, bananas: false)
-        cg.saveGState(); cg.translateBy(x: LW/2, y: (LH*0.205).rounded())
-        roundRect(-186, -48, 372, 96, 18, UIColor(white: 0, alpha: 0.74), stroke: cAccent, lw: 3.5)
-        text("FART BACK!", 0, -12, 40, hex("ffe022"))
-        text("MONKEY FART MADNESS", 0, 22, 13, UIColor(white: 1, alpha: 0.8))
-        cg.restoreGState()
+        drawTitleCard()
         drawStatusLine((LH*0.30).rounded())
         drawModeChips()
         drawPlayBtn(freePlay ? "\u{25B6} FREE PLAY" : "\u{25B6} PLAY")
